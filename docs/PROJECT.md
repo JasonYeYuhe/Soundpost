@@ -10,12 +10,26 @@ An audio-first memory app: capture ten seconds of how your life *sounds* right n
 beautiful waveform card (sound + mood + place + one line), and optionally **seal** it to
 resurface to your future self.
 
-Status: **MVP build complete (M1–M6).** Record → mood-tinted waveform-card gallery → playback
-→ seal to a future date → resurface, all working in the simulator; localized EN/JA/ZH-Hans
-(verified). 41 tests across 7 suites pass.
-Remaining before submission: real **app icon** (currently a placeholder asset), App Store
-Connect **name reservation** for "Soundpost", and on-device testing of the live record + the
-notification fire→tap loop (can't be automated headlessly).
+Status: **MVP build complete + pre-submission hardening done (M1–M7).** Record → mood-tinted
+waveform-card gallery → playback → seal to a future date → resurface, all working in the
+simulator; localized EN/JA/ZH-Hans (verified). **43 tests** across 7 suites pass.
+M7 (2026-06-09) shipped: the real **app icon** (1024² sRGB, no alpha); a **PrivacyInfo.xcprivacy**
+manifest (no tracking/collection; FileTimestamp C617.1) that clears the ITMS-91053 upload
+warning; **ITSAppUsesNonExemptEncryption = NO** (no export-compliance prompt); version bumped to
+**1.0.0**; the two missing **honest-limits disclosures now surfaced in-app** (ambient-recording
+consent in the capture flow; no-cloud-backup/uninstall warning in the gallery); an **accessibility
+pass** (VoiceOver labels on the waveform/cards/glyphs/mood chips, Reduce-Motion support); and
+**audio robustness** (route-change finalization + onAutoFinish so interrupted/maxed clips reach
+review instead of being orphaned; sub-1s clips discarded; record/save errors surfaced).
+Driven by a 5-dimension multi-agent readiness audit (App-Store / i18n / honest-copy / core-logic /
+a11y), each finding adversarially verified; i18n came back 100% complete and the 64-notification
+planner + state machine verified correct.
+Remaining before submission: App Store Connect **name reservation** for "Soundpost" (needs the
+owner's Apple ID — external); **on-device testing** of the live record loop + notification
+fire→tap (can't be automated headlessly; logic is unit-tested).
+Open design decisions deliberately left to the owner (not blockers): a **brand AccentColor**
+(currently empty → system blue tint; the app otherwise tints per-mood), and the **Joyful** mood's
+system-yellow tint which is low-contrast as a foreground/text color on light cards.
 Date: 2026-06-09.
 
 ---
@@ -214,6 +228,13 @@ Apple Platform Security (Data Protection classes); developer.apple.com/swift-stu
 
 - **M6 — i18n + polish.** String Catalog EN/JA/ZH-Hans, empty/permission states, storage usage
   display, dark mode, placeholder app icon. **Verify:** switch locale, every string localizes.
+
+- **M7 — App icon + pre-submission hardening.** Real app icon; `PrivacyInfo.xcprivacy`
+  (FileTimestamp C617.1, no tracking/collection); `ITSAppUsesNonExemptEncryption = NO`; version
+  1.0.0; the two missing honest-limits disclosures surfaced in-app (recording-consent +
+  no-backup); accessibility pass (VoiceOver/Reduce-Motion); audio route-change finalization +
+  min-clip guard + non-silent record/save errors. **Verify:** privacy manifest bundled & valid in
+  the built `.app`; export-compliance + version keys in Info.plist; 43 tests green, warning-free.
 
 ### Project setup (resolved)
 Per the step-4 decision (option A, done for the user): a standard `Soundpost.xcodeproj` was
