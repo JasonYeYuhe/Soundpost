@@ -23,8 +23,15 @@ private struct RootView: View {
         if AppEnvironment.isRunningUnderTests {
             Color.clear
         } else {
-            ContentView()
-                .modelContainer(for: Capsule.self)
+            #if DEBUG
+            if AppEnvironment.isDemoSeed {
+                ContentView().modelContainer(DemoData.container)
+            } else {
+                ContentView().modelContainer(for: Capsule.self)
+            }
+            #else
+            ContentView().modelContainer(for: Capsule.self)
+            #endif
         }
     }
 }
@@ -34,5 +41,10 @@ enum AppEnvironment {
     static var isRunningUnderTests: Bool {
         NSClassFromString("XCTestCase") != nil
             || ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+    }
+
+    /// Debug screenshot/demo mode: in-memory store pre-seeded with sample capsules.
+    static var isDemoSeed: Bool {
+        CommandLine.arguments.contains("-seedSampleData")
     }
 }

@@ -14,10 +14,11 @@ struct ContentView: View {
                 if capsules.isEmpty {
                     emptyState
                 } else {
-                    capsuleList
+                    gallery
                 }
             }
             .navigationTitle("Soundpost")
+            .navigationDestination(for: Capsule.self) { CapsuleDetailView(capsule: $0) }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { showingCapture = true } label: {
@@ -41,65 +42,18 @@ struct ContentView: View {
         }
     }
 
-    private var capsuleList: some View {
-        List {
-            ForEach(capsules) { CapsuleRow(capsule: $0) }
-                .onDelete(perform: delete)
-        }
-        .listStyle(.plain)
-    }
-
-    private func delete(_ offsets: IndexSet) {
-        let audioStore = AudioStore()
-        for index in offsets {
-            let capsule = capsules[index]
-            if let file = capsule.audioFileName { try? audioStore.delete(file) }
-            modelContext.delete(capsule)
-        }
-        try? modelContext.save()
-    }
-}
-
-/// Compact list row for M3 — a richer waveform card lands in M4.
-private struct CapsuleRow: View {
-    let capsule: Capsule
-
-    var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: capsule.mood?.symbolName ?? "waveform")
-                .foregroundStyle(capsule.mood?.tint ?? .accentColor)
-                .frame(width: 26)
-            VStack(alignment: .leading, spacing: 3) {
-                Text(title)
-                    .font(.body)
-                    .lineLimit(1)
-                HStack(spacing: 8) {
-                    Text(capsule.createdAt, format: .dateTime.month().day().hour().minute())
-                    if let name = capsule.place?.name {
-                        Label(name, systemImage: "mappin").labelStyle(.titleAndIcon).lineLimit(1)
+    private var gallery: some View {
+        ScrollView {
+            LazyVStack(spacing: 16) {
+                ForEach(capsules) { capsule in
+                    NavigationLink(value: capsule) {
+                        CapsuleCard(capsule: capsule)
                     }
-                    Text(durationString)
+                    .buttonStyle(.plain)
                 }
-                .font(.caption)
-                .foregroundStyle(.secondary)
             }
-            Spacer(minLength: 8)
-            if !capsule.waveformSamples.isEmpty {
-                WaveformView(samples: capsule.waveformSamples, color: capsule.mood?.tint ?? .accentColor)
-                    .frame(width: 70, height: 28)
-            }
+            .padding()
         }
-        .padding(.vertical, 4)
-    }
-
-    private var title: String {
-        if let note = capsule.note, !note.isEmpty { return note }
-        return "Untitled capsule"
-    }
-
-    private var durationString: String {
-        let total = Int(capsule.durationSeconds.rounded())
-        return String(format: "%d:%02d", total / 60, total % 60)
     }
 }
 
