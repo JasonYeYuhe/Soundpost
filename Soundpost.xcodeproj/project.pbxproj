@@ -12,24 +12,24 @@
 			containerPortal = 0000000000000000000000A1 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = 0000000000000000000000C1;
-			remoteInfo = Soundmark;
+			remoteInfo = Soundpost;
 		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		0000000000000000000000D1 /* Soundmark.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Soundmark.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		0000000000000000000000D2 /* SoundmarkTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SoundmarkTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		0000000000000000000000D1 /* Soundpost.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Soundpost.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		0000000000000000000000D2 /* SoundpostTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SoundpostTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		0000000000000000000000B1 /* Soundmark */ = {
+		0000000000000000000000B1 /* Soundpost */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = Soundmark;
+			path = Soundpost;
 			sourceTree = "<group>";
 		};
-		0000000000000000000000B2 /* SoundmarkTests */ = {
+		0000000000000000000000B2 /* SoundpostTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = SoundmarkTests;
+			path = SoundpostTests;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -55,8 +55,8 @@
 		0000000000000000000000A2 = {
 			isa = PBXGroup;
 			children = (
-				0000000000000000000000B1 /* Soundmark */,
-				0000000000000000000000B2 /* SoundmarkTests */,
+				0000000000000000000000B1 /* Soundpost */,
+				0000000000000000000000B2 /* SoundpostTests */,
 				0000000000000000000000A3 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -64,8 +64,8 @@
 		0000000000000000000000A3 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				0000000000000000000000D1 /* Soundmark.app */,
-				0000000000000000000000D2 /* SoundmarkTests.xctest */,
+				0000000000000000000000D1 /* Soundpost.app */,
+				0000000000000000000000D2 /* SoundpostTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -73,9 +73,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		0000000000000000000000C1 /* Soundmark */ = {
+		0000000000000000000000C1 /* Soundpost */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 0000000000000000000000E3 /* Build configuration list for PBXNativeTarget "Soundmark" */;
+			buildConfigurationList = 0000000000000000000000E3 /* Build configuration list for PBXNativeTarget "Soundpost" */;
 			buildPhases = (
 				0000000000000000000000F1 /* Sources */,
 				0000000000000000000000F2 /* Frameworks */,
@@ -86,18 +86,18 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				0000000000000000000000B1 /* Soundmark */,
+				0000000000000000000000B1 /* Soundpost */,
 			);
-			name = Soundmark;
+			name = Soundpost;
 			packageProductDependencies = (
 			);
-			productName = Soundmark;
-			productReference = 0000000000000000000000D1 /* Soundmark.app */;
+			productName = Soundpost;
+			productReference = 0000000000000000000000D1 /* Soundpost.app */;
 			productType = "com.apple.product-type.application";
 		};
-		0000000000000000000000C2 /* SoundmarkTests */ = {
+		0000000000000000000000C2 /* SoundpostTests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 0000000000000000000000E6 /* Build configuration list for PBXNativeTarget "SoundmarkTests" */;
+			buildConfigurationList = 0000000000000000000000E6 /* Build configuration list for PBXNativeTarget "SoundpostTests" */;
 			buildPhases = (
 				0000000000000000000000F4 /* Sources */,
 				0000000000000000000000F5 /* Frameworks */,
@@ -109,13 +109,13 @@
 				0000000000000000000000A0 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				0000000000000000000000B2 /* SoundmarkTests */,
+				0000000000000000000000B2 /* SoundpostTests */,
 			);
-			name = SoundmarkTests;
+			name = SoundpostTests;
 			packageProductDependencies = (
 			);
-			productName = SoundmarkTests;
-			productReference = 0000000000000000000000D2 /* SoundmarkTests.xctest */;
+			productName = SoundpostTests;
+			productReference = 0000000000000000000000D2 /* SoundpostTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
 /* End PBXNativeTarget section */
@@ -137,7 +137,7 @@
 					};
 				};
 			};
-			buildConfigurationList = 0000000000000000000000E0 /* Build configuration list for PBXProject "Soundmark" */;
+			buildConfigurationList = 0000000000000000000000E0 /* Build configuration list for PBXProject "Soundpost" */;
 			compatibilityVersion = "Xcode 16.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
@@ -152,8 +152,8 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				0000000000000000000000C1 /* Soundmark */,
-				0000000000000000000000C2 /* SoundmarkTests */,
+				0000000000000000000000C1 /* Soundpost */,
+				0000000000000000000000C2 /* SoundpostTests */,
 			);
 		};
 /* End PBXProject section */
@@ -195,7 +195,7 @@
 /* Begin PBXTargetDependency section */
 		0000000000000000000000A0 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 0000000000000000000000C1 /* Soundmark */;
+			target = 0000000000000000000000C1 /* Soundpost */;
 			targetProxy = 0000000000000000000000B0 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
@@ -270,8 +270,8 @@
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Soundmark can tag a capsule with where you recorded it.";
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Soundmark records short sounds to make your memory capsules.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Soundpost can tag a capsule with where you recorded it.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Soundpost records short sounds to make your memory capsules.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -283,7 +283,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 0.1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.soundmark.Soundmark;
+				PRODUCT_BUNDLE_IDENTIFIER = com.soundpost.Soundpost;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -300,8 +300,8 @@
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Soundmark can tag a capsule with where you recorded it.";
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Soundmark records short sounds to make your memory capsules.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Soundpost can tag a capsule with where you recorded it.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Soundpost records short sounds to make your memory capsules.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -313,7 +313,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 0.1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.soundmark.Soundmark;
+				PRODUCT_BUNDLE_IDENTIFIER = com.soundpost.Soundpost;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -330,12 +330,12 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MARKETING_VERSION = 0.1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.soundmark.SoundmarkTests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.soundpost.SoundpostTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Soundmark.app/Soundmark";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Soundpost.app/Soundpost";
 			};
 			name = Debug;
 		};
@@ -348,19 +348,19 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MARKETING_VERSION = 0.1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.soundmark.SoundmarkTests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.soundpost.SoundpostTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Soundmark.app/Soundmark";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Soundpost.app/Soundpost";
 			};
 			name = Release;
 		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		0000000000000000000000E0 /* Build configuration list for PBXProject "Soundmark" */ = {
+		0000000000000000000000E0 /* Build configuration list for PBXProject "Soundpost" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				0000000000000000000000E1 /* Debug */,
@@ -369,7 +369,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		0000000000000000000000E3 /* Build configuration list for PBXNativeTarget "Soundmark" */ = {
+		0000000000000000000000E3 /* Build configuration list for PBXNativeTarget "Soundpost" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				0000000000000000000000E4 /* Debug */,
@@ -378,7 +378,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		0000000000000000000000E6 /* Build configuration list for PBXNativeTarget "SoundmarkTests" */ = {
+		0000000000000000000000E6 /* Build configuration list for PBXNativeTarget "SoundpostTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				0000000000000000000000E7 /* Debug */,

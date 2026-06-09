@@ -1,7 +1,7 @@
 import Testing
 import Foundation
 import AVFoundation
-@testable import Soundmark
+@testable import Soundpost
 
 struct WaveformExtractorTests {
     /// Write a 1-second mono sine wave to a real AAC/m4a file and return its URL.

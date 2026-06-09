@@ -15,9 +15,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "0000000000000000000000C1"
-               BuildableName = "Soundmark.app"
-               BlueprintName = "Soundmark"
-               ReferencedContainer = "container:Soundmark.xcodeproj">
+               BuildableName = "Soundpost.app"
+               BlueprintName = "Soundpost"
+               ReferencedContainer = "container:Soundpost.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -33,9 +33,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "0000000000000000000000C2"
-               BuildableName = "SoundmarkTests.xctest"
-               BlueprintName = "SoundmarkTests"
-               ReferencedContainer = "container:Soundmark.xcodeproj">
+               BuildableName = "SoundpostTests.xctest"
+               BlueprintName = "SoundpostTests"
+               ReferencedContainer = "container:Soundpost.xcodeproj">
             </BuildableReference>
          </TestableReference>
       </Testables>
@@ -55,9 +55,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "0000000000000000000000C1"
-            BuildableName = "Soundmark.app"
-            BlueprintName = "Soundmark"
-            ReferencedContainer = "container:Soundmark.xcodeproj">
+            BuildableName = "Soundpost.app"
+            BlueprintName = "Soundpost"
+            ReferencedContainer = "container:Soundpost.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>
@@ -72,9 +72,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "0000000000000000000000C1"
-            BuildableName = "Soundmark.app"
-            BlueprintName = "Soundmark"
-            ReferencedContainer = "container:Soundmark.xcodeproj">
+            BuildableName = "Soundpost.app"
+            BlueprintName = "Soundpost"
+            ReferencedContainer = "container:Soundpost.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>

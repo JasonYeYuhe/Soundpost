@@ -1,11 +1,11 @@
 import Testing
 import Foundation
-@testable import Soundmark
+@testable import Soundpost
 
 struct AudioStoreTests {
     /// A store rooted in a unique temp directory, cleaned by the OS.
     private func makeStore() -> AudioStore {
-        let dir = URL.temporaryDirectory.appending(path: "SoundmarkTest-\(UUID().uuidString)", directoryHint: .isDirectory)
+        let dir = URL.temporaryDirectory.appending(path: "SoundpostTest-\(UUID().uuidString)", directoryHint: .isDirectory)
         return AudioStore(directory: dir)
     }
 

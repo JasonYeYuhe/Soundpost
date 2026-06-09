@@ -11,7 +11,7 @@ struct AudioStore {
 
     init(directory: URL? = nil) {
         self.directory = directory
-            ?? URL.applicationSupportDirectory.appending(path: "SoundmarkAudio", directoryHint: .isDirectory)
+            ?? URL.applicationSupportDirectory.appending(path: "SoundpostAudio", directoryHint: .isDirectory)
     }
 
     /// Create the audio directory if needed and return it.

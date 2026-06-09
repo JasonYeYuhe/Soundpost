@@ -13,7 +13,7 @@ struct ContentView: View {
                 Image(systemName: "waveform")
                     .font(.system(size: 56, weight: .light))
                     .foregroundStyle(.tint)
-                Text("Soundmark")
+                Text("Soundpost")
                     .font(.largeTitle.bold())
                 Text("Milestone 1 · foundation")
                     .foregroundStyle(.secondary)
@@ -22,7 +22,7 @@ struct ContentView: View {
                     .foregroundStyle(.secondary)
             }
             .padding()
-            .navigationTitle("Soundmark")
+            .navigationTitle("Soundpost")
             .navigationBarTitleDisplayMode(.inline)
         }
     }

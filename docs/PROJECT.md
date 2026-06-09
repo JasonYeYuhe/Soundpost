@@ -1,13 +1,17 @@
-# Soundmark — Project Brief
+# Soundpost — Project Brief
 
-> Working name. **Must be checked for App Store name availability before first submission.**
-> Alternates if taken: *Sonder*, *Resound*, *Lull*.
+> Name chosen 2026-06-09: **Soundpost** (a *soundpost* is the dowel inside a violin that
+> carries the vibration — luthiers call it "the soul"; "post" also = sending a message forward
+> in time). Confirmed free of exact-name collision on the US App Store; the App Store Connect
+> reservation is still the final confirm. Validated by Gemini 3.1 Pro + Codex (both ranked it #1).
+> Earlier working name "Soundmark" was already taken. Alternates considered: *Yonder*, *Hark*, *Soundkeep*.
 
 An audio-first memory app: capture ten seconds of how your life *sounds* right now as a
 beautiful waveform card (sound + mood + place + one line), and optionally **seal** it to
 resurface to your future self.
 
-Status: pre-build. Research + decisions done; awaiting go/no-go (step 4).
+Status: building. M1 (core data + state machine + scheduler) and M2 (audio pipeline) done;
+M3 (capture UI) in progress.
 Date: 2026-06-09.
 
 ---
@@ -156,9 +160,11 @@ Apple Platform Security (Data Protection classes); developer.apple.com/swift-stu
   - **Location: CoreLocation one-shot + reverse-geocode, optional & permission-gated.** — Place adds memory salience cheaply while staying privacy-light.
   - **Dependencies: none.** — Nothing above earns a third-party dependency for MVP.
 
-- **Working name:** **Soundmark** — a *soundmark* is the auditory equivalent of a landmark
-  (acoustic-ecology term) — it *is* the thesis. (Availability check pending; alternates: Sonder,
-  Resound, Lull.)
+- **Name:** **Soundpost** — the violin dowel that carries the vibration ("the soul"); "post"
+  also = sending a message forward. Captures both halves (sound + future delivery) in one word.
+  — Confirmed free of exact-name collision on the US App Store (ASC reservation still pending);
+  ranked #1 by Gemini 3.1 Pro and Codex. ASO note: "post" skews social, so the subtitle/keywords
+  must carry "audio memory / voice journal / sound capsule". Alternates: Yonder, Hark, Soundkeep.
 
 - **Monetization (hypothesis only — not built):** free tier covers capture + cards + local
   resurfacing generously; a **one-time unlock or modest annual "Pro"** sells creation richness
@@ -205,9 +211,8 @@ Apple Platform Security (Data Protection classes); developer.apple.com/swift-stu
 - **M6 — i18n + polish.** String Catalog EN/JA/ZH-Hans, empty/permission states, storage usage
   display, dark mode, placeholder app icon. **Verify:** switch locale, every string localizes.
 
-### Setup blocker for the build phase (your call at step 4)
-I must not hand-generate the `.xcodeproj` binary. Two options:
-- **(A)** You create a blank SwiftUI app in Xcode (iOS App, SwiftUI, **SwiftData** storage,
-  name `Soundmark`, min iOS 17) and I build into it. *Simplest.*
-- **(B)** I introduce **XcodeGen** (`project.yml`, lightweight, regenerates the project from
-  text) — a third-party tool, so it needs your OK first.
+### Project setup (resolved)
+Per the step-4 decision (option A, done for the user): a standard `Soundpost.xcodeproj` was
+hand-authored using Xcode-16 **file-system-synchronized groups** (objectVersion 77), so new
+source files are auto-included without editing the project file — no XcodeGen/Tuist dependency.
+iOS 17, SwiftData, zero third-party deps.

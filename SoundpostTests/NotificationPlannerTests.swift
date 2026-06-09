@@ -1,6 +1,6 @@
 import Testing
 import Foundation
-@testable import Soundmark
+@testable import Soundpost
 
 /// Tests for the 64-nearest notification scheduling policy (docs/PROJECT.md §1e.1).
 struct NotificationPlannerTests {

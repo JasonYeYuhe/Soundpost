@@ -3,7 +3,7 @@ import SwiftData
 
 /// App entry point.
 @main
-struct SoundmarkApp: App {
+struct SoundpostApp: App {
     var body: some Scene {
         WindowGroup {
             RootView()

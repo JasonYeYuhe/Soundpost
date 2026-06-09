@@ -1,6 +1,6 @@
 import Testing
 import Foundation
-@testable import Soundmark
+@testable import Soundpost
 
 /// Tests for the capsule lifecycle state machine — the riskiest, most
 /// foundational piece (docs/PROJECT.md §3, M1).

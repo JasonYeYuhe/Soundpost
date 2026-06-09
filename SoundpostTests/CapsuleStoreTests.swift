@@ -1,7 +1,7 @@
 import Testing
 import Foundation
 import SwiftData
-@testable import Soundmark
+@testable import Soundpost
 
 /// Tests for `CapsuleStore` against an in-memory SwiftData container.
 ///
