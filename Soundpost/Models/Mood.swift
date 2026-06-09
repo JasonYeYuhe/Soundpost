@@ -17,16 +17,18 @@ enum Mood: String, CaseIterable, Codable, Identifiable, Sendable {
 }
 
 extension Mood {
-    /// User-facing label. Wrapped for localization (String Catalog) in M6.
+    /// User-facing, localized label. `String(localized:)` because this is read as
+    /// a `String` (e.g. `Text(mood.label)`), which SwiftUI would not localize on
+    /// its own — only string *literals* in `Text("…")` are auto-localized.
     var label: String {
         switch self {
-        case .calm: "Calm"
-        case .joyful: "Joyful"
-        case .tender: "Tender"
-        case .melancholy: "Melancholy"
-        case .anxious: "Anxious"
-        case .nostalgic: "Nostalgic"
-        case .energized: "Energized"
+        case .calm: String(localized: "Calm")
+        case .joyful: String(localized: "Joyful")
+        case .tender: String(localized: "Tender")
+        case .melancholy: String(localized: "Melancholy")
+        case .anxious: String(localized: "Anxious")
+        case .nostalgic: String(localized: "Nostalgic")
+        case .energized: String(localized: "Energized")
         }
     }
 

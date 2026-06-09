@@ -10,8 +10,12 @@ An audio-first memory app: capture ten seconds of how your life *sounds* right n
 beautiful waveform card (sound + mood + place + one line), and optionally **seal** it to
 resurface to your future self.
 
-Status: building. M1–M4 done (record → mood-tinted waveform-card gallery → playback works
-in the simulator). M5 (seal & resurface) next, then M6 (i18n + polish).
+Status: **MVP build complete (M1–M6).** Record → mood-tinted waveform-card gallery → playback
+→ seal to a future date → resurface, all working in the simulator; localized EN/JA/ZH-Hans
+(verified). 41 tests across 7 suites pass.
+Remaining before submission: real **app icon** (currently a placeholder asset), App Store
+Connect **name reservation** for "Soundpost", and on-device testing of the live record + the
+notification fire→tap loop (can't be automated headlessly).
 Date: 2026-06-09.
 
 ---

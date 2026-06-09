@@ -28,7 +28,7 @@ struct CapsuleCard: View {
                     .foregroundStyle(tint)
             }
             VStack(alignment: .leading, spacing: 1) {
-                Text(capsule.mood?.label ?? "Sound")
+                Text(capsule.mood?.label ?? String(localized: "Sound"))
                     .font(.subheadline.weight(.semibold))
                 Text(dateText)
                     .font(.caption)
@@ -88,7 +88,7 @@ struct CapsuleCard: View {
         if calendar.isDateInToday(capsule.createdAt) {
             return capsule.createdAt.formatted(date: .omitted, time: .shortened)
         }
-        if calendar.isDateInYesterday(capsule.createdAt) { return "Yesterday" }
+        if calendar.isDateInYesterday(capsule.createdAt) { return String(localized: "Yesterday") }
         return capsule.createdAt.formatted(date: .abbreviated, time: .omitted)
     }
 

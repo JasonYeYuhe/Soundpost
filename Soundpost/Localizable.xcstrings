@@ -1,0 +1,339 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "%lld" : {
+      "shouldTranslate" : false
+    },
+    "A capsule has resurfaced" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "カプセルがよみがえりました" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "一个胶囊重现了" } }
+      }
+    },
+    "A gentle seal — held until then." : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "やさしい封印 — その日まで保管します。" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "温柔的封印——保存到那一天。" } }
+      }
+    },
+    "A gentle seal: Soundpost keeps it hidden until then, but this is an honor-system lock on your device — not encryption." : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "やさしい封印：その日まで Soundpost が非表示にしますが、これは端末上の善意によるロックであり、暗号化ではありません。" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "温柔的封印：Soundpost 会将其隐藏到那一天，但这只是设备上基于自觉的锁定，并非加密。" } }
+      }
+    },
+    "Anxious" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "不安" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "焦虑" } }
+      }
+    },
+    "Calm" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "穏やか" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "平静" } }
+      }
+    },
+    "Cancel" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "キャンセル" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "取消" } }
+      }
+    },
+    "Capsule" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "カプセル" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "胶囊" } }
+      }
+    },
+    "Capture how this moment sounds" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "この瞬間の音を残す" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "捕捉此刻的声音" } }
+      }
+    },
+    "Capture ten seconds of how your life sounds right now." : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "今のあなたの暮らしの音を、10秒だけ残しましょう。" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "录下此刻生活的声音，只需十秒。" } }
+      }
+    },
+    "Current location" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "現在地" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "当前位置" } }
+      }
+    },
+    "Delete" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "削除" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "删除" } }
+      }
+    },
+    "Delete capsule" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "カプセルを削除" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "删除胶囊" } }
+      }
+    },
+    "Delete this capsule?" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "このカプセルを削除しますか？" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "删除这个胶囊？" } }
+      }
+    },
+    "Discard & re-record" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "破棄して録り直す" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "放弃并重录" } }
+      }
+    },
+    "Energized" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "元気" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "活力" } }
+      }
+    },
+    "Finding location…" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "現在地を取得中…" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在获取位置…" } }
+      }
+    },
+    "In 1 month" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "1か月後" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "1 个月后" } }
+      }
+    },
+    "In 1 year" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "1年後" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "1 年后" } }
+      }
+    },
+    "In 6 months" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "6か月後" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "6 个月后" } }
+      }
+    },
+    "Joyful" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "うれしい" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "喜悦" } }
+      }
+    },
+    "Melancholy" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "もの悲しい" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "忧伤" } }
+      }
+    },
+    "Microphone access is off." : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "マイクへのアクセスがオフです。" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "麦克风权限已关闭。" } }
+      }
+    },
+    "Mood" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "気分" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "心情" } }
+      }
+    },
+    "New capsule" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "新しいカプセル" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "新建胶囊" } }
+      }
+    },
+    "No capsules yet" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "まだカプセルがありません" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "还没有胶囊" } }
+      }
+    },
+    "Nostalgic" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "なつかしい" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "怀旧" } }
+      }
+    },
+    "One line" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ひとこと" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "一句话" } }
+      }
+    },
+    "Open on" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "開く日" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "开启日期" } }
+      }
+    },
+    "Open Settings" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "設定を開く" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "打开设置" } }
+      }
+    },
+    "Open Soundpost to hear this moment again." : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "Soundpost を開いて、この瞬間をもう一度聞きましょう。" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "打开 Soundpost，再次聆听这一刻。" } }
+      }
+    },
+    "Opens %@" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "%@に開きます" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "%@ 开启" } }
+      }
+    },
+    "Pause" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "一時停止" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "暂停" } }
+      }
+    },
+    "Place" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "場所" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "地点" } }
+      }
+    },
+    "Play" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "再生" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "播放" } }
+      }
+    },
+    "Quick pick" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "クイック選択" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "快速选择" } }
+      }
+    },
+    "Record a sound" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "音を録音" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "录制声音" } }
+      }
+    },
+    "Recording…" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "録音中…" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "录音中…" } }
+      }
+    },
+    "Remove" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "削除" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "移除" } }
+      }
+    },
+    "Resurface date" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "再会の日" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "重现日期" } }
+      }
+    },
+    "Save capsule" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "カプセルを保存" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "保存胶囊" } }
+      }
+    },
+    "Seal" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "封印" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "封存" } }
+      }
+    },
+    "Seal to the future" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "未来へ封印" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "封存到未来" } }
+      }
+    },
+    "Sealed" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "封印済み" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已封存" } }
+      }
+    },
+    "Sound" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "音" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "声音" } }
+      }
+    },
+    "Soundpost will hide this capsule and notify you on %@. This is a gentle, honor-system seal kept on your device — not encryption." : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "Soundpost はこのカプセルを非表示にし、%@にお知らせします。これは端末上のやさしい善意の封印で、暗号化ではありません。" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Soundpost 会隐藏这个胶囊，并在 %@ 通知你。这是设备上温柔、基于自觉的封印，并非加密。" } }
+      }
+    },
+    "Start recording" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "録音を開始" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "开始录音" } }
+      }
+    },
+    "Stop recording" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "録音を停止" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "停止录音" } }
+      }
+    },
+    "Tag where I am" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "現在地を追加" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "标记当前位置" } }
+      }
+    },
+    "Tender" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "やさしい" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "温柔" } }
+      }
+    },
+    "This capsule opens %@." : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "このカプセルは%@に開きます。" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "这个胶囊将于 %@ 开启。" } }
+      }
+    },
+    "This permanently removes the recording." : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "録音が完全に削除されます。" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "这将永久删除录音。" } }
+      }
+    },
+    "Unseal" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "封印を解除" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "解除封印" } }
+      }
+    },
+    "Up to 60 seconds. Tap to start." : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "最大60秒。タップして開始。" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "最长 60 秒。点按开始。" } }
+      }
+    },
+    "What is this?" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "これは何ですか？" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "这是什么？" } }
+      }
+    },
+    "Yesterday" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "昨日" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "昨天" } }
+      }
+    }
+  },
+  "version" : "1.0"
+}

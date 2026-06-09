@@ -30,8 +30,8 @@ final class NotificationCoordinator: NSObject, UNUserNotificationCenterDelegate 
         let plan = NotificationPlanner.plan(capsules: capsules, now: now)
         await scheduler.reconcile(
             plan: plan,
-            title: "A capsule has resurfaced",
-            body: "Open Soundpost to hear this moment again."
+            title: String(localized: "A capsule has resurfaced"),
+            body: String(localized: "Open Soundpost to hear this moment again.")
         )
     }
 

@@ -153,7 +153,7 @@ struct CaptureView: View {
         }
     }
 
-    private func section<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
+    private func section<Content: View>(_ title: LocalizedStringKey, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title).font(.headline)
             content()
@@ -183,7 +183,7 @@ struct CaptureView: View {
     private var placeControl: some View {
         if let place = viewModel.place, viewModel.includePlace {
             HStack {
-                Label(place.name ?? "Current location", systemImage: "mappin.and.ellipse")
+                Label(place.name ?? String(localized: "Current location"), systemImage: "mappin.and.ellipse")
                 Spacer()
                 Button("Remove", role: .destructive) { viewModel.clearPlace() }.font(.subheadline)
             }

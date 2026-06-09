@@ -24,7 +24,7 @@ struct CapsuleDetailView: View {
             .padding()
             .frame(maxWidth: .infinity)
         }
-        .navigationTitle(capsule.mood?.label ?? "Capsule")
+        .navigationTitle(capsule.mood?.label ?? String(localized: "Capsule"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {

@@ -1,0 +1,20 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "NSLocationWhenInUseUsageDescription" : {
+      "comment" : "Why Soundpost asks for location",
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "録音した場所をカプセルに添えることができます。" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Soundpost 可以为胶囊标记你录制时所在的位置。" } }
+      }
+    },
+    "NSMicrophoneUsageDescription" : {
+      "comment" : "Why Soundpost asks for the microphone",
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "思い出のカプセルを作るために短い音を録音します。" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Soundpost 会录制简短的声音来制作你的记忆胶囊。" } }
+      }
+    }
+  },
+  "version" : "1.0"
+}

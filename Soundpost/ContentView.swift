@@ -64,9 +64,31 @@ struct ContentView: View {
                     }
                     .buttonStyle(.plain)
                 }
+                storageFooter
             }
             .padding()
         }
+    }
+
+    private var storageFooter: some View {
+        HStack(spacing: 16) {
+            Label("\(capsules.count)", systemImage: "waveform")
+            Label(storageString, systemImage: "internaldrive")
+        }
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .padding(.top, 6)
+    }
+
+    private var storageString: String {
+        let store = AudioStore()
+        let bytes = capsules.reduce(Int64(0)) { sum, capsule in
+            guard let file = capsule.audioFileName,
+                  let size = try? FileManager.default.attributesOfItem(atPath: store.url(for: file).path)[.size] as? Int64
+            else { return sum }
+            return sum + (size ?? 0)
+        }
+        return ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
     }
 
     /// Changes whenever a capsule's seal state changes, so we re-sync notifications.
