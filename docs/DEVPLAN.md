@@ -40,6 +40,16 @@ Each milestone compiles, passes tests, and is committed before the next. Reuse c
 
 ### M8 — Ship v1.0: observability + submission  ·  *highest priority*
 
+> **Progress (2026-06-09):** ✅ schema CloudKit-ready · ✅ DEVELOPMENT_TEAM + iPhone-only ·
+> ✅ name reserved ("Soundpost: Sound Capsules", app id 6778389097) · ✅ **Sentry** wired (8.58.3,
+> Release-gated, PII-stripped; project `soundpost` in org `jason-yeyuhe`) + PrivacyInfo updated ·
+> ✅ **Privacy Policy + landing live** on GitHub Pages → privacy
+> `https://jasonyeyuhe.github.io/soundpost-site/privacy.html`, support/marketing
+> `https://jasonyeyuhe.github.io/soundpost-site/` (repo `JasonYeYuhe/soundpost-site`) ·
+> ✅ D5 colors (coral AccentColor + amber Joyful).
+> **Remaining:** listing copy (EN/JA/ZH) · `build-upload-asc.sh` + ExportOptions · 6.9" screenshots ·
+> set ASC metadata (URLs/description/keywords) · **on-device record + notification test** · upload + submit.
+
 **8a. CloudKit-ready schema (P0, do before 1.0 ships — done in this milestone).**
 - ✅ Remove `@Attribute(.unique)` from `Capsule.id`; make every persisted property optional or defaulted; uniqueness at app layer. (`Soundpost/Models/Capsule.swift`.) This makes the *shipped* 1.0 store need **no scalar migration** when CloudKit turns on in M9. Audio-field migration is handled separately in M9 (§3).
 - Set `DEVELOPMENT_TEAM = KHMK6Q3L3K`; **iPhone-only** (`TARGETED_DEVICE_FAMILY = 1`) — avoids mandatory iPad screenshots + iPad-quality review; aligns with PROJECT.md's "no iPad-tuned UI" cut.

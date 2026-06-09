@@ -49,7 +49,10 @@ extension Mood {
     var tint: Color {
         switch self {
         case .calm: .teal
-        case .joyful: .yellow
+        // A deeper amber rather than system yellow: stays sunny as a waveform fill
+        // but keeps enough contrast when used as a foreground/text tint on the
+        // light card background (M7 a11y finding).
+        case .joyful: Color(red: 0.90, green: 0.62, blue: 0.13)
         case .tender: .pink
         case .melancholy: .indigo
         case .anxious: .orange
