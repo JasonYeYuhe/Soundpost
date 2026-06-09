@@ -10,21 +10,27 @@ import SwiftData
 @Model
 final class Capsule {
     /// Stable identity. Also used as the local-notification request identifier.
-    @Attribute(.unique) var id: UUID
+    ///
+    /// NOT `@Attribute(.unique)`: CloudKit-mirrored SwiftData stores (planned
+    /// for durability, see docs/DEVPLAN.md M9) forbid unique constraints, so
+    /// uniqueness is guaranteed at the app layer (UUIDs by construction). Every
+    /// stored property here is optional or carries a declaration default for the
+    /// same reason — keep it that way so enabling CloudKit needs no scalar migration.
+    var id: UUID = UUID()
 
     /// When the capsule was created.
-    var createdAt: Date
+    var createdAt: Date = Date.now
 
     /// Filename (relative to the audio store directory) of the recorded clip.
     /// Nil until recording is captured — populated in M2.
     var audioFileName: String?
 
     /// Clip length in seconds.
-    var durationSeconds: Double
+    var durationSeconds: Double = 0
 
     /// Normalized amplitude samples (0...1) used to draw the waveform card.
     /// Populated in M2; empty until then.
-    var waveformSamples: [Float]
+    var waveformSamples: [Float] = []
 
     /// Emotional tone chosen by the user. Optional until they pick one.
     var mood: Mood?
@@ -44,7 +50,7 @@ final class Capsule {
     var sealTimeZoneID: String?
 
     /// Current lifecycle state. Mutate via `transition(to:)`.
-    private(set) var state: CapsuleState
+    private(set) var state: CapsuleState = CapsuleState.draft
 
     init(
         id: UUID = UUID(),
