@@ -57,10 +57,14 @@ Each milestone compiles, passes tests, and is committed before the next. Reuse c
 > ✅ **live audio loop verified on simulator** via a DEBUG `-runAudioSelfTest` harness
 > (record → 57KB .m4a → 56-bucket waveform → playback = PASS; silence only because the headless
 > sim has no mic input).
-> **Remaining (ASC web UI — not cleanly API-settable):** App Privacy questionnaire (declare
-> Crash/Diagnostics, not-linked/not-tracking) · age rating (4+) · upload the 6.9" screenshot ·
-> then **Submit for Review** (irreversible — confirm first). Optional: a real-device pass + a
-> fuller screenshot set.
+> **✅ SUBMITTED TO APP REVIEW (2026-06-10).** Version 1.0 (build 2, new cream-envelope icon) is
+> `WAITING_FOR_REVIEW`. All requirements completed: category Lifestyle, age rating 4+, App Privacy
+> nutrition label (Crash + Other Diagnostic Data, not-linked/not-tracking, App Functionality)
+> published, Free pricing in 175 regions, 6.5" screenshot, App Review contact. Release is **MANUAL**
+> — after Apple approves (≤48h, email), Jason releases it manually (nothing goes public until then).
+> Post-launch nice-to-haves (not blockers): a real-device pass of the live record + notification
+> fire→tap; a fuller/framed screenshot set; the M9+ roadmap (CloudKit durability, server delivery,
+> monetization, M12 polish).
 >
 > *Known non-blocker: Sentry.framework's own dSYM isn't in the archive (its internal frames won't
 > symbolicate; the app's own dSYM uploads fine).*
