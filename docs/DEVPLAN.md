@@ -46,9 +46,18 @@ Each milestone compiles, passes tests, and is committed before the next. Reuse c
 > ✅ **Privacy Policy + landing live** on GitHub Pages → privacy
 > `https://jasonyeyuhe.github.io/soundpost-site/privacy.html`, support/marketing
 > `https://jasonyeyuhe.github.io/soundpost-site/` (repo `JasonYeYuhe/soundpost-site`) ·
-> ✅ D5 colors (coral AccentColor + amber Joyful).
-> **Remaining:** listing copy (EN/JA/ZH) · `build-upload-asc.sh` + ExportOptions · 6.9" screenshots ·
-> set ASC metadata (URLs/description/keywords) · **on-device record + notification test** · upload + submit.
+> ✅ D5 colors (coral AccentColor + amber Joyful) ·
+> ✅ **listing copy EN/JA/ZH** (`metadata/`) + **pushed to ASC** (subtitle, privacy URL, description,
+> keywords, support/marketing URL, promo — all 3 locales) ·
+> ✅ **build/upload tooling** (`scripts/build-upload-asc.sh` + ExportOptions) ·
+> ✅ **device archive + distribution signing** verified · ✅ **signed build UPLOADED to App Store
+> Connect** (TestFlight processing) ·
+> ◻︎ 6.9" screenshots (gallery captured; fuller set optional) ·
+> ◻︎ **on-device record + notification test** (needs a physical device) ·
+> ◻︎ attach build to 1.0 + submit for review (after on-device test).
+>
+> *Known non-blocker: Sentry.framework's own dSYM isn't in the archive (its internal frames won't
+> symbolicate; the app's own dSYM uploads fine).*
 
 **8a. CloudKit-ready schema (P0, do before 1.0 ships — done in this milestone).**
 - ✅ Remove `@Attribute(.unique)` from `Capsule.id`; make every persisted property optional or defaulted; uniqueness at app layer. (`Soundpost/Models/Capsule.swift`.) This makes the *shipped* 1.0 store need **no scalar migration** when CloudKit turns on in M9. Audio-field migration is handled separately in M9 (§3).
