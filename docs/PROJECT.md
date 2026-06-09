@@ -10,8 +10,8 @@ An audio-first memory app: capture ten seconds of how your life *sounds* right n
 beautiful waveform card (sound + mood + place + one line), and optionally **seal** it to
 resurface to your future self.
 
-Status: building. M1 (core data + state machine + scheduler) and M2 (audio pipeline) done;
-M3 (capture UI) in progress.
+Status: building. M1–M4 done (record → mood-tinted waveform-card gallery → playback works
+in the simulator). M5 (seal & resurface) next, then M6 (i18n + polish).
 Date: 2026-06-09.
 
 ---
