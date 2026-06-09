@@ -16,9 +16,14 @@ final class AudioRecorder: NSObject {
     private(set) var state: State = .idle
     /// Metered input level, 0...1, for the live recording UI.
     private(set) var level: Float = 0
+    /// Rolling recent levels (newest last) for drawing a live waveform.
+    private(set) var levels: [Float] = []
     /// Elapsed recording time in seconds.
     private(set) var duration: TimeInterval = 0
     private(set) var currentFileName: String?
+
+    /// How many recent level samples to retain for the live waveform.
+    private let levelHistory = 80
 
     /// Max clip length; recording auto-stops here.
     let maxDuration: TimeInterval
@@ -69,6 +74,7 @@ final class AudioRecorder: NSObject {
         currentFileName = fileName
         duration = 0
         level = 0
+        levels = []
         state = .recording
         startMetering()
     }
@@ -108,9 +114,11 @@ final class AudioRecorder: NSObject {
     private func tick() {
         guard let recorder, state == .recording else { return }
         recorder.updateMeters()
-        // Map dBFS (-160...0) to a 0...1 level.
+        // Map dBFS (-60...0) to a 0...1 level.
         let power = recorder.averagePower(forChannel: 0)
         level = max(0, min(1, (power + 60) / 60))
+        levels.append(level)
+        if levels.count > levelHistory { levels.removeFirst(levels.count - levelHistory) }
         duration = recorder.currentTime
         if duration >= maxDuration { stop() }
     }

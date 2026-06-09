@@ -5,28 +5,14 @@ import SwiftData
 
 /// Tests for `CapsuleStore` against an in-memory SwiftData container.
 ///
-/// `.serialized`: each test spins up its own `ModelContainer`, and creating
-/// several SwiftData containers concurrently (Swift Testing's default parallel
-/// execution) crashes the test process — so run this suite one test at a time.
+/// `.serialized` + the single shared container in `TestSupport`: creating
+/// multiple `ModelContainer`s for one model in a single process crashes the
+/// runner, so all SwiftData suites share one container and reset per test.
 @Suite(.serialized)
 @MainActor
 struct CapsuleStoreTests {
-    /// One in-memory container for the whole test process. Creating multiple
-    /// SwiftData containers for the same model in a single process is unstable
-    /// (it crashes the runner), so the serialized suite shares this one and each
-    /// test starts from a clean slate via `makeStore()`.
-    static let sharedContainer: ModelContainer = {
-        try! ModelContainer(
-            for: Capsule.self,
-            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
-        )
-    }()
-
     private func makeStore() throws -> CapsuleStore {
-        let context = ModelContext(Self.sharedContainer)
-        try context.delete(model: Capsule.self) // isolate from prior tests
-        try context.save()
-        return CapsuleStore(context: context)
+        try TestSupport.freshStore()
     }
 
     /// Drive a capsule from draft to captured (the common test setup).
