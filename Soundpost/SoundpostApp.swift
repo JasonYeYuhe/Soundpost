@@ -35,7 +35,9 @@ private struct RootView: View {
             Color.clear
         } else {
             #if DEBUG
-            if AppEnvironment.isDemoSeed {
+            if AppEnvironment.isAudioSelfTest {
+                Color.clear.task { await AudioSelfTest.run() }   // headless audio-pipeline check
+            } else if AppEnvironment.isDemoSeed {
                 ContentView().modelContainer(DemoData.container)
             } else {
                 ContentView().modelContainer(for: Capsule.self)
@@ -57,5 +59,10 @@ enum AppEnvironment {
     /// Debug screenshot/demo mode: in-memory store pre-seeded with sample capsules.
     static var isDemoSeed: Bool {
         CommandLine.arguments.contains("-seedSampleData")
+    }
+
+    /// Debug-only: run the headless audio-pipeline self-test instead of the UI.
+    static var isAudioSelfTest: Bool {
+        CommandLine.arguments.contains("-runAudioSelfTest")
     }
 }
