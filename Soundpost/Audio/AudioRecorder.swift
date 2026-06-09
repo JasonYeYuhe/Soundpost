@@ -22,6 +22,12 @@ final class AudioRecorder: NSObject {
     private(set) var duration: TimeInterval = 0
     private(set) var currentFileName: String?
 
+    /// Called on the main actor when recording finalizes on its own — max
+    /// duration reached, an interruption, or the input route disappearing —
+    /// *not* on an explicit `stop()`. Lets the owner move to review so a clip is
+    /// never silently lost.
+    @ObservationIgnored var onAutoFinish: ((_ fileName: String, _ duration: TimeInterval) -> Void)?
+
     /// How many recent level samples to retain for the live waveform.
     private let levelHistory = 80
 
@@ -37,6 +43,7 @@ final class AudioRecorder: NSObject {
         self.maxDuration = maxDuration
         super.init()
         registerForInterruptions()
+        registerForRouteChanges()
     }
 
     /// Ask for microphone permission (iOS 17+ API).
@@ -54,7 +61,7 @@ final class AudioRecorder: NSObject {
         try store.ensureDirectory()
 
         let session = AVAudioSession.sharedInstance()
-        try session.setCategory(.playAndRecord, mode: .default, options: [.allowBluetooth])
+        try session.setCategory(.playAndRecord, mode: .default, options: [.allowBluetoothHFP])
         try session.setActive(true)
 
         let fileName = store.newFileName()
@@ -120,7 +127,13 @@ final class AudioRecorder: NSObject {
         levels.append(level)
         if levels.count > levelHistory { levels.removeFirst(levels.count - levelHistory) }
         duration = recorder.currentTime
-        if duration >= maxDuration { stop() }
+        if duration >= maxDuration { finishAutomatically() }
+    }
+
+    /// Finalize from an automatic trigger and hand the clip back via `onAutoFinish`.
+    private func finishAutomatically() {
+        guard let result = stop() else { return }
+        onAutoFinish?(result.fileName, result.duration)
     }
 
     private func finishSession() {
@@ -131,7 +144,7 @@ final class AudioRecorder: NSObject {
         try? AVAudioSession.sharedInstance().setActive(false, options: [.notifyOthersOnDeactivation])
     }
 
-    // MARK: Interruptions
+    // MARK: Interruptions & route changes
 
     private func registerForInterruptions() {
         let center = NotificationCenter.default
@@ -144,6 +157,17 @@ final class AudioRecorder: NSObject {
         }
     }
 
+    private func registerForRouteChanges() {
+        let center = NotificationCenter.default
+        center.addObserver(
+            forName: AVAudioSession.routeChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] note in
+            Task { @MainActor in self?.handleRouteChange(note) }
+        }
+    }
+
     private func handleInterruption(_ note: Notification) {
         guard state == .recording,
               let info = note.userInfo,
@@ -152,7 +176,19 @@ final class AudioRecorder: NSObject {
               type == .began
         else { return }
         // Finalize rather than risk a corrupt/half clip (no background recording).
-        stop()
+        finishAutomatically()
+    }
+
+    private func handleRouteChange(_ note: Notification) {
+        guard state == .recording,
+              let info = note.userInfo,
+              let raw = info[AVAudioSessionRouteChangeReasonKey] as? UInt,
+              let reason = AVAudioSession.RouteChangeReason(rawValue: raw),
+              reason == .oldDeviceUnavailable
+        else { return }
+        // The input device (e.g. a Bluetooth or wired mic) went away mid-record —
+        // finalize the clip cleanly instead of leaving it half-open (PROJECT.md §1e.4).
+        finishAutomatically()
     }
 }
 

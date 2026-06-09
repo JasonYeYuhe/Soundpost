@@ -25,6 +25,15 @@ struct CaptureView: View {
                     Button("Cancel") { viewModel.discard(); dismiss() }
                 }
             }
+            .alert(
+                viewModel.errorMessage ?? "",
+                isPresented: Binding(
+                    get: { viewModel.errorMessage != nil },
+                    set: { if !$0 { viewModel.errorMessage = nil } }
+                )
+            ) {
+                Button("OK", role: .cancel) {}
+            }
         }
     }
 
@@ -55,6 +64,10 @@ struct CaptureView: View {
             .accessibilityLabel("Start recording")
             if viewModel.permissionDenied { permissionHint }
             Spacer()
+            Text("Recording may pick up nearby voices — please be considerate of others.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
         }
         .padding()
     }
@@ -81,7 +94,7 @@ struct CaptureView: View {
             Text(timeString(viewModel.recorder.duration))
                 .font(.system(size: 46, weight: .light, design: .rounded))
                 .monospacedDigit()
-            WaveformView(samples: viewModel.recorder.levels, color: .red)
+            WaveformView(samples: viewModel.recorder.levels, color: .red, isDecorative: true)
                 .frame(height: 120)
                 .frame(maxWidth: .infinity)
             Text("Recording…").font(.subheadline).foregroundStyle(.secondary)
@@ -116,6 +129,7 @@ struct CaptureView: View {
                             Image(systemName: viewModel.player.state == .playing ? "pause.circle.fill" : "play.circle.fill")
                                 .font(.system(size: 42))
                         }
+                        .accessibilityLabel(viewModel.player.state == .playing ? "Pause" : "Play")
                         Spacer()
                         Text(timeString(viewModel.duration)).monospacedDigit().foregroundStyle(.secondary)
                     }
@@ -177,6 +191,7 @@ struct CaptureView: View {
             .foregroundStyle(selected ? mood.tint : .primary)
         }
         .buttonStyle(.plain)
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
     @ViewBuilder
@@ -210,7 +225,9 @@ struct CaptureView: View {
             try viewModel.save(using: store)
             dismiss()
         } catch {
-            // Persisting failed; keep the sheet open so the recording isn't lost.
+            // Persisting failed; keep the sheet open so the recording isn't lost,
+            // and tell the user instead of failing silently.
+            viewModel.errorMessage = String(localized: "Couldn't save the capsule. Please try again.")
         }
     }
 

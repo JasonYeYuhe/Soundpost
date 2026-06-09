@@ -18,6 +18,7 @@ struct CapsuleCard: View {
         .padding(16)
         .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 22))
         .overlay(RoundedRectangle(cornerRadius: 22).stroke(tint.opacity(0.15), lineWidth: 1))
+        .accessibilityElement(children: .combine)
     }
 
     private var header: some View {
@@ -42,15 +43,19 @@ struct CapsuleCard: View {
     @ViewBuilder
     private var statusGlyph: some View {
         switch capsule.state {
-        case .sealed: Image(systemName: "lock.fill").foregroundStyle(.secondary)
-        case .resurfaced: Image(systemName: "sparkles").foregroundStyle(tint)
+        case .sealed:
+            Image(systemName: "lock.fill").foregroundStyle(.secondary)
+                .accessibilityLabel("Sealed")
+        case .resurfaced:
+            Image(systemName: "sparkles").foregroundStyle(tint)
+                .accessibilityLabel("Resurfaced")
         default: EmptyView()
         }
     }
 
     private var openBody: some View {
         VStack(alignment: .leading, spacing: 12) {
-            WaveformView(samples: capsule.waveformSamples, color: tint)
+            WaveformView(samples: capsule.waveformSamples, color: tint, isDecorative: true)
                 .frame(height: 56)
             if let note = capsule.note, !note.isEmpty {
                 Text(note).font(.body).lineLimit(2)
@@ -70,7 +75,7 @@ struct CapsuleCard: View {
     private var lockedBody: some View {
         VStack(alignment: .leading, spacing: 6) {
             // A flattened, dimmed hint of the waveform — present but not revealed.
-            WaveformView(samples: capsule.waveformSamples.map { min($0, 0.25) }, color: .secondary)
+            WaveformView(samples: capsule.waveformSamples.map { min($0, 0.25) }, color: .secondary, isDecorative: true)
                 .frame(height: 28)
                 .opacity(0.5)
             if let until = capsule.sealUntil {

@@ -1,6 +1,60 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Recording may pick up nearby voices — please be considerate of others." : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "録音には周囲の声が入ることがあります。周りの方への配慮をお願いします。" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "录音可能会收录到附近的人声，请体谅周围的人。" } }
+      }
+    },
+    "Capsules live only on this device — there's no cloud backup yet, so deleting the app erases them." : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "カプセルはこの端末内にのみ保存されます。まだクラウドバックアップはないため、アプリを削除すると失われます。" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "胶囊仅保存在本机，暂无云端备份；删除应用会一并清除它们。" } }
+      }
+    },
+    "Sound waveform" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "サウンド波形" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "声音波形" } }
+      }
+    },
+    "%lld percent played" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "%lld パーセント再生済み" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已播放 %lld%%" } }
+      }
+    },
+    "Resurfaced" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "再浮上しました" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已重现" } }
+      }
+    },
+    "Couldn't start recording. Please try again." : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "録音を開始できませんでした。もう一度お試しください。" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法开始录音，请重试。" } }
+      }
+    },
+    "Couldn't save the capsule. Please try again." : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "カプセルを保存できませんでした。もう一度お試しください。" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法保存胶囊，请重试。" } }
+      }
+    },
+    "That recording was too short. Try holding a moment longer." : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "録音が短すぎました。もう少し長めに録音してみてください。" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "录音太短了，请按住再多录一会儿。" } }
+      }
+    },
+    "OK" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "OK" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "好" } }
+      }
+    },
     "%lld" : {
       "shouldTranslate" : false
     },

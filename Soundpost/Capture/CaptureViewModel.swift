@@ -11,6 +11,9 @@ final class CaptureViewModel {
 
     private(set) var phase: Phase = .idle
     var permissionDenied = false
+    /// Surfaced to the user via an alert when recording or saving fails, so
+    /// failures are never silent.
+    var errorMessage: String?
 
     // Produced by recording.
     private(set) var fileName: String?
@@ -29,15 +32,24 @@ final class CaptureViewModel {
     private let audioStore: AudioStore
     private let location: LocationProvider
     private let waveformBuckets: Int
+    /// Clips shorter than this are treated as accidental taps and discarded.
+    private let minDuration: TimeInterval
 
     init(audioStore: AudioStore = AudioStore(),
          maxDuration: TimeInterval = 60,
+         minDuration: TimeInterval = 1,
          waveformBuckets: Int = 56) {
         self.audioStore = audioStore
         self.recorder = AudioRecorder(store: audioStore, maxDuration: maxDuration)
         self.player = AudioPlayer(store: audioStore)
         self.location = LocationProvider()
         self.waveformBuckets = waveformBuckets
+        self.minDuration = minDuration
+        // When the recorder finalizes on its own (max duration, interruption, or
+        // audio-route loss), move to review so the clip is never silently lost.
+        self.recorder.onAutoFinish = { [weak self] fileName, duration in
+            self?.handleFinishedRecording(fileName: fileName, duration: duration)
+        }
     }
 
     // MARK: Recording
@@ -53,6 +65,7 @@ final class CaptureViewModel {
             phase = .recording
         } catch {
             phase = .idle
+            errorMessage = String(localized: "Couldn't start recording. Please try again.")
         }
     }
 
@@ -61,10 +74,23 @@ final class CaptureViewModel {
             phase = .idle
             return
         }
-        fileName = result.fileName
-        duration = result.duration
+        handleFinishedRecording(fileName: result.fileName, duration: result.duration)
+    }
+
+    /// Shared by the manual stop and the recorder's automatic finalization.
+    /// Discards too-short (accidental) clips; otherwise extracts the waveform
+    /// and moves to the review step.
+    private func handleFinishedRecording(fileName: String, duration: TimeInterval) {
+        guard duration >= minDuration else {
+            try? audioStore.delete(fileName)
+            phase = .idle
+            errorMessage = String(localized: "That recording was too short. Try holding a moment longer.")
+            return
+        }
+        self.fileName = fileName
+        self.duration = duration
         waveform = (try? WaveformExtractor.samples(
-            from: audioStore.url(for: result.fileName),
+            from: audioStore.url(for: fileName),
             buckets: waveformBuckets
         )) ?? []
         phase = .review
@@ -145,6 +171,12 @@ extension CaptureViewModel {
         self.duration = duration
         self.waveform = waveform
         self.phase = .review
+    }
+
+    /// Test seam: drive the finalize path (shared by manual stop and the
+    /// recorder's automatic finish) without a microphone.
+    func finishRecordingForTesting(fileName: String, duration: TimeInterval) {
+        handleFinishedRecording(fileName: fileName, duration: duration)
     }
 }
 #endif

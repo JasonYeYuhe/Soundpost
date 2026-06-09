@@ -10,6 +10,11 @@ struct WaveformView: View {
     var progress: Double? = nil
     var barSpacing: CGFloat = 2
     var minBarHeight: CGFloat = 2
+    /// Purely visual instances (live meter, card previews) are hidden from
+    /// VoiceOver; the surrounding view conveys the meaning.
+    var isDecorative: Bool = false
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         Canvas { context, size in
@@ -33,7 +38,11 @@ struct WaveformView: View {
                 context.fill(Path(roundedRect: rect, cornerRadius: barWidth / 2), with: .color(fillColor))
             }
         }
-        .animation(.linear(duration: 0.08), value: samples)
+        .animation(reduceMotion ? nil : .linear(duration: 0.08), value: samples)
+        .accessibilityElement()
+        .accessibilityHidden(isDecorative)
+        .accessibilityLabel(Text("Sound waveform"))
+        .accessibilityValue(progress == nil ? Text("") : Text("\(Int(((progress ?? 0) * 100).rounded())) percent played"))
     }
 }
 

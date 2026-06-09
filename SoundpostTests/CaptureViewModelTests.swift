@@ -50,4 +50,31 @@ struct CaptureViewModelTests {
         _ = try viewModel.save(using: store)
         #expect(viewModel.phase == .idle)
     }
+
+    @Test func tooShortRecordingIsDiscardedWithError() throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appending(path: "SoundpostTest-\(UUID().uuidString)", directoryHint: .isDirectory)
+        let audioStore = AudioStore(directory: dir)
+        try audioStore.ensureDirectory()
+        let fileName = audioStore.newFileName()
+        try Data([0, 1, 2]).write(to: audioStore.url(for: fileName))
+        #expect(audioStore.fileExists(fileName))
+
+        let viewModel = CaptureViewModel(audioStore: audioStore)
+        viewModel.finishRecordingForTesting(fileName: fileName, duration: 0.3) // < 1s
+
+        #expect(viewModel.phase == .idle)            // not moved to review
+        #expect(viewModel.errorMessage != nil)       // user is told, not silent
+        #expect(!audioStore.fileExists(fileName))    // accidental clip cleaned up
+
+        try? FileManager.default.removeItem(at: dir)
+    }
+
+    @Test func longEnoughRecordingMovesToReview() throws {
+        let viewModel = CaptureViewModel()
+        viewModel.finishRecordingForTesting(fileName: "keep.m4a", duration: 5) // >= 1s
+        #expect(viewModel.phase == .review)
+        #expect(viewModel.duration == 5)
+        #expect(viewModel.errorMessage == nil)
+    }
 }

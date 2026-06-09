@@ -71,9 +71,13 @@ struct ContentView: View {
     }
 
     private var storageFooter: some View {
-        HStack(spacing: 16) {
-            Label("\(capsules.count)", systemImage: "waveform")
-            Label(storageString, systemImage: "internaldrive")
+        VStack(spacing: 8) {
+            HStack(spacing: 16) {
+                Label("\(capsules.count)", systemImage: "waveform")
+                Label(storageString, systemImage: "internaldrive")
+            }
+            Text("Capsules live only on this device — there's no cloud backup yet, so deleting the app erases them.")
+                .multilineTextAlignment(.center)
         }
         .font(.caption)
         .foregroundStyle(.secondary)
@@ -86,7 +90,7 @@ struct ContentView: View {
             guard let file = capsule.audioFileName,
                   let size = try? FileManager.default.attributesOfItem(atPath: store.url(for: file).path)[.size] as? Int64
             else { return sum }
-            return sum + (size ?? 0)
+            return sum + size
         }
         return ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
     }
@@ -101,7 +105,7 @@ struct ContentView: View {
     /// Flip any due seals to `.resurfaced`, then reconcile scheduled notifications.
     private func refreshAndSync() async {
         let store = CapsuleStore(context: modelContext)
-        try? store.refreshDueSeals()
+        _ = try? store.refreshDueSeals()
         try? store.save()
         await notifications.sync(capsules: capsules)
     }
@@ -109,7 +113,7 @@ struct ContentView: View {
     private func handleDeepLink(_ id: UUID?) {
         guard let id else { return }
         let store = CapsuleStore(context: modelContext)
-        try? store.refreshDueSeals()
+        _ = try? store.refreshDueSeals()
         try? store.save()
         if let capsule = capsules.first(where: { $0.id == id }) {
             path = [capsule]
