@@ -11,6 +11,9 @@
 > (ASC app id **6778389097**, SKU `soundpost`, primary en-US). The **on-device home-screen name
 > stays "Soundpost"** (PRODUCT_NAME; no CFBundleDisplayName override). Bundle id
 > `com.soundpost.Soundpost` registered (resource M3B2SV6M8B).
+> **Localized App Store names:** en-US & ja = "Soundpost: Sound Capsules"; **zh-Hans = 「声笺 · 声音胶囊」**
+> (声笺 = writing this moment's sound into a note for your future self; 声音胶囊 = the "sound capsule"
+> mechanic). A Japanese name is still TODO if wanted.
 
 An audio-first memory app: capture ten seconds of how your life *sounds* right now as a
 beautiful waveform card (sound + mood + place + one line), and optionally **seal** it to
