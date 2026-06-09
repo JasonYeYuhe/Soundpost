@@ -2,9 +2,15 @@
 
 > Name chosen 2026-06-09: **Soundpost** (a *soundpost* is the dowel inside a violin that
 > carries the vibration — luthiers call it "the soul"; "post" also = sending a message forward
-> in time). Confirmed free of exact-name collision on the US App Store; the App Store Connect
-> reservation is still the final confirm. Validated by Gemini 3.1 Pro + Codex (both ranked it #1).
+> in time). Validated by Gemini 3.1 Pro + Codex (both ranked it #1).
 > Earlier working name "Soundmark" was already taken. Alternates considered: *Yonder*, *Hark*, *Soundkeep*.
+>
+> **ASC reservation outcome (2026-06-09):** the bare name **"Soundpost" is already reserved by
+> another developer** (not in App Store search — held/dormant reservation; blocks new use unless
+> we hold the trademark). Reserved instead → App Store name **"Soundpost: Sound Capsules"**
+> (ASC app id **6778389097**, SKU `soundpost`, primary en-US). The **on-device home-screen name
+> stays "Soundpost"** (PRODUCT_NAME; no CFBundleDisplayName override). Bundle id
+> `com.soundpost.Soundpost` registered (resource M3B2SV6M8B).
 
 An audio-first memory app: capture ten seconds of how your life *sounds* right now as a
 beautiful waveform card (sound + mood + place + one line), and optionally **seal** it to

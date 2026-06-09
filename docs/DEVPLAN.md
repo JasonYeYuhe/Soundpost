@@ -52,7 +52,11 @@ Each milestone compiles, passes tests, and is committed before the next. Reuse c
   - Reuse: `Stride:PrivacyInfo.xcprivacy`, `FlowPilot:Resources/PrivacyInfo.xcprivacy`.
 
 **8c. Submission.**
-- **Reserve name + create app record** via ASC API (verified working; name free): register bundle id `com.soundpost.Soundpost`, create app "Soundpost", primary en-US, SKU. *(Reversible while in "Prepare for Submission".)*
+- ✅ **Bundle id registered** (`com.soundpost.Soundpost`) and **app record created** (2026-06-09).
+  Note: the ASC API forbids app *creation* (`'apps' does not allow 'CREATE'`) — done via the ASC
+  web UI (Chrome). The bare name "Soundpost" was already reserved by another developer, so the
+  **App Store name is "Soundpost: Sound Capsules"** (app id **6778389097**); home-screen name
+  stays "Soundpost". ASC API key works for everything *else* (metadata, builds, TestFlight).
   - Reuse: `Tetsuzukit:scripts/asc_api.sh`, `RoastMate:scripts/build-upload-asc.sh` (same KEY_ID/ISSUER/TEAM).
 - **Build + upload:** add `scripts/build-upload-asc.sh` (`xcodebuild archive` → `exportArchive`, `-authenticationKeyPath`, `destination=upload`). **No `xcodegen`** — Soundpost has a hand-authored `.xcodeproj`. Reuse `RoastMate:ExportOptions.plist` (app-store-connect, team KHMK6Q3L3K, automatic).
 - **Privacy Policy URL (hard ASC requirement)** + support URL: host a static page (free Name.com `.app` / Namecheap `.me` / GitHub Pages). Add an in-app Settings link to it.
