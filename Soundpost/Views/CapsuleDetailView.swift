@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import UIKit
 
 /// Full view of a capsule: large waveform with playback, the one line, mood,
 /// place, date. Sealed-but-not-due capsules show an honest locked state.
@@ -12,6 +13,7 @@ struct CapsuleDetailView: View {
     @State private var player = AudioPlayer()
     @State private var confirmingDelete = false
     @State private var showingSeal = false
+    @State private var sealedWithNotificationsOff = false
 
     private var tint: Color { capsule.mood?.tint ?? .accentColor }
     private var isLocked: Bool { capsule.state == .sealed && !capsule.isContentVisible() }
@@ -41,6 +43,12 @@ struct CapsuleDetailView: View {
         }
         .sheet(isPresented: $showingSeal) {
             SealSheet(onSeal: seal(until:))
+        }
+        .alert("Sealed — but reminders are off", isPresented: $sealedWithNotificationsOff) {
+            Button("Open Settings") { openSettings() }
+            Button("OK", role: .cancel) { dismiss() }
+        } message: {
+            Text("This capsule is sealed and will reappear here on its date. To be reminded on the day, turn on notifications for Soundpost in Settings.")
         }
         .onAppear(perform: markOpenedIfResurfaced)
         .onDisappear { player.stop() }
@@ -111,7 +119,9 @@ struct CapsuleDetailView: View {
                 .foregroundStyle(.tertiary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal)
-            Button("Unseal", role: .destructive, action: unseal)
+            // Unseal reveals the capsule early — it doesn't delete anything, so
+            // it is a neutral action, not a destructive (red) one.
+            Button("Unseal", action: unseal)
                 .font(.subheadline)
                 .padding(.top, 4)
         }
@@ -136,13 +146,26 @@ struct CapsuleDetailView: View {
 
     private func seal(until date: Date) {
         Task {
-            await notifications.requestAuthorization()
+            let granted = await notifications.requestAuthorization()
             let store = CapsuleStore(context: modelContext)
             try? store.seal(capsule, until: date)
             try? store.save()
             await notifications.sync(capsules: (try? store.all()) ?? [])
-            dismiss() // back to the gallery, where the card now shows the seal
+            if granted {
+                dismiss() // back to the gallery, where the card now shows the seal
+            } else {
+                // The seal still happens, but be honest that no reminder will fire
+                // until the user enables notifications.
+                sealedWithNotificationsOff = true
+            }
         }
+    }
+
+    private func openSettings() {
+        if let url = URL(string: UIApplication.openSettingsURLString) {
+            UIApplication.shared.open(url)
+        }
+        dismiss()
     }
 
     private func unseal() {

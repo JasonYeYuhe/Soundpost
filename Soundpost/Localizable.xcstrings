@@ -1,6 +1,18 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Sealed — but reminders are off" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "封印しました — ただしリマインダーはオフです" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已封存——但提醒已关闭" } }
+      }
+    },
+    "This capsule is sealed and will reappear here on its date. To be reminded on the day, turn on notifications for Soundpost in Settings." : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "このカプセルは封印され、指定の日付にここで再び現れます。当日にお知らせを受け取るには、設定でSoundpostの通知をオンにしてください。" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "这枚胶囊已封存，会在设定的日期重新出现在这里。若想在当天收到提醒，请在“设置”中开启 Soundpost 的通知。" } }
+      }
+    },
     "Recording may pick up nearby voices — please be considerate of others." : {
       "localizations" : {
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "録音には周囲の声が入ることがあります。周りの方への配慮をお願いします。" } },
