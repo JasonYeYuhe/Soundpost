@@ -8,8 +8,10 @@ struct CapsuleDetailView: View {
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @Environment(NotificationCoordinator.self) private var notifications
     @State private var player = AudioPlayer()
     @State private var confirmingDelete = false
+    @State private var showingSeal = false
 
     private var tint: Color { capsule.mood?.tint ?? .accentColor }
     private var isLocked: Bool { capsule.state == .sealed && !capsule.isContentVisible() }
@@ -36,6 +38,9 @@ struct CapsuleDetailView: View {
             Button("Delete", role: .destructive, action: delete)
         } message: {
             Text("This permanently removes the recording.")
+        }
+        .sheet(isPresented: $showingSeal) {
+            SealSheet(onSeal: seal(until:))
         }
         .onAppear(perform: markOpenedIfResurfaced)
         .onDisappear { player.stop() }
@@ -78,6 +83,15 @@ struct CapsuleDetailView: View {
             }
             .font(.subheadline)
             .foregroundStyle(.secondary)
+
+            if capsule.state == .captured {
+                Button { showingSeal = true } label: {
+                    Label("Seal to the future", systemImage: "lock")
+                }
+                .buttonStyle(.bordered)
+                .tint(tint)
+                .padding(.top, 8)
+            }
         }
     }
 
@@ -97,6 +111,9 @@ struct CapsuleDetailView: View {
                 .foregroundStyle(.tertiary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal)
+            Button("Unseal", role: .destructive, action: unseal)
+                .font(.subheadline)
+                .padding(.top, 4)
         }
         .padding(.top, 48)
     }
@@ -115,6 +132,24 @@ struct CapsuleDetailView: View {
         let store = CapsuleStore(context: modelContext)
         try? store.open(capsule)
         try? store.save()
+    }
+
+    private func seal(until date: Date) {
+        Task {
+            await notifications.requestAuthorization()
+            let store = CapsuleStore(context: modelContext)
+            try? store.seal(capsule, until: date)
+            try? store.save()
+            await notifications.sync(capsules: (try? store.all()) ?? [])
+            dismiss() // back to the gallery, where the card now shows the seal
+        }
+    }
+
+    private func unseal() {
+        let store = CapsuleStore(context: modelContext)
+        try? store.unseal(capsule)
+        try? store.save()
+        Task { await notifications.sync(capsules: (try? store.all()) ?? []) }
     }
 
     private func delete() {

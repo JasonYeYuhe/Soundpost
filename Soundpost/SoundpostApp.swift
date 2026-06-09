@@ -4,9 +4,12 @@ import SwiftData
 /// App entry point.
 @main
 struct SoundpostApp: App {
+    @State private var notifications = NotificationCoordinator()
+
     var body: some Scene {
         WindowGroup {
             RootView()
+                .environment(notifications)
         }
     }
 }

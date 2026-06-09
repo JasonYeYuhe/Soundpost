@@ -43,6 +43,22 @@ enum DemoData {
             try? capsule.transition(to: .captured)
             context.insert(capsule)
         }
+
+        // A sealed capsule so the locked card/detail state is visible in demos.
+        // Newest so it sorts to the top of the gallery for screenshots.
+        let sealed = Capsule(createdAt: Date(timeIntervalSinceNow: -1_800))
+        sealed.audioFileName = "sample_sealed.m4a"
+        sealed.durationSeconds = 14
+        sealed.waveformSamples = (0..<56).map { i in Float(0.3 + 0.5 * abs(sin(Double(i) * 0.7))) }
+        sealed.mood = .energized
+        sealed.note = "A note to open on my birthday"
+        try? sealed.transition(to: .recording)
+        try? sealed.transition(to: .captured)
+        sealed.sealUntil = Date(timeIntervalSinceNow: 200 * 86_400)
+        sealed.sealTimeZoneID = TimeZone.current.identifier
+        try? sealed.transition(to: .sealed)
+        context.insert(sealed)
+
         try? context.save()
     }
 }
