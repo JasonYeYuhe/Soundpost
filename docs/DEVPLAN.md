@@ -52,9 +52,15 @@ Each milestone compiles, passes tests, and is committed before the next. Reuse c
 > ✅ **build/upload tooling** (`scripts/build-upload-asc.sh` + ExportOptions) ·
 > ✅ **device archive + distribution signing** verified · ✅ **signed build UPLOADED to App Store
 > Connect** (TestFlight processing) ·
-> ◻︎ 6.9" screenshots (gallery captured; fuller set optional) ·
-> ◻︎ **on-device record + notification test** (needs a physical device) ·
-> ◻︎ attach build to 1.0 + submit for review (after on-device test).
+> ✅ **localized App Store names**: ja 「音信」, zh-Hans 「声笺 · 声音胶囊」 (set in ASC) ·
+> ✅ **build VALID + attached to the 1.0 version** ·
+> ✅ **live audio loop verified on simulator** via a DEBUG `-runAudioSelfTest` harness
+> (record → 57KB .m4a → 56-bucket waveform → playback = PASS; silence only because the headless
+> sim has no mic input).
+> **Remaining (ASC web UI — not cleanly API-settable):** App Privacy questionnaire (declare
+> Crash/Diagnostics, not-linked/not-tracking) · age rating (4+) · upload the 6.9" screenshot ·
+> then **Submit for Review** (irreversible — confirm first). Optional: a real-device pass + a
+> fuller screenshot set.
 >
 > *Known non-blocker: Sentry.framework's own dSYM isn't in the archive (its internal frames won't
 > symbolicate; the app's own dSYM uploads fine).*
