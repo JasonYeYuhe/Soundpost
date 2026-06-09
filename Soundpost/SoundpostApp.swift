@@ -6,6 +6,14 @@ import SwiftData
 struct SoundpostApp: App {
     @State private var notifications = NotificationCoordinator()
 
+    init() {
+        // Crash/hang reporting. No-op without a SentryDSN; skipped under tests so
+        // the unit-test runner never opens a network client.
+        if !AppEnvironment.isRunningUnderTests {
+            SentryBootstrap.start()
+        }
+    }
+
     var body: some Scene {
         WindowGroup {
             RootView()
