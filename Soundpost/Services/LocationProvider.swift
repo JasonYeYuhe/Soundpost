@@ -17,6 +17,15 @@ final class LocationProvider: NSObject, CLLocationManagerDelegate {
         manager.desiredAccuracy = kCLLocationAccuracyHundredMeters
     }
 
+    /// Prompt for when-in-use authorization (used by onboarding to ask up front,
+    /// with context). Returns whether location is now authorized. No-op if the
+    /// user has already decided.
+    @discardableResult
+    func requestAuthorization() async -> Bool {
+        let status = await ensureAuthorized()
+        return status == .authorizedWhenInUse || status == .authorizedAlways
+    }
+
     /// Resolve the current place, or nil if unavailable/denied.
     func requestPlace() async -> Place? {
         let status = await ensureAuthorized()

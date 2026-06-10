@@ -68,9 +68,11 @@ struct CapsuleDetailView: View {
                 Image(systemName: player.state == .playing ? "pause.circle.fill" : "play.circle.fill")
                     .font(.system(size: 66))
                     .foregroundStyle(tint)
+                    .contentTransition(.symbolEffect(.replace))
             }
             .buttonStyle(.plain)
             .accessibilityLabel(player.state == .playing ? "Pause" : "Play")
+            .sensoryFeedback(.impact(weight: .light), trigger: player.state)
 
             Text(durationString)
                 .font(.headline.monospacedDigit())

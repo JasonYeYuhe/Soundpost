@@ -34,17 +34,36 @@ struct NotificationScheduler {
         self.center = center
     }
 
-    static func identifier(for capsuleID: UUID) -> String {
-        identifierPrefix + capsuleID.uuidString
+    /// Identifier encodes capsule + kind + fire instant, so when a capsule's
+    /// scheduling *changes* (echo edited, or superseded by a seal) the old
+    /// request reads as stale and is replaced — a same-UUID identifier would
+    /// silently keep the outdated one. Format: `capsule.<uuid>|<kind>|<epoch>`.
+    static func identifier(for item: PlannedNotification) -> String {
+        let kind = item.kind == .seal ? "seal" : "echo"
+        return "\(identifierPrefix)\(item.capsuleID.uuidString)|\(kind)|\(Int(item.fireDate.timeIntervalSince1970))"
+    }
+
+    /// Recover the capsule UUID from one of our request identifiers (used by
+    /// notification-tap deep linking). Tolerates the legacy `capsule.<uuid>`
+    /// form with no suffix.
+    static func capsuleID(fromIdentifier identifier: String) -> UUID? {
+        guard identifier.hasPrefix(identifierPrefix) else { return nil }
+        let payload = identifier.dropFirst(identifierPrefix.count)
+        let uuidPart = payload.split(separator: "|", maxSplits: 1).first.map(String.init) ?? String(payload)
+        return UUID(uuidString: uuidPart)
     }
 
     /// Register exactly the planned notifications, removing any of ours that are
-    /// no longer in the plan and adding any that are missing.
-    func reconcile(plan: [PlannedNotification], title: String, body: String) async {
+    /// no longer in the plan and adding any that are missing. `content` supplies
+    /// the title/body per item, so seals and echoes can read differently.
+    func reconcile(
+        plan: [PlannedNotification],
+        content: (PlannedNotification) -> (title: String, body: String)
+    ) async {
         let existing = await center.pendingRequestIdentifiers()
             .filter { $0.hasPrefix(Self.identifierPrefix) }
         let existingSet = Set(existing)
-        let desiredSet = Set(plan.map { Self.identifier(for: $0.capsuleID) })
+        let desiredSet = Set(plan.map(Self.identifier(for:)))
 
         let stale = existing.filter { !desiredSet.contains($0) }
         if !stale.isEmpty {
@@ -52,19 +71,26 @@ struct NotificationScheduler {
         }
 
         for item in plan {
-            let id = Self.identifier(for: item.capsuleID)
+            let id = Self.identifier(for: item)
             guard !existingSet.contains(id) else { continue } // already scheduled
-            let content = UNMutableNotificationContent()
-            content.title = title
-            content.body = body
-            content.sound = .default
+            let (title, body) = content(item)
+            let notification = UNMutableNotificationContent()
+            notification.title = title
+            notification.body = body
+            notification.sound = .default
             let request = UNNotificationRequest(
                 identifier: id,
-                content: content,
+                content: notification,
                 trigger: Self.trigger(for: item)
             )
             try? await center.add(request)
         }
+    }
+
+    /// Convenience: one title/body for every item (used by tests and callers
+    /// that don't need per-kind copy).
+    func reconcile(plan: [PlannedNotification], title: String, body: String) async {
+        await reconcile(plan: plan) { _ in (title, body) }
     }
 
     /// Build a calendar trigger pinned to the capsule's stored time zone, so the

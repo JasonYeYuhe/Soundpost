@@ -1,6 +1,114 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "An echo from your past" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "過去からのこだま" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "来自过去的回响" } }
+      }
+    },
+    "%lld days ago, you captured this sound. Listen back." : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "%lld日前、あなたはこの音を残しました。聴き返してみましょう。" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "%lld 天前，你录下了这段声音。回去听听吧。" } }
+      }
+    },
+    "Echo" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "こだま" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "回响" } }
+      }
+    },
+    "Echoes back %@ · in %lld days" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "%@にこだま · %lld日後" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "%@ 回响 · %lld 天后" } }
+      }
+    },
+    "A surprise reminder of what today sounded like." : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "今日がどんな音だったか、思いがけない日に知らせてくれます。" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "在某个意想不到的日子，提醒你今天的声音。" } }
+      }
+    },
+    "Remind me of this later" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "あとで思い出させて" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "以后提醒我" } }
+      }
+    },
+    "Echo date" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "こだまの日付" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "回响日期" } }
+      }
+    },
+    "Done" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "完了" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "完成" } }
+      }
+    },
+    "Skip" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "スキップ" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "跳过" } }
+      }
+    },
+    "Up to a minute of real sound — rain, a café, a voice — kept as a beautiful, mood-tinted card." : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "雨の音、カフェ、誰かの声——最長1分のリアルな音を、気分の色をまとった美しいカードに。" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "最长一分钟的真实声音——雨声、咖啡馆、某个声音——化作一张随心情上色的精美卡片。" } }
+      }
+    },
+    "Continue" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "続ける" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "继续" } }
+      }
+    },
+    "Remember where you were" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "どこにいたかも、覚えておく" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "记住你在哪里" } }
+      }
+    },
+    "Soundpost can tag each capsule with the place it was recorded — a memory of where, not just when." : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "Soundpostは録音した場所をカプセルに記録できます——「いつ」だけでなく「どこで」も。" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Soundpost 可以为每枚胶囊记下录音地点——不只是何时，还有何地。" } }
+      }
+    },
+    "Allow Location Access" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "位置情報を許可" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "允许定位" } }
+      }
+    },
+    "Not Now" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "あとで" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "暂不" } }
+      }
+    },
+    "Hear today again, someday" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "いつかまた、今日を聴く" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "在未来的某天，再听今天" } }
+      }
+    },
+    "Each new capsule picks a random day in the future to echo back and remind you of today. You can change or turn this off anytime." : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "新しいカプセルは未来のランダムな日を選び、今日のことをこだまのように知らせてくれます。日付の変更もオフもいつでもできます。" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "每枚新胶囊都会随机选定未来的一天，回响提醒你今天的声音。日期可改，也可随时关闭。" } }
+      }
+    },
+    "Enable Reminders" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "通知を有効にする" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "开启提醒" } }
+      }
+    },
     "Sealed — but reminders are off" : {
       "localizations" : {
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "封印しました — ただしリマインダーはオフです" } },

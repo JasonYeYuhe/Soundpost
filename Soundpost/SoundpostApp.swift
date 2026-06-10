@@ -30,6 +30,9 @@ struct SoundpostApp: App {
 /// we render nothing and create no store, leaving the test's container as the
 /// single source of truth.
 private struct RootView: View {
+    /// One-shot first-run flag. (UserDefaults — declared in PrivacyInfo as CA92.1.)
+    @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
+
     var body: some View {
         if AppEnvironment.isRunningUnderTests {
             Color.clear
@@ -38,13 +41,22 @@ private struct RootView: View {
             if AppEnvironment.isAudioSelfTest {
                 Color.clear.task { await AudioSelfTest.run() }   // headless audio-pipeline check
             } else if AppEnvironment.isDemoSeed {
-                ContentView().modelContainer(DemoData.container)
+                ContentView().modelContainer(DemoData.container) // screenshots skip onboarding
             } else {
-                ContentView().modelContainer(for: Capsule.self)
+                mainOrOnboarding.modelContainer(for: Capsule.self)
             }
             #else
-            ContentView().modelContainer(for: Capsule.self)
+            mainOrOnboarding.modelContainer(for: Capsule.self)
             #endif
+        }
+    }
+
+    @ViewBuilder
+    private var mainOrOnboarding: some View {
+        if hasCompletedOnboarding {
+            ContentView()
+        } else {
+            OnboardingView { hasCompletedOnboarding = true }
         }
     }
 }

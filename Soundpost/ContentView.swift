@@ -63,10 +63,12 @@ struct ContentView: View {
                         CapsuleCard(capsule: capsule)
                     }
                     .buttonStyle(.plain)
+                    .transition(.scale(scale: 0.96).combined(with: .opacity))
                 }
                 storageFooter
             }
             .padding()
+            .animation(.spring(duration: 0.35), value: capsules.count)
         }
     }
 
@@ -95,10 +97,13 @@ struct ContentView: View {
         return ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
     }
 
-    /// Changes whenever a capsule's seal state changes, so we re-sync notifications.
+    /// Changes whenever a capsule's seal or echo scheduling changes, so we
+    /// re-sync notifications.
     private var sealSignature: String {
         capsules
-            .map { "\($0.id.uuidString)|\($0.state.rawValue)|\($0.sealUntil?.timeIntervalSince1970 ?? 0)" }
+            .map {
+                "\($0.id.uuidString)|\($0.state.rawValue)|\($0.sealUntil?.timeIntervalSince1970 ?? 0)|\($0.echoAt?.timeIntervalSince1970 ?? 0)"
+            }
             .joined(separator: ",")
     }
 

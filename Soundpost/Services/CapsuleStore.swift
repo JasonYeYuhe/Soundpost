@@ -71,11 +71,19 @@ final class CapsuleStore {
     }
 
     /// Seal a captured capsule until `date`, stamping the time zone for correct
-    /// far-future delivery (docs/PROJECT.md §1e.5).
+    /// far-future delivery (docs/PROJECT.md §1e.5). Sealing supersedes any
+    /// pending echo — a sealed capsule hides its content, so a "remember this
+    /// day" echo would contradict it.
     func seal(_ capsule: Capsule, until date: Date, timeZone: TimeZone = .current) throws {
         capsule.sealUntil = date
         capsule.sealTimeZoneID = timeZone.identifier
+        capsule.echoAt = nil
         try capsule.transition(to: .sealed)
+    }
+
+    /// Set or clear a capsule's gentle echo reminder.
+    func setEcho(_ capsule: Capsule, at date: Date?) {
+        capsule.echoAt = date
     }
 
     /// Cancel a seal before its date, returning the capsule to `.captured`.

@@ -31,24 +31,45 @@ struct NotificationSchedulerTests {
         let mock = MockCenter()
         mock.pending = ["capsule.STALE", "other.keep"] // one of ours (stale), one not ours
         let scheduler = NotificationScheduler(center: mock)
-        let id = UUID()
+        let item = planned(UUID(), 1_000)
 
-        await scheduler.reconcile(plan: [planned(id, 1_000)], title: "t", body: "b")
+        await scheduler.reconcile(plan: [item], title: "t", body: "b")
 
         #expect(mock.removed.contains("capsule.STALE"))
         #expect(!mock.removed.contains("other.keep")) // never touches foreign notifications
-        #expect(mock.added.contains { $0.identifier == NotificationScheduler.identifier(for: id) })
+        #expect(mock.added.contains { $0.identifier == NotificationScheduler.identifier(for: item) })
     }
 
     @Test func reconcileSkipsAlreadyScheduled() async {
-        let id = UUID()
+        let item = planned(UUID(), 999)
         let mock = MockCenter()
-        mock.pending = [NotificationScheduler.identifier(for: id)]
+        mock.pending = [NotificationScheduler.identifier(for: item)]
         let scheduler = NotificationScheduler(center: mock)
 
-        await scheduler.reconcile(plan: [planned(id, 999)], title: "t", body: "b")
+        await scheduler.reconcile(plan: [item], title: "t", body: "b")
 
         #expect(mock.added.isEmpty) // no duplicate
+    }
+
+    /// Regression: when a capsule's scheduling changes shape — its echo is
+    /// superseded by a seal on a different date — the old request must be
+    /// replaced, not silently kept because the capsule UUID matches.
+    @Test func reconcileReplacesWhenEchoBecomesSeal() async {
+        let id = UUID()
+        var echo = planned(id, 100)
+        echo.kind = .echo
+        let mock = MockCenter()
+        let scheduler = NotificationScheduler(center: mock)
+        await scheduler.reconcile(plan: [echo], title: "t", body: "b")
+        let echoIdentifier = NotificationScheduler.identifier(for: echo)
+        #expect(mock.pending == [echoIdentifier])
+
+        var seal = planned(id, 9_999)
+        seal.kind = .seal
+        await scheduler.reconcile(plan: [seal], title: "t", body: "b")
+
+        #expect(mock.removed.contains(echoIdentifier)) // stale echo replaced
+        #expect(mock.pending == [NotificationScheduler.identifier(for: seal)])
     }
 
     @Test func reconcileToEmptyPlanClearsOurNotifications() async {
@@ -70,8 +91,18 @@ struct NotificationSchedulerTests {
 
     @Test func identifierRoundTrips() {
         let id = UUID()
-        let identifier = NotificationScheduler.identifier(for: id)
+        var item = planned(id, 5_000, tz: nil)
+        item.kind = .echo
+        let identifier = NotificationScheduler.identifier(for: item)
         #expect(identifier.hasPrefix(NotificationScheduler.identifierPrefix))
-        #expect(identifier.dropFirst(NotificationScheduler.identifierPrefix.count) == id.uuidString)
+        #expect(NotificationScheduler.capsuleID(fromIdentifier: identifier) == id)
+    }
+
+    @Test func capsuleIDParsesLegacyAndForeignIdentifiers() {
+        let id = UUID()
+        // Legacy form (v1.0 builds): bare "capsule.<uuid>" with no suffix.
+        #expect(NotificationScheduler.capsuleID(fromIdentifier: "capsule.\(id.uuidString)") == id)
+        #expect(NotificationScheduler.capsuleID(fromIdentifier: "other.\(id.uuidString)") == nil)
+        #expect(NotificationScheduler.capsuleID(fromIdentifier: "capsule.not-a-uuid|echo|1") == nil)
     }
 }

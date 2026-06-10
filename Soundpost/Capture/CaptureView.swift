@@ -6,7 +6,11 @@ import UIKit
 struct CaptureView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var viewModel = CaptureViewModel()
+    @State private var showingEchoPicker = false
+    @State private var recordPulse = false
+    @State private var saveCount = 0
 
     var body: some View {
         NavigationStack {
@@ -34,6 +38,9 @@ struct CaptureView: View {
             ) {
                 Button("OK", role: .cancel) {}
             }
+            .sheet(isPresented: $showingEchoPicker) { echoPicker }
+            .sensoryFeedback(.impact(weight: .medium), trigger: viewModel.phase)
+            .sensoryFeedback(.success, trigger: saveCount)
         }
     }
 
@@ -56,12 +63,21 @@ struct CaptureView: View {
                 Task { await viewModel.startRecording() }
             } label: {
                 ZStack {
-                    Circle().fill(.red.opacity(0.15)).frame(width: 100, height: 100)
+                    Circle()
+                        .fill(.red.opacity(0.15))
+                        .frame(width: 100, height: 100)
+                        .scaleEffect(recordPulse ? 1.12 : 1.0)
                     Circle().fill(.red).frame(width: 74, height: 74)
                 }
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Start recording")
+            .onAppear {
+                guard !reduceMotion else { return }
+                withAnimation(.easeInOut(duration: 1.4).repeatForever(autoreverses: true)) {
+                    recordPulse = true
+                }
+            }
             if viewModel.permissionDenied { permissionHint }
             Spacer()
             Text("Recording may pick up nearby voices — please be considerate of others.")
@@ -128,6 +144,7 @@ struct CaptureView: View {
                         Button { viewModel.togglePlayback() } label: {
                             Image(systemName: viewModel.player.state == .playing ? "pause.circle.fill" : "play.circle.fill")
                                 .font(.system(size: 42))
+                                .contentTransition(.symbolEffect(.replace))
                         }
                         .accessibilityLabel(viewModel.player.state == .playing ? "Pause" : "Play")
                         Spacer()
@@ -151,6 +168,8 @@ struct CaptureView: View {
                 }
 
                 section("Place") { placeControl }
+
+                section("Echo") { echoControl }
             }
             .padding()
         }
@@ -189,9 +208,72 @@ struct CaptureView: View {
             .background(selected ? mood.tint.opacity(0.22) : Color(.secondarySystemBackground), in: SwiftUI.Capsule())
             .overlay(SwiftUI.Capsule().stroke(selected ? mood.tint : .clear, lineWidth: 1.5))
             .foregroundStyle(selected ? mood.tint : .primary)
+            .scaleEffect(selected && !reduceMotion ? 1.06 : 1.0)
+            .animation(.spring(duration: 0.3, bounce: 0.4), value: selected)
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(selected ? .isSelected : [])
+        .sensoryFeedback(.selection, trigger: selected)
+    }
+
+    /// The surprise "echo" reminder row: shows the randomly drawn date, lets the
+    /// user change it or turn it off. Honest copy — it's a reminder, not a seal.
+    @ViewBuilder
+    private var echoControl: some View {
+        if viewModel.echoEnabled, let echoAt = viewModel.echoAt {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Button { showingEchoPicker = true } label: {
+                        Label(
+                            "Echoes back \(echoAt.formatted(date: .abbreviated, time: .omitted)) · in \(echoDays(until: echoAt)) days",
+                            systemImage: "bell.badge"
+                        )
+                    }
+                    Spacer()
+                    Button("Remove", role: .destructive) { viewModel.echoEnabled = false }
+                        .font(.subheadline)
+                }
+                Text("A surprise reminder of what today sounded like.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        } else {
+            Button {
+                if viewModel.echoAt == nil { viewModel.echoAt = CaptureViewModel.randomEchoDate() }
+                viewModel.echoEnabled = true
+            } label: {
+                Label("Remind me of this later", systemImage: "bell")
+            }
+        }
+    }
+
+    private var echoPicker: some View {
+        NavigationStack {
+            Form {
+                DatePicker(
+                    "Echo date",
+                    selection: Binding(
+                        get: { viewModel.echoAt ?? CaptureViewModel.randomEchoDate() },
+                        set: { viewModel.echoAt = $0 }
+                    ),
+                    in: Calendar.current.date(byAdding: .day, value: 1, to: .now)!...,
+                    displayedComponents: [.date]
+                )
+                .datePickerStyle(.graphical)
+            }
+            .navigationTitle("Echo")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { showingEchoPicker = false }
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+    }
+
+    private func echoDays(until date: Date) -> Int {
+        max(1, Calendar.current.dateComponents([.day], from: .now, to: date).day ?? 1)
     }
 
     @ViewBuilder
@@ -223,6 +305,7 @@ struct CaptureView: View {
         try? store.save() // ensure context is in a clean state
         do {
             try viewModel.save(using: store)
+            saveCount += 1 // success haptic
             dismiss()
         } catch {
             // Persisting failed; keep the sheet open so the recording isn't lost,

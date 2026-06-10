@@ -44,6 +44,13 @@ final class Capsule {
     /// If sealed, the moment the capsule should resurface. Nil when not sealed.
     var sealUntil: Date?
 
+    /// A gentle "echo": when set on a *captured* (unsealed) capsule, a local
+    /// notification on this date reminds the user what this day sounded like.
+    /// Unlike a seal it hides nothing — the capsule stays visible. Picked at
+    /// random (user-editable) when a capsule is saved; cleared by sealing,
+    /// which supersedes it. Optional so CloudKit mirroring stays legal.
+    var echoAt: Date?
+
     /// IANA time-zone identifier captured at seal time (e.g. "Asia/Tokyo").
     /// Stored so far-future delivery can be recomputed correctly across DST and
     /// tz-rule changes — see docs/PROJECT.md §1e.5.

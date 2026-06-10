@@ -97,6 +97,29 @@ Each milestone compiles, passes tests, and is committed before the next. Reuse c
 - **Age rating, content rights, no ATT** (no tracking).
 - **Acceptance:** archive validates & uploads; TestFlight build present; metadata/screenshots/privacy-policy complete; Sentry verified (test crash, no PII); submitted (or held at "ready to submit" pending Jason).
 
+### M8.5 — v1.1 "Echo" + onboarding + motion polish  ·  *(Jason's feature batch, 2026-06-10)*
+
+> Context: **v1.0 (build 2) was submitted by Jason and is Waiting for Review**; the App Privacy
+> label is published (Diagnostics, not-linked, not-tracking). These features land as **v1.1** —
+> if 1.0 is approved (Manual release) we follow up immediately; if rejected, they fold into the
+> resubmission.
+
+- **Echo (回响/こだま):** every saved capsule draws a random day **7–30 days out** — "this capsule
+  will remind you of today in N days" — shown in the review step, date-editable, removable.
+  Implementation: `Capsule.echoAt: Date?` (optional → CloudKit-legal); echoes & seals share the
+  nearest-64 notification window (`PlannedNotification.kind`); **sealing supersedes the echo**
+  (a hidden capsule must not "remind you of today"); per-kind notification copy
+  ("An echo from your past · N days ago, you captured this sound").
+- **Onboarding (3 pages):** capture intro → location (with context, "Allow Location Access") →
+  echo/notifications ("Enable Reminders"). Permissions asked **with priming context** instead of
+  bare at-launch prompts (review-safe); everything skippable, just-in-time asks remain as fallback.
+  First-run flag via `@AppStorage` → PrivacyInfo now declares UserDefaults (CA92.1).
+- **Motion & haptics:** breathing record button, springy mood chips, play/pause symbol morph,
+  gallery insert transition, `.sensoryFeedback` on record/stop/save/chip-select — all gated on
+  Reduce Motion where motion-heavy.
+- 18 new strings localized EN/JA/ZH-Hans (85 keys, 100%); `EchoTests` suite covers planner/store/
+  capture-flow behavior.
+
 ### M9 — Durability: stop losing capsules on uninstall (D1)
 
 - **One audio strategy (P0):** migrate the `.m4a` from file-based `AudioStore` to **`@Attribute(.externalStorage) var audioData: Data?`** on `Capsule` (Core Data/CloudKit maps large binaries to CKAsset transparently). **Do not** keep file storage + CloudKit mirroring in parallel (two reconciliation systems). Record to a temp file → read into `audioData` on save; play via `AVAudioPlayer(data:)`. **Lazy-load:** the gallery query must fetch metadata/waveform only, never fault `audioData` until playback (memory).

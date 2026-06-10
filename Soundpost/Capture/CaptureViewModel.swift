@@ -27,6 +27,12 @@ final class CaptureViewModel {
     var includePlace = false
     private(set) var isFetchingPlace = false
 
+    /// The gentle echo reminder: picked at random when a recording is kept
+    /// ("this capsule will remind you of today in N days"), user-editable and
+    /// removable in the review step.
+    var echoAt: Date?
+    var echoEnabled = true
+
     let recorder: AudioRecorder
     let player: AudioPlayer
     private let audioStore: AudioStore
@@ -93,7 +99,20 @@ final class CaptureViewModel {
             from: audioStore.url(for: fileName),
             buckets: waveformBuckets
         )) ?? []
+        echoAt = Self.randomEchoDate()
+        echoEnabled = true
         phase = .review
+    }
+
+    /// Pick the surprise echo date: a uniformly random day 7–30 days out,
+    /// keeping the recording's own time of day (poetic: "exactly N days later").
+    static func randomEchoDate(
+        from reference: Date = .now,
+        in range: ClosedRange<Int> = 7...30
+    ) -> Date {
+        let days = Int.random(in: range)
+        return Calendar.current.date(byAdding: .day, value: days, to: reference)
+            ?? reference.addingTimeInterval(TimeInterval(days) * 86_400)
     }
 
     func discard() {
@@ -143,6 +162,7 @@ final class CaptureViewModel {
         let trimmed = note.trimmingCharacters(in: .whitespacesAndNewlines)
         capsule.note = trimmed.isEmpty ? nil : trimmed
         capsule.place = includePlace ? place : nil
+        capsule.echoAt = echoEnabled ? echoAt : nil
         try store.save()
         reset(deleteFile: false)
         return capsule
@@ -158,6 +178,8 @@ final class CaptureViewModel {
         note = ""
         place = nil
         includePlace = false
+        echoAt = nil
+        echoEnabled = true
         phase = .idle
     }
 }

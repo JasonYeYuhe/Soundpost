@@ -49,6 +49,15 @@
 				<string>C617.1</string>
 			</array>
 		</dict>
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<!-- CA92.1: app's own defaults only (first-run onboarding flag). -->
+				<string>CA92.1</string>
+			</array>
+		</dict>
 	</array>
 </dict>
 </plist>

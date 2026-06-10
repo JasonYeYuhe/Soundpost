@@ -25,14 +25,36 @@ final class NotificationCoordinator: NSObject, UNUserNotificationCenterDelegate 
         (try? await center.requestAuthorization(options: [.alert, .sound, .badge])) ?? false
     }
 
-    /// Reconcile pending notifications with the capsules that are sealed in the future.
+    /// Reconcile pending notifications with the current capsules: sealed ones
+    /// resurfacing on their date, and captured ones echoing back later.
     func sync(capsules: [Capsule], now: Date = .now) async {
         let plan = NotificationPlanner.plan(capsules: capsules, now: now)
-        await scheduler.reconcile(
-            plan: plan,
-            title: String(localized: "A capsule has resurfaced"),
-            body: String(localized: "Open Soundpost to hear this moment again.")
+        let createdAt = Dictionary(
+            capsules.map { ($0.id, $0.createdAt) },
+            uniquingKeysWith: { first, _ in first }
         )
+        await scheduler.reconcile(plan: plan) { item in
+            switch item.kind {
+            case .seal:
+                return (
+                    String(localized: "A capsule has resurfaced"),
+                    String(localized: "Open Soundpost to hear this moment again.")
+                )
+            case .echo:
+                let days = max(
+                    1,
+                    Calendar.current.dateComponents(
+                        [.day],
+                        from: createdAt[item.capsuleID] ?? item.fireDate,
+                        to: item.fireDate
+                    ).day ?? 1
+                )
+                return (
+                    String(localized: "An echo from your past"),
+                    String(localized: "\(days) days ago, you captured this sound. Listen back.")
+                )
+            }
+        }
     }
 
     // MARK: UNUserNotificationCenterDelegate
@@ -48,10 +70,9 @@ final class NotificationCoordinator: NSObject, UNUserNotificationCenterDelegate 
         _ center: UNUserNotificationCenter,
         didReceive response: UNNotificationResponse
     ) async {
-        let identifier = response.notification.request.identifier
-        guard identifier.hasPrefix(NotificationScheduler.identifierPrefix) else { return }
-        let uuidString = String(identifier.dropFirst(NotificationScheduler.identifierPrefix.count))
-        guard let uuid = UUID(uuidString: uuidString) else { return }
+        guard let uuid = NotificationScheduler.capsuleID(
+            fromIdentifier: response.notification.request.identifier
+        ) else { return }
         await MainActor.run { self.pendingDeepLinkCapsuleID = uuid }
     }
 }
