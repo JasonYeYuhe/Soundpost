@@ -99,10 +99,11 @@ Each milestone compiles, passes tests, and is committed before the next. Reuse c
 
 ### M8.5 — v1.1 "Echo" + onboarding + motion polish  ·  *(Jason's feature batch, 2026-06-10)*
 
-> Context: **v1.0 (build 2) was submitted by Jason and is Waiting for Review**; the App Privacy
-> label is published (Diagnostics, not-linked, not-tracking). These features land as **v1.1** —
-> if 1.0 is approved (Manual release) we follow up immediately; if rejected, they fold into the
-> resubmission.
+> **SHIPPED TO REVIEW (2026-06-10): 1.1.0 (build 4) is WAITING_FOR_REVIEW.** Per Jason's call,
+> the 1.0 submission was withdrawn (DEVELOPER_REJECTED), the version renamed 1.1.0, build 4
+> attached (incl. the seal quick-pick i18n fix + echo bell badge), descriptions gained an Echo
+> bullet, and 15 branded screenshots (5 × en/ja/zh-Hans, caption-framed) replaced the lone shot.
+> Verified end-to-end on simulator (3 locales) before submitting; App Privacy label published.
 
 - **Echo (回响/こだま):** every saved capsule draws a random day **7–30 days out** — "this capsule
   will remind you of today in N days" — shown in the review step, date-editable, removable.
