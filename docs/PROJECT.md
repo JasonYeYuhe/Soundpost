@@ -19,6 +19,16 @@ An audio-first memory app: capture ten seconds of how your life *sounds* right n
 beautiful waveform card (sound + mood + place + one line), and optionally **seal** it to
 resurface to your future self.
 
+Status update (2026-06-10): **v1.0 submitted to App Review (Waiting for Review)** — build 2, App
+Privacy published, age rating 4+, Manual release. **v1.1 feature batch implemented on master**
+(M8.5): the **Echo** mechanic (every saved capsule draws a random day 7–30 days out to remind you
+of today — editable/removable; sealing supersedes it; per-kind notification copy; scheduler
+identifiers now encode kind+date so changed schedules replace stale ones), a 3-page **onboarding**
+with contextual location/notification permission asks, and a **motion + haptics** pass. 52 tests /
+8 suites green; 85 strings, 100% EN/JA/ZH-Hans. Build 3 (1.1.0) uploaded to TestFlight.
+See docs/DEVPLAN.md M8.5.
+
+Earlier status (2026-06-09):
 Status: **MVP build complete + pre-submission hardening done (M1–M7).** Record → mood-tinted
 waveform-card gallery → playback → seal to a future date → resurface, all working in the
 simulator; localized EN/JA/ZH-Hans (verified). **43 tests** across 7 suites pass.
