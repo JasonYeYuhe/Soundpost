@@ -8,6 +8,7 @@ And when a moment feels like it belongs to later, you can seal a capsule to resu
 - Every clip becomes a glanceable, mood-tinted waveform card
 - Add a place and a single line of meaning
 - Seal a capsule to open on a future date
+- Every capsule picks a surprise day to echo back and remind you of today — change or turn it off anytime
 - Private and offline-first — no account, your sounds stay on your device
 - English, 日本語, 简体中文
 
