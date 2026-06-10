@@ -18,11 +18,12 @@ enum DemoData {
 
     @MainActor
     static func seed(into context: ModelContext) {
+        // Localized so screenshots read natively in every store locale.
         let samples: [(mood: Mood, note: String, place: String?, duration: Double, daysAgo: Double)] = [
-            (.calm, "Rain on the window this morning", "Home", 12, 0),
-            (.joyful, "Kids laughing at the park", "Ueno Park", 8, 1),
-            (.nostalgic, "The old train crossing bell", nil, 17, 3),
-            (.tender, "Her humming in the kitchen", "Home", 22, 6),
+            (.calm, String(localized: "Rain on the window this morning"), String(localized: "Home"), 12, 0),
+            (.joyful, String(localized: "Kids laughing at the park"), String(localized: "Ueno Park"), 8, 1),
+            (.nostalgic, String(localized: "The old train crossing bell"), nil, 17, 3),
+            (.tender, String(localized: "Her humming in the kitchen"), String(localized: "Home"), 22, 6),
         ]
         for (index, sample) in samples.enumerated() {
             let capsule = Capsule(createdAt: Date(timeIntervalSinceNow: -sample.daysAgo * 86_400))
@@ -41,6 +42,10 @@ enum DemoData {
             }
             try? capsule.transition(to: .recording)
             try? capsule.transition(to: .captured)
+            if index == 1 {
+                // One capsule with a pending echo so the bell badge shows in demos.
+                capsule.echoAt = Date(timeIntervalSinceNow: 9 * 86_400)
+            }
             context.insert(capsule)
         }
 
@@ -51,7 +56,7 @@ enum DemoData {
         sealed.durationSeconds = 14
         sealed.waveformSamples = (0..<56).map { i in Float(0.3 + 0.5 * abs(sin(Double(i) * 0.7))) }
         sealed.mood = .energized
-        sealed.note = "A note to open on my birthday"
+        sealed.note = String(localized: "A note to open on my birthday")
         try? sealed.transition(to: .recording)
         try? sealed.transition(to: .captured)
         sealed.sealUntil = Date(timeIntervalSinceNow: 200 * 86_400)

@@ -49,6 +49,10 @@ struct CapsuleCard: View {
         case .resurfaced:
             Image(systemName: "sparkles").foregroundStyle(tint)
                 .accessibilityLabel("Resurfaced")
+        case .captured where capsule.echoAt.map({ $0 > .now }) == true:
+            // A pending echo: this capsule will ring back on its surprise day.
+            Image(systemName: "bell.badge").foregroundStyle(tint)
+                .accessibilityLabel("Echo scheduled")
         default: EmptyView()
         }
     }

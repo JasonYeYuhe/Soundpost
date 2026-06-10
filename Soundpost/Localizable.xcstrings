@@ -1,6 +1,54 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Rain on the window this morning" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "今朝、窓をたたく雨" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "今早窗上的雨声" } }
+      }
+    },
+    "Home" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "自宅" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "家" } }
+      }
+    },
+    "Kids laughing at the park" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "公園で笑う子どもたち" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "公园里孩子们的笑声" } }
+      }
+    },
+    "Ueno Park" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "上野公園" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "上野公园" } }
+      }
+    },
+    "The old train crossing bell" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "懐かしい踏切の音" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "老式道口的铃声" } }
+      }
+    },
+    "Her humming in the kitchen" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "台所で口ずさむ彼女" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "她在厨房里哼着歌" } }
+      }
+    },
+    "A note to open on my birthday" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "誕生日に開く手紙" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "留到生日那天打开的一段话" } }
+      }
+    },
+    "Echo scheduled" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "こだま予約済み" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已设回响" } }
+      }
+    },
     "An echo from your past" : {
       "localizations" : {
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "過去からのこだま" } },

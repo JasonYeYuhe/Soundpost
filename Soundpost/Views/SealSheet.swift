@@ -47,7 +47,9 @@ struct SealSheet: View {
         }
     }
 
-    private func presetButton(_ title: String, months: Int) -> some View {
+    // LocalizedStringKey (not String) so the call-site literals localize — the
+    // documented gotcha: SwiftUI only localizes string *literals*/keys.
+    private func presetButton(_ title: LocalizedStringKey, months: Int) -> some View {
         Button(title) {
             if let next = Calendar.current.date(byAdding: .month, value: months, to: .now) {
                 date = next
