@@ -1,0 +1,5 @@
+Soundpost 1.1 — Echoes.
+
+• Echo: every new capsule now picks a surprise day, 7–30 days out, to remind you what today sounded like. Change the date or turn it off right when you save.
+• A gentle welcome: a new three-screen intro explains capture, places, and echoes — and asks for permissions with context.
+• More alive: a breathing record button, springy mood chips, smoother playback transitions, and subtle haptics throughout (all respecting Reduce Motion).
