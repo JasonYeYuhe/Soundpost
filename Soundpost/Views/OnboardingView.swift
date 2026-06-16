@@ -18,7 +18,11 @@ struct OnboardingView: View {
         VStack(spacing: 0) {
             HStack {
                 Spacer()
-                if page < 2 {
+                // Skip is only offered on the first (no-permission) page. The
+                // location and notification pages must not present an exit button
+                // on the message that precedes a system permission request
+                // (App Review Guideline 5.1.1(iv)).
+                if page == 0 {
                     Button("Skip") { onFinished() }
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
@@ -41,8 +45,8 @@ struct OnboardingView: View {
                     symbol: "mappin.and.ellipse",
                     tint: .teal,
                     title: "Remember where you were",
-                    body: "Soundpost can tag each capsule with the place it was recorded — a memory of where, not just when.",
-                    buttonTitle: "Allow Location Access",
+                    body: "Soundpost can tag each capsule with the place it was recorded — a memory of where, not just when. Tap Continue to choose whether to allow location.",
+                    buttonTitle: "Continue",
                     action: {
                         requesting = true
                         Task {
@@ -50,9 +54,7 @@ struct OnboardingView: View {
                             requesting = false
                             advance()
                         }
-                    },
-                    secondaryTitle: "Not Now",
-                    secondaryAction: { advance() }
+                    }
                 )
                 .tag(1)
 

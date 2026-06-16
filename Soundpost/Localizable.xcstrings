@@ -121,10 +121,10 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "记住你在哪里" } }
       }
     },
-    "Soundpost can tag each capsule with the place it was recorded — a memory of where, not just when." : {
+    "Soundpost can tag each capsule with the place it was recorded — a memory of where, not just when. Tap Continue to choose whether to allow location." : {
       "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "Soundpostは録音した場所をカプセルに記録できます——「いつ」だけでなく「どこで」も。" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Soundpost 可以为每枚胶囊记下录音地点——不只是何时，还有何地。" } }
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "Soundpostは録音した場所をカプセルに記録できます——「いつ」だけでなく「どこで」も。「続ける」をタップすると、位置情報を許可するか選べます。" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Soundpost 可以为每枚胶囊记下录音地点——不只是何时，还有何地。点按“继续”即可选择是否允许定位。" } }
       }
     },
     "Allow Location Access" : {
