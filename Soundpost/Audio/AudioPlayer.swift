@@ -23,13 +23,38 @@ final class AudioPlayer: NSObject {
         super.init()
     }
 
+    /// Play a capsule, preferring its durable `audioData` blob and falling back
+    /// to the legacy on-disk file for capsules captured before the M9 backfill.
+    /// Dual-read so playback works mid-migration; see `Capsule.audioSource`.
+    func play(_ capsule: Capsule) throws {
+        switch capsule.audioSource {
+        case .data:
+            guard let data = capsule.audioData else { throw PlayerError.couldNotStart }
+            try play(data: data)
+        case .file(let fileName):
+            try play(fileName: fileName)
+        case .none:
+            throw PlayerError.couldNotStart
+        }
+    }
+
     func play(fileName: String) throws {
+        try start { try AVAudioPlayer(contentsOf: store.url(for: fileName)) }
+    }
+
+    /// Play directly from an in-memory clip (the M9 canonical `audioData` path).
+    func play(data: Data) throws {
+        try start { try AVAudioPlayer(data: data) }
+    }
+
+    /// Shared session setup + playback start for both audio sources.
+    private func start(makePlayer: () throws -> AVAudioPlayer) throws {
         stop()
         let session = AVAudioSession.sharedInstance()
         try session.setCategory(.playback, mode: .default)
         try session.setActive(true)
 
-        let player = try AVAudioPlayer(contentsOf: store.url(for: fileName))
+        let player = try makePlayer()
         player.delegate = self
         guard player.play() else { throw PlayerError.couldNotStart }
         self.player = player
@@ -76,5 +101,21 @@ final class AudioPlayer: NSObject {
 extension AudioPlayer: AVAudioPlayerDelegate {
     nonisolated func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
         Task { @MainActor in self.stop() }
+    }
+}
+
+extension Capsule {
+    /// Where a capsule's clip should be read from at play time. Prefers the
+    /// durable in-store `audioData` blob; falls back to the legacy on-disk file
+    /// for capsules not yet reached by the M9 backfill (docs/M9-DEVPLAN.md §S1).
+    /// Pure + synchronous so the dual-read precedence is unit-testable without
+    /// touching AVFoundation; `.data` deliberately carries no payload so reading
+    /// it never faults the (potentially large) blob.
+    enum AudioSource: Equatable { case data, file(String), none }
+
+    var audioSource: AudioSource {
+        if audioData != nil { return .data }
+        if let audioFileName { return .file(audioFileName) }
+        return .none
     }
 }

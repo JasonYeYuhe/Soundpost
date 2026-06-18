@@ -131,9 +131,8 @@ struct CapsuleDetailView: View {
     }
 
     private func togglePlay() {
-        guard let file = capsule.audioFileName else { return }
         switch player.state {
-        case .idle: try? player.play(fileName: file)
+        case .idle: try? player.play(capsule)
         case .playing: player.pause()
         case .paused: player.resume()
         }

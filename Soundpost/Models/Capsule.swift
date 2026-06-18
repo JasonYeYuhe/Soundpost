@@ -23,7 +23,19 @@ final class Capsule {
 
     /// Filename (relative to the audio store directory) of the recorded clip.
     /// Nil until recording is captured — populated in M2.
+    ///
+    /// From M9 this is a **legacy fallback**: `audioData` is the canonical store.
+    /// Capsules captured before the file→Data backfill (docs/M9-DEVPLAN.md §S2)
+    /// still read their clip through this until the backfill reclaims the file.
     var audioFileName: String?
+
+    /// The recorded clip, held as an external-storage blob — SwiftData keeps it
+    /// out of the row, and under CloudKit mirrors it as a `CKAsset` that faults
+    /// lazily, so the gallery `@Query` never loads audio into memory (only
+    /// `AudioPlayer` faults it at play time). **Canonical** audio store from M9
+    /// on (docs/M9-DEVPLAN.md §A). Optional so the CloudKit-mirrored schema stays
+    /// purely additive/legal; `nil` until captured or backfilled.
+    @Attribute(.externalStorage) var audioData: Data?
 
     /// Clip length in seconds.
     var durationSeconds: Double = 0
@@ -67,6 +79,7 @@ final class Capsule {
         self.id = id
         self.createdAt = createdAt
         self.audioFileName = nil
+        self.audioData = nil
         self.durationSeconds = 0
         self.waveformSamples = []
         self.mood = nil

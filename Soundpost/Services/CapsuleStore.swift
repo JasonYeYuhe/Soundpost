@@ -58,13 +58,21 @@ final class CapsuleStore {
     }
 
     /// Finalize a recording: attach the audio + waveform and move to `.captured`.
+    ///
+    /// `audioData` is the canonical M9 store; when supplied (the just-recorded
+    /// clip read into memory) the capsule is durable immediately and CloudKit
+    /// mirrors it as a `CKAsset`. `audioFileName` is kept as a transitional
+    /// fallback — the file→Data backfill (§S2) reclaims the on-disk clip later.
+    /// `audioData` is optional so existing file-only call sites/tests still work.
     func markCaptured(
         _ capsule: Capsule,
         audioFileName: String,
+        audioData: Data? = nil,
         durationSeconds: Double,
         waveformSamples: [Float]
     ) throws {
         capsule.audioFileName = audioFileName
+        capsule.audioData = audioData
         capsule.durationSeconds = durationSeconds
         capsule.waveformSamples = waveformSamples
         try capsule.transition(to: .captured)

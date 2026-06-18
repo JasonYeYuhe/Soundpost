@@ -152,9 +152,14 @@ final class CaptureViewModel {
         guard let fileName else { return nil }
         let capsule = store.create()
         try store.markRecording(capsule)
+        // Read the just-recorded clip into the canonical `audioData` store so the
+        // capsule is durable (and CloudKit-mirrorable) the moment it's saved. The
+        // file stays as a fallback; the §S2 backfill reclaims it on a later launch.
+        let recordedData = try? Data(contentsOf: audioStore.url(for: fileName))
         try store.markCaptured(
             capsule,
             audioFileName: fileName,
+            audioData: recordedData,
             durationSeconds: duration,
             waveformSamples: waveform
         )
