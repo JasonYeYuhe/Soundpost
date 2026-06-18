@@ -1,6 +1,30 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Backed up to your iCloud and synced across your devices." : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "あなたのiCloudにバックアップされ、お使いのすべての端末で同期されます。" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已备份到你的 iCloud，并在你的设备间同步。" } }
+      }
+    },
+    "Only on this device — sign in to iCloud to back up your capsules." : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "この端末にのみ保存されています。iCloudにサインインするとカプセルをバックアップできます。" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "仅保存在本机。登录 iCloud 即可备份你的胶囊。" } }
+      }
+    },
+    "Your iCloud storage is full, so new capsules stay on this device for now." : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "iCloudの容量がいっぱいのため、新しいカプセルは当面この端末に保存されます。" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "你的 iCloud 空间已满，新胶囊暂时只保存在本机。" } }
+      }
+    },
+    "Capsules live only on this device, so deleting the app erases them." : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "カプセルはこの端末内にのみ保存されるため、アプリを削除すると失われます。" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "胶囊仅保存在本机，删除应用会一并清除它们。" } }
+      }
+    },
     "Rain on the window this morning" : {
       "localizations" : {
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "今朝、窓をたたく雨" } },
@@ -173,12 +197,6 @@
       "localizations" : {
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "録音には周囲の声が入ることがあります。周りの方への配慮をお願いします。" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "录音可能会收录到附近的人声，请体谅周围的人。" } }
-      }
-    },
-    "Capsules live only on this device — there's no cloud backup yet, so deleting the app erases them." : {
-      "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "カプセルはこの端末内にのみ保存されます。まだクラウドバックアップはないため、アプリを削除すると失われます。" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "胶囊仅保存在本机，暂无云端备份；删除应用会一并清除它们。" } }
       }
     },
     "Sound waveform" : {

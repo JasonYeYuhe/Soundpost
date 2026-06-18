@@ -7,6 +7,7 @@ struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
     @Environment(NotificationCoordinator.self) private var notifications
+    @Environment(CloudSyncMonitor.self) private var syncMonitor
     @Query(sort: \Capsule.createdAt, order: .reverse) private var capsules: [Capsule]
     @State private var showingCapture = false
     @State private var path: [Capsule] = []
@@ -78,22 +79,50 @@ struct ContentView: View {
                 Label("\(capsules.count)", systemImage: "waveform")
                 Label(storageString, systemImage: "internaldrive")
             }
-            Text("Capsules live only on this device — there's no cloud backup yet, so deleting the app erases them.")
-                .multilineTextAlignment(.center)
+            Label {
+                Text(backupMessage)
+            } icon: {
+                Image(systemName: backupSymbol)
+            }
+            .labelStyle(.titleAndIcon)
+            .multilineTextAlignment(.center)
         }
         .font(.caption)
         .foregroundStyle(.secondary)
         .padding(.top, 6)
     }
 
-    private var storageString: String {
-        let store = AudioStore()
-        let bytes = capsules.reduce(Int64(0)) { sum, capsule in
-            guard let file = capsule.audioFileName,
-                  let size = try? FileManager.default.attributesOfItem(atPath: store.url(for: file).path)[.size] as? Int64
-            else { return sum }
-            return sum + size
+    /// Honest, iCloud-state-aware durability copy (S6). Strings are literals so
+    /// SwiftUI localizes them via the String Catalog (EN/JA/ZH-Hans).
+    private var backupMessage: LocalizedStringKey {
+        switch syncMonitor.backup {
+        case .iCloud:
+            "Backed up to your iCloud and synced across your devices."
+        case .signedOut:
+            "Only on this device — sign in to iCloud to back up your capsules."
+        case .quotaFull:
+            "Your iCloud storage is full, so new capsules stay on this device for now."
+        case .localOnly:
+            "Capsules live only on this device, so deleting the app erases them."
         }
+    }
+
+    private var backupSymbol: String {
+        switch syncMonitor.backup {
+        case .iCloud:    "checkmark.icloud"
+        case .signedOut: "icloud.slash"
+        case .quotaFull: "exclamationmark.icloud"
+        case .localOnly: "internaldrive"
+        }
+    }
+
+    /// Approximate on-device audio size. Estimated from clip duration at the
+    /// recorder's 64 kbps bitrate (~8 KB/s) rather than reading file sizes or
+    /// faulting the `audioData` blobs — the gallery must never load audio into
+    /// memory (docs/M9-DEVPLAN.md risks), and post-backfill the source files are
+    /// gone anyway.
+    private var storageString: String {
+        let bytes = capsules.reduce(Int64(0)) { $0 + Int64($1.durationSeconds * 8_000) }
         return ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
     }
 
@@ -131,4 +160,5 @@ struct ContentView: View {
     ContentView()
         .modelContainer(for: Capsule.self, inMemory: true)
         .environment(NotificationCoordinator())
+        .environment(CloudSyncMonitor())
 }

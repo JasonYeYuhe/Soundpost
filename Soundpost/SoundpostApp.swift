@@ -86,7 +86,7 @@ private struct RootView: View {
                     // Start app-layer remote-change observation once (idempotent).
                     remoteChanges.start(container: store.container, notifications: notifications)
                     // Watch CloudKit sync health for honest, calm in-app copy (S5/S6).
-                    syncMonitor.start()
+                    syncMonitor.start(rung: store.rung)
                 }
         } else {
             Color.clear // unreachable in practice; never crash if the store is missing

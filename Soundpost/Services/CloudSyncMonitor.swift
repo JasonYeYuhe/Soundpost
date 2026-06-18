@@ -27,12 +27,44 @@ final class CloudSyncMonitor {
         case quotaExceeded  // iCloud storage full
     }
 
+    /// How a capsule's durability reads to the user — the storage footer's honest
+    /// copy maps directly off this (S6). Combines the container rung (is CloudKit
+    /// even configured?) with the live sync state.
+    enum Backup: Equatable {
+        case iCloud        // CloudKit-backed and healthy (or assumed-signed-in)
+        case signedOut     // CloudKit-backed but no iCloud account
+        case quotaFull     // CloudKit-backed but iCloud storage is full
+        case localOnly     // no CloudKit (local / in-memory rung)
+    }
+
     private(set) var state: State = .unknown
+    private(set) var rung: StorageRung = .local
     private var token: NSObjectProtocol?
     private var center: NotificationCenter?
 
-    /// Begin observing CloudKit sync events. Idempotent.
-    func start(center: NotificationCenter = .default) {
+    /// The user-facing durability summary. Policy lives here (testable); the
+    /// localized strings live in the view that renders it.
+    var backup: Backup {
+        switch rung {
+        case .local, .inMemory:
+            return .localOnly
+        case .cloudKit:
+            switch state {
+            case .signedOut:     return .signedOut
+            case .quotaExceeded: return .quotaFull
+            // .ok / .syncing / .unknown: the store is configured to mirror to
+            // iCloud. The brief pre-account .unknown window resolves within a
+            // second of launch (to .signedOut if there's no account), so an
+            // optimistic "backed up" reads honestly for the common signed-in case.
+            case .ok, .syncing, .unknown: return .iCloud
+            }
+        }
+    }
+
+    /// Begin observing CloudKit sync events, recording which storage rung the
+    /// container landed on. Idempotent.
+    func start(rung: StorageRung, center: NotificationCenter = .default) {
+        self.rung = rung
         guard token == nil else { return }
         self.center = center
         token = center.addObserver(

@@ -48,4 +48,30 @@ struct CloudSyncMonitorTests {
         monitor.apply(error: CKError(.networkUnavailable), finished: true)
         #expect(monitor.state == .quotaExceeded)
     }
+
+    // MARK: backup (rung + state -> user-facing copy)
+
+    private func monitor(rung: StorageRung, state error: Error? = nil, finished: Bool = true) -> CloudSyncMonitor {
+        let m = CloudSyncMonitor()
+        m.start(rung: rung, center: NotificationCenter())
+        if let error { m.apply(error: error, finished: finished) }
+        return m
+    }
+
+    @Test func localRungIsAlwaysLocalOnly() {
+        // No CloudKit configured — never claim iCloud backup, regardless of state.
+        #expect(monitor(rung: .local).backup == .localOnly)
+        #expect(monitor(rung: .inMemory).backup == .localOnly)
+    }
+
+    @Test func cloudKitRungAssumesBackedUpUntilProvenOtherwise() {
+        // Fresh (.unknown) and healthy (.ok) both read as backed up.
+        #expect(monitor(rung: .cloudKit).backup == .iCloud)
+        #expect(monitor(rung: .cloudKit, state: nil).backup == .iCloud)
+    }
+
+    @Test func cloudKitRungReflectsSignedOutAndQuota() {
+        #expect(monitor(rung: .cloudKit, state: CKError(.notAuthenticated)).backup == .signedOut)
+        #expect(monitor(rung: .cloudKit, state: CKError(.quotaExceeded)).backup == .quotaFull)
+    }
 }
