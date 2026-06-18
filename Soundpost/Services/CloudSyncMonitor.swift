@@ -102,13 +102,42 @@ final class CloudSyncMonitor {
 
     /// The only sync errors worth telling the user about — both calmly, both
     /// leaving the local app fully functional. Everything else returns nil.
+    ///
+    /// CoreData+CloudKit doesn't always hand us a bare `CKError`: a signed-out
+    /// account surfaces (observed on a CloudKit-entitled build) as the Cocoa
+    /// error 134400 "Unable to initialize without an iCloud account", and other
+    /// errors arrive with the real `CKError` nested under `NSUnderlyingError`. So
+    /// walk the underlying-error chain and also match the Cocoa no-account code.
     static func surfacedState(for error: Error) -> State? {
-        guard let ckError = error as? CKError else { return nil }
-        switch ckError.code {
-        case .notAuthenticated: return .signedOut
-        case .quotaExceeded:    return .quotaExceeded
-        default:                return nil
+        // Cocoa error CoreData+CloudKit raises when there's no iCloud account.
+        let noAccountCocoaCode = 134400
+
+        for link in errorChain(error) {
+            if let ckError = link as? CKError {
+                switch ckError.code {
+                case .notAuthenticated: return .signedOut
+                case .quotaExceeded:    return .quotaExceeded
+                default:                break
+                }
+            }
+            let nsError = link as NSError
+            if nsError.domain == NSCocoaErrorDomain && nsError.code == noAccountCocoaCode {
+                return .signedOut
+            }
         }
+        return nil
+    }
+
+    /// An error plus its `NSUnderlyingError` chain (bounded), so a `CKError`
+    /// wrapped by CoreData is still found.
+    private static func errorChain(_ error: Error, limit: Int = 5) -> [Error] {
+        var chain: [Error] = []
+        var current: Error? = error
+        while let link = current, chain.count < limit {
+            chain.append(link)
+            current = (link as NSError).userInfo[NSUnderlyingErrorKey] as? Error
+        }
+        return chain
     }
 
     func stop() {

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- M9 durability: capsules mirror to the user's own CloudKit private DB.
+	     The container `iCloud.com.soundpost.Soundpost` must be registered in the
+	     Apple Developer portal (or auto-created by `xcodebuild -allowProvisioningUpdates`
+	     on the first archive) before a device/TestFlight build signs — see
+	     docs/M9-DEVPLAN.md §8. Simulator builds ignore provisioning, so this is
+	     inert there until an iCloud account is present. -->
+	<key>com.apple.developer.icloud-container-identifiers</key>
+	<array>
+		<string>iCloud.com.soundpost.Soundpost</string>
+	</array>
+	<key>com.apple.developer.icloud-services</key>
+	<array>
+		<string>CloudKit</string>
+	</array>
+	<!-- CloudKit wakes the app with silent pushes to import remote changes
+	     (S4: observed via .NSPersistentStoreRemoteChange). Distribution export
+	     reconciles this to `production`. -->
+	<key>aps-environment</key>
+	<string>development</string>
+</dict>
+</plist>

@@ -23,6 +23,23 @@ struct CloudSyncMonitorTests {
         #expect(CloudSyncMonitor.surfacedState(for: NSError(domain: "x", code: 7)) == nil)
     }
 
+    /// CoreData+CloudKit reports a missing iCloud account as Cocoa error 134400,
+    /// NOT a bare CKError — observed on a CloudKit-entitled simulator build with
+    /// no signed-in account. This must still read as signed out.
+    @Test func cocoaNoAccountErrorSurfacesSignedOut() {
+        let error = NSError(domain: NSCocoaErrorDomain, code: 134400,
+                            userInfo: [NSLocalizedFailureReasonErrorKey: "Unable to initialize without an iCloud account"])
+        #expect(CloudSyncMonitor.surfacedState(for: error) == .signedOut)
+    }
+
+    /// A CKError that CoreData wrapped under NSUnderlyingError is still found.
+    @Test func wrappedCKErrorIsUnwrapped() {
+        let inner = CKError(.notAuthenticated)
+        let outer = NSError(domain: NSCocoaErrorDomain, code: 134060,
+                            userInfo: [NSUnderlyingErrorKey: inner])
+        #expect(CloudSyncMonitor.surfacedState(for: outer) == .signedOut)
+    }
+
     @Test func applyTracksSyncLifecycle() {
         let monitor = CloudSyncMonitor()
         #expect(monitor.state == .unknown)

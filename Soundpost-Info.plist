@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Partial Info.plist, merged with the keys Xcode generates from
+	     INFOPLIST_KEY_* (GENERATE_INFOPLIST_FILE = YES). Kept at the repo root
+	     (NOT under Soundpost/) so the file-system-synchronized group doesn't also
+	     copy it into the bundle as a resource. Holds only what those build
+	     settings can't express: the background mode that lets CloudKit wake the
+	     app with silent pushes to import remote changes (M9 §S4). -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
+</dict>
+</plist>
