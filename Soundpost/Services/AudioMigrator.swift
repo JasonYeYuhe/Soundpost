@@ -43,7 +43,14 @@ actor AudioMigrator {
     ///   - batchSize: capsules to migrate between saves — bounds in-memory audio
     ///     to one batch and keeps CloudKit uploads incremental.
     ///   - audioStore: the on-disk clip store.
-    static func backfill(in context: ModelContext, batchSize: Int = 10, audioStore: AudioStore) {
+    ///   - save: the persist step (injected so tests can drive the save-failure
+    ///     recovery path; production uses the real `context.save()`).
+    static func backfill(
+        in context: ModelContext,
+        batchSize: Int = 10,
+        audioStore: AudioStore,
+        save: (ModelContext) throws -> Void = { try $0.save() }
+    ) {
         // Fetch rows (NOT the external-storage audio blobs, which fault lazily)
         // and filter in memory — consistent with the store's enum-predicate
         // avoidance, and cheap for a personal-scale library.
@@ -52,22 +59,44 @@ actor AudioMigrator {
         guard !candidates.isEmpty else { return }
 
         var pendingDeletes: [String] = []
+        // What this batch mutated, so we can hand-revert it if the save fails.
+        // (capsule, original audioFileName, whether we also set audioData this batch)
+        var pendingUndo: [(capsule: Capsule, fileName: String, setData: Bool)] = []
         var dirty = 0
 
         // Persist the batch's canonical `audioData` FIRST, then delete the now-
-        // redundant source files. If the save fails, drop the pending deletes so
-        // a source file is never removed without its blob safely stored.
-        func flush() {
-            defer { pendingDeletes.removeAll(); dirty = 0 }
-            guard dirty > 0 else { return }
+        // redundant source files. Returns false if the save failed (caller stops;
+        // everything retries next launch).
+        //
+        // On failure we MANUALLY REVERT the batch's in-memory mutations.
+        // SwiftData's `context.rollback()` does not reliably undo property updates,
+        // and the mutations would otherwise stay dirty: a later successful save in
+        // the same run (or context reuse) could commit `audioFileName = nil` while
+        // the (dropped) source file survives — permanently doubling storage for a
+        // capsule that, with `audioFileName` now nil, would never re-qualify as a
+        // candidate. Reverting restores `audioFileName` (and clears any `audioData`
+        // we set) so the capsule cleanly re-migrates next launch. We also drop the
+        // pending deletes so a source file is never removed without its blob saved.
+        func flush() -> Bool {
+            guard dirty > 0 else { pendingDeletes.removeAll(); pendingUndo.removeAll(); return true }
             do {
-                if context.hasChanges { try context.save() }
+                if context.hasChanges { try save(context) }
             } catch {
-                Diagnostics.notice("M9 backfill: batch save failed, retrying next launch")
-                pendingDeletes.removeAll() // do NOT delete sources we couldn't persist
-                return
+                Diagnostics.notice("M9 backfill: batch save failed, reverted; retrying next launch")
+                for item in pendingUndo {
+                    item.capsule.audioFileName = item.fileName
+                    if item.setData { item.capsule.audioData = nil }
+                }
+                pendingUndo.removeAll()
+                pendingDeletes.removeAll()
+                dirty = 0
+                return false
             }
             for fileName in pendingDeletes { try? audioStore.delete(fileName) }
+            pendingUndo.removeAll()
+            pendingDeletes.removeAll()
+            dirty = 0
+            return true
         }
 
         for capsule in candidates {
@@ -88,6 +117,7 @@ actor AudioMigrator {
                 capsule.audioData = data
                 capsule.audioFileName = nil          // migrated — drop the stale ref
                 pendingDeletes.append(fileName)
+                pendingUndo.append((capsule, fileName, true))
                 dirty += 1
             } else {
                 // `audioData` is already canonical (a clip captured by the M9 build,
@@ -96,11 +126,14 @@ actor AudioMigrator {
                 // untouched, so there's no empty-blob upload risk.
                 capsule.audioFileName = nil
                 if audioStore.fileExists(fileName) { pendingDeletes.append(fileName) }
+                pendingUndo.append((capsule, fileName, false))
                 dirty += 1
             }
 
-            if dirty >= batchSize { flush() }
+            if dirty >= batchSize {
+                if !flush() { return } // stop on save failure; clean retry next launch
+            }
         }
-        flush()
+        _ = flush()
     }
 }

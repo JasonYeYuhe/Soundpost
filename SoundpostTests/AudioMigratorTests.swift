@@ -148,4 +148,31 @@ struct AudioMigratorTests {
         AudioMigrator.backfill(in: store.context, audioStore: tempStore())
         #expect(try store.all().isEmpty)
     }
+
+    /// A failed batch save must ROLL BACK its in-memory mutations and KEEP the
+    /// source file — otherwise a later save could commit audioData + clear the
+    /// stale ref while the .m4a survives, permanently doubling storage for a
+    /// capsule that would never re-qualify as a candidate. After the failure the
+    /// capsule must cleanly re-migrate on a subsequent (working) run.
+    @Test func failedSaveRollsBackAndRetainsSourceForCleanRetry() throws {
+        let store = try TestSupport.freshStore()
+        let audioStore = tempStore()
+        defer { try? FileManager.default.removeItem(at: audioStore.directory) }
+        let fileName = try TestSupport.writeSineClip(into: audioStore)
+        let capsule = try captured(store, fileName: fileName)
+        try store.save()
+
+        // First run: the save throws -> the batch is rolled back, source kept.
+        AudioMigrator.backfill(in: store.context, audioStore: audioStore,
+                               save: { _ in throw NSError(domain: "test", code: 1) })
+        #expect(capsule.audioData == nil)            // mutation rolled back
+        #expect(capsule.audioFileName == fileName)    // still a candidate
+        #expect(audioStore.fileExists(fileName))      // source NOT deleted -> no doubling
+
+        // Second run with the real save migrates cleanly (idempotent / resumable).
+        AudioMigrator.backfill(in: store.context, audioStore: audioStore)
+        #expect(capsule.audioData != nil)
+        #expect(capsule.audioFileName == nil)
+        #expect(!audioStore.fileExists(fileName))
+    }
 }
