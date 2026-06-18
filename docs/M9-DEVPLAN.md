@@ -221,12 +221,12 @@ policy in lockstep as the project rule requires.
 
 ## 8. Human-in-the-loop checklist (needs Jason / Xcode GUI — like the Sentry SPM add)
 
-- [ ] Create the CloudKit container `iCloud.com.soundpost.Soundpost` (Xcode Signing & Capabilities → iCloud → CloudKit, or the Developer portal).
-- [ ] Enable capabilities in the target: **iCloud → CloudKit**, **Background Modes → Remote notifications**, **Push Notifications**.
+- [ ] **Create the CloudKit container** `iCloud.com.soundpost.Soundpost` in the Developer portal (or let `xcodebuild -allowProvisioningUpdates` mint it on the first archive). *The only step that genuinely needs your Apple account.*
+- [x] Enable capabilities in the target: **iCloud → CloudKit**, **Background Modes → Remote notifications**, **Push** — done in code (`Soundpost/Soundpost.entitlements` + `Soundpost-Info.plist` `UIBackgroundModes`, commit `86357f2`). With these committed, the next device/TestFlight archive needs the container to exist (above); a file-only hotfix build would need them temporarily removed.
 - [ ] Confirm the provisioning profile picks up the container (automatic signing + `-allowProvisioningUpdates` should, once the container exists).
 - [ ] After the schema is final and tested in Development, **promote the CloudKit schema to Production** in the CloudKit Dashboard (required before the App Store build syncs for real users).
 - [ ] Two physical/simulator devices on the same iCloud account for the §S8 manual pass.
-- [ ] Update the privacy-policy page in `JasonYeYuhe/soundpost-site`.
+- [ ] Publish the privacy-policy update in `JasonYeYuhe/soundpost-site` (prepared on branch `m9-icloud-privacy`; merge to `main` + push when the CloudKit build ships).
 
 ## 9. Reuse map
 
@@ -273,10 +273,20 @@ warning-free (Debug + Release), i18n EN/JA/ZH-Hans 100% (96 keys), zero new deps
 | S6 honest iCloud-state copy + privacy prose | `c906440` | footer maps off `CloudSyncMonitor.backup`; PrivacyInfo unchanged (confirmed). |
 | S7 gallery memory guard test | `3a30365` | proves the @Query fetch never faults `audioData`. |
 | Review fix: backfill save-failure revert | `6580db5` | adversarial review caught an orphaned-source / doubling bug on the save-failure path; fixed with a manual revert (SwiftData `rollback()` doesn't revert property updates). |
+| Capability wiring + signed-out hardening | `86357f2` | entitlements (iCloud/CloudKit/aps) + `UIBackgroundModes` remote-notification; `[Float]` de-risked + signed-out detection fixed (see below). |
 
-**Verified without the CloudKit entitlement:** container init does not throw, lands on a valid rung,
-app launches and the UI renders; signed-out/local rung shows no scary UI. **Cannot be verified until
-§8:** the CloudKit rung actually syncing, the `[Float] waveformSamples` schema-validation contingency,
-and the multi-device / delete-reinstall pass (S8). Privacy-policy prose is prepared but **unpushed**
-in `JasonYeYuhe/soundpost-site/privacy.html` (publish alongside the CloudKit build). The §8 checklist
-above remains the gate to shipping real sync.
+**Verified on a CloudKit-entitled simulator build (commit `86357f2`):**
+- **`[Float]` contingency de-risked:** with the entitlement present the container still inits on the
+  CloudKit rung *without throwing*, and `NSCloudKitMirroringDelegate` runs its setup assistant —
+  failing only on `CKAccountStatusNoAccount`, not a schema/`[Float]` error. SwiftData's local CloudKit
+  schema mapping accepts `waveformSamples: [Float] = []`. (The server-side schema push still needs a
+  real iCloud account to fully confirm, but the local-mapping rejection risk is eliminated — no need to
+  switch to `[Float]?` unless the entitled device build proves otherwise.)
+- **Signed-out detection fixed:** the no-account condition arrives as `NSCocoaErrorDomain 134400`, not a
+  bare `CKError`; `CloudSyncMonitor` now unwraps the underlying-error chain and matches that code, so a
+  signed-out user gets the honest "only on this device" copy instead of "backed up to iCloud".
+
+**Still gated on §8 (cannot be done from here):** registering the CloudKit container in the Developer
+portal, the first entitled device/TestFlight archive, promoting the schema Dev→Prod, the multi-device /
+delete-reinstall pass (S8), and publishing the prepared privacy prose (branch `m9-icloud-privacy` in
+`JasonYeYuhe/soundpost-site`). 81 tests / 13 suites green, warning-free (Debug+Release), i18n 100%.
