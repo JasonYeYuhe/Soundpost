@@ -5,6 +5,7 @@ import SwiftData
 @main
 struct SoundpostApp: App {
     @State private var notifications = NotificationCoordinator()
+    @State private var syncMonitor = CloudSyncMonitor()
 
     /// The production SwiftData stack (CloudKit-mirrored, S3), built once and
     /// retained for the app's lifetime so the file→Data backfill (S2) can run
@@ -28,6 +29,7 @@ struct SoundpostApp: App {
         WindowGroup {
             RootView(store: store)
                 .environment(notifications)
+                .environment(syncMonitor)
         }
     }
 }
@@ -44,6 +46,7 @@ private struct RootView: View {
     let store: ProductionStore?
 
     @Environment(NotificationCoordinator.self) private var notifications
+    @Environment(CloudSyncMonitor.self) private var syncMonitor
 
     /// App-layer observer that reschedules notifications when CloudKit merges
     /// remote changes (S4). Held in `@State` so it (and its NotificationCenter
@@ -82,6 +85,8 @@ private struct RootView: View {
                 .task {
                     // Start app-layer remote-change observation once (idempotent).
                     remoteChanges.start(container: store.container, notifications: notifications)
+                    // Watch CloudKit sync health for honest, calm in-app copy (S5/S6).
+                    syncMonitor.start()
                 }
         } else {
             Color.clear // unreachable in practice; never crash if the store is missing
