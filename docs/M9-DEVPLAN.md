@@ -257,3 +257,26 @@ policy in lockstep as the project rule requires.
 M10 = cloud-backed *delivery* (server + APNs, the seal upgrade, "cloud-backed" not "guaranteed"). M9
 is *durability only*. Keep them separate: in M9 the push is nothing; in M10 the push becomes a fetch
 signal whose content is restored from the iCloud store M9 builds.
+
+## 12. Implementation status (2026-06-18)
+
+All code-side steps implemented and committed on `master`; 79 tests / 13 suites green, build
+warning-free (Debug + Release), i18n EN/JA/ZH-Hans 100% (96 keys), zero new deps.
+
+| Step | Commit | Notes |
+|---|---|---|
+| S1 audioData field + dual-read playback | `4d09555` | `@Attribute(.externalStorage)`; `play(_ capsule:)` prefers data, file fallback. |
+| S2 file→Data backfill (`@ModelActor`) | `de6409d` | verify-then-delete, idempotent, batched, CloudKit-safe. |
+| S3 CloudKit container + fallback ladder | `489d626` | iCloud→local→in-memory; replaced only the production container site. |
+| S4 reschedule on `.NSPersistentStoreRemoteChange` | `4b7e3f9` | app-layer observer, background-safe. |
+| S5 CloudKit edge cases (calm state) | `60088cd` | signed-out / quota surfaced calmly; other errors logged. |
+| S6 honest iCloud-state copy + privacy prose | `c906440` | footer maps off `CloudSyncMonitor.backup`; PrivacyInfo unchanged (confirmed). |
+| S7 gallery memory guard test | `3a30365` | proves the @Query fetch never faults `audioData`. |
+| Review fix: backfill save-failure revert | `6580db5` | adversarial review caught an orphaned-source / doubling bug on the save-failure path; fixed with a manual revert (SwiftData `rollback()` doesn't revert property updates). |
+
+**Verified without the CloudKit entitlement:** container init does not throw, lands on a valid rung,
+app launches and the UI renders; signed-out/local rung shows no scary UI. **Cannot be verified until
+§8:** the CloudKit rung actually syncing, the `[Float] waveformSamples` schema-validation contingency,
+and the multi-device / delete-reinstall pass (S8). Privacy-policy prose is prepared but **unpushed**
+in `JasonYeYuhe/soundpost-site/privacy.html` (publish alongside the CloudKit build). The §8 checklist
+above remains the gate to shipping real sync.
