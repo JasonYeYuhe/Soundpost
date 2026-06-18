@@ -6,17 +6,27 @@ import SwiftData
 struct SoundpostApp: App {
     @State private var notifications = NotificationCoordinator()
 
+    /// The production SwiftData stack (CloudKit-mirrored, S3), built once and
+    /// retained for the app's lifetime so the file→Data backfill (S2) can run
+    /// against it and remote CloudKit changes can be observed (S4). `nil` under
+    /// tests / DEBUG demo / self-test — those paths use their own store and must
+    /// never create the production (or a second) container for `Capsule`.
+    private let store: ProductionStore?
+
     init() {
         // Crash/hang reporting. No-op without a SentryDSN; skipped under tests so
         // the unit-test runner never opens a network client.
         if !AppEnvironment.isRunningUnderTests {
             SentryBootstrap.start()
         }
+        store = AppEnvironment.usesProductionContainer
+            ? SoundpostModelContainer.makeProductionContainer()
+            : nil
     }
 
     var body: some Scene {
         WindowGroup {
-            RootView()
+            RootView(store: store)
                 .environment(notifications)
         }
     }
@@ -30,6 +40,9 @@ struct SoundpostApp: App {
 /// we render nothing and create no store, leaving the test's container as the
 /// single source of truth.
 private struct RootView: View {
+    /// The production stack from `SoundpostApp` (nil for the non-production paths).
+    let store: ProductionStore?
+
     /// One-shot first-run flag. (UserDefaults — declared in PrivacyInfo as CA92.1.)
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
 
@@ -43,12 +56,32 @@ private struct RootView: View {
             } else if AppEnvironment.isDemoSeed {
                 ContentView().modelContainer(DemoData.container) // screenshots skip onboarding
             } else {
-                mainOrOnboarding.modelContainer(for: Capsule.self)
+                production
             }
             #else
-            mainOrOnboarding.modelContainer(for: Capsule.self)
+            production
             #endif
         }
+    }
+
+    /// The real app, on the CloudKit-mirrored production container.
+    @ViewBuilder
+    private var production: some View {
+        if let store {
+            mainOrOnboarding
+                .modelContainer(store.container)
+                .task { await runBackfill(store) }
+        } else {
+            Color.clear // unreachable in practice; never crash if the store is missing
+        }
+    }
+
+    /// Kick the one-shot file→Data backfill (S2) once the container is up. It
+    /// runs on a background `@ModelActor`, no-ops when nothing matches, and is
+    /// safe to run while the first CloudKit import is in flight.
+    private func runBackfill(_ store: ProductionStore) async {
+        let migrator = AudioMigrator(modelContainer: store.container)
+        await migrator.backfillAudio()
     }
 
     @ViewBuilder
@@ -66,6 +99,13 @@ enum AppEnvironment {
     static var isRunningUnderTests: Bool {
         NSClassFromString("XCTestCase") != nil
             || ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+    }
+
+    /// True only for the real app run that should build the production CloudKit
+    /// container — i.e. not under tests, the demo seed, or the audio self-test
+    /// (each of which uses its own store).
+    static var usesProductionContainer: Bool {
+        !isRunningUnderTests && !isDemoSeed && !isAudioSelfTest
     }
 
     /// Debug screenshot/demo mode: in-memory store pre-seeded with sample capsules.
