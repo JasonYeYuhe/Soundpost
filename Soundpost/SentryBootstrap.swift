@@ -38,4 +38,14 @@ enum SentryBootstrap {
         }
         #endif
     }
+
+    /// Surface a notable, non-fatal condition (a durability fallback rung, an
+    /// unrecoverable backfill source) as a Sentry message. No-op in DEBUG / under
+    /// tests / when sentry-cocoa isn't linked. Pass only static, non-PII strings —
+    /// never a capsule's note, place, or audio.
+    static func capture(message: String) {
+        #if canImport(Sentry) && !DEBUG
+        SentrySDK.capture(message: message)
+        #endif
+    }
 }
