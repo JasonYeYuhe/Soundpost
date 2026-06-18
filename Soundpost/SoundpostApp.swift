@@ -43,6 +43,14 @@ private struct RootView: View {
     /// The production stack from `SoundpostApp` (nil for the non-production paths).
     let store: ProductionStore?
 
+    @Environment(NotificationCoordinator.self) private var notifications
+
+    /// App-layer observer that reschedules notifications when CloudKit merges
+    /// remote changes (S4). Held in `@State` so it (and its NotificationCenter
+    /// registration) outlives view-body evaluation and keeps firing in the
+    /// background — the case the reactive `@Query` path can't cover.
+    @State private var remoteChanges = RemoteChangeReconciler()
+
     /// One-shot first-run flag. (UserDefaults — declared in PrivacyInfo as CA92.1.)
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
 
@@ -71,6 +79,10 @@ private struct RootView: View {
             mainOrOnboarding
                 .modelContainer(store.container)
                 .task { await runBackfill(store) }
+                .task {
+                    // Start app-layer remote-change observation once (idempotent).
+                    remoteChanges.start(container: store.container, notifications: notifications)
+                }
         } else {
             Color.clear // unreachable in practice; never crash if the store is missing
         }
