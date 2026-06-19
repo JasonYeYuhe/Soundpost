@@ -226,9 +226,9 @@ policy in lockstep as the project rule requires.
 - [x] Provisioning confirmed: created the App Store profile **"Soundpost App Store M9"** (grants `iCloud.com.soundpost.Soundpost`, `aps-environment: production`); a Release archive signs cleanly with it (`build/Soundpost.xcarchive`, entitlements verified). NOTE: `xcodebuild -allowProvisioningUpdates` could NOT authenticate with the ASC API key (works for the REST API but not the provisioning *write* path) — so provisioning was done via the REST API + the portal, and the archive uses manual signing with that profile.
 - [x] Ran the app on the device "js" (signed into iCloud): recorded a capsule (synced — footer showed "Backed up to your iCloud") and sealed one, which created the full `CD_Capsule` schema (14 record fields incl. `CD_sealUntil`/`CD_sealTimeZoneID`; `[Float]` waveform → `CD_waveformSamples` BYTES, contingency closed) in CloudKit **Development**.
 - [x] **Promoted the CloudKit schema Development → Production** ("Changes Deployed"); verified `CD_Capsule` (20 fields) is live in the Production environment.
-- [ ] Two physical/simulator devices on the same iCloud account for the §S8 manual pass (delete+reinstall restores capsules incl. audio).
-- [ ] Publish the privacy-policy update in `JasonYeYuhe/soundpost-site` (prepared on branch `m9-icloud-privacy`; merge to `main` + push when the CloudKit build ships).
-- [ ] Upload a CloudKit build to TestFlight when ready (bump `CURRENT_PROJECT_VERSION` past 5 first — the in-review build is 1.1.0(5); and promote the schema to Production first or testers won't sync).
+- [ ] Two physical/simulator devices on the same iCloud account for the §S8 manual pass (delete+reinstall restores capsules incl. audio) — optional; build 6 is on TestFlight for this.
+- [x] Published the privacy-policy update in `JasonYeYuhe/soundpost-site` (merged `m9-icloud-privacy` → `main`, live on GitHub Pages).
+- [x] Shipped to App Store Connect as **1.2.0 (build 6)**: archived + uploaded, created the 1.2.0 version (metadata/screenshots inherited from 1.1.0), localized "What's New" (EN/JA/ZH), attached build 6, **release type MANUAL**, and **submitted for review** (WAITING_FOR_REVIEW). After approval, Jason presses Release to go live.
 
 ## 9. Reuse map
 
