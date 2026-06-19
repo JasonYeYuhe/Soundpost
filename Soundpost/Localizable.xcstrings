@@ -1,577 +1,1541 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
-    "Backed up to your iCloud and synced across your devices." : {
-      "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "あなたのiCloudにバックアップされ、お使いのすべての端末で同期されます。" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已备份到你的 iCloud，并在你的设备间同步。" } }
-      }
-    },
-    "Only on this device — sign in to iCloud to back up your capsules." : {
-      "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "この端末にのみ保存されています。iCloudにサインインするとカプセルをバックアップできます。" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "仅保存在本机。登录 iCloud 即可备份你的胶囊。" } }
-      }
-    },
-    "Your iCloud storage is full, so new capsules stay on this device for now." : {
-      "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "iCloudの容量がいっぱいのため、新しいカプセルは当面この端末に保存されます。" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "你的 iCloud 空间已满，新胶囊暂时只保存在本机。" } }
-      }
-    },
-    "Capsules live only on this device, so deleting the app erases them." : {
-      "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "カプセルはこの端末内にのみ保存されるため、アプリを削除すると失われます。" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "胶囊仅保存在本机，删除应用会一并清除它们。" } }
-      }
-    },
-    "Rain on the window this morning" : {
-      "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "今朝、窓をたたく雨" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "今早窗上的雨声" } }
-      }
-    },
-    "Home" : {
-      "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "自宅" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "家" } }
-      }
-    },
-    "Kids laughing at the park" : {
-      "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "公園で笑う子どもたち" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "公园里孩子们的笑声" } }
-      }
-    },
-    "Ueno Park" : {
-      "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "上野公園" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "上野公园" } }
-      }
-    },
-    "The old train crossing bell" : {
-      "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "懐かしい踏切の音" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "老式道口的铃声" } }
-      }
-    },
-    "Her humming in the kitchen" : {
-      "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "台所で口ずさむ彼女" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "她在厨房里哼着歌" } }
-      }
-    },
-    "A note to open on my birthday" : {
-      "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "誕生日に開く手紙" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "留到生日那天打开的一段话" } }
-      }
-    },
-    "Echo scheduled" : {
-      "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "こだま予約済み" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已设回响" } }
-      }
-    },
-    "An echo from your past" : {
-      "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "過去からのこだま" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "来自过去的回响" } }
-      }
-    },
-    "%lld days ago, you captured this sound. Listen back." : {
-      "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "%lld日前、あなたはこの音を残しました。聴き返してみましょう。" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "%lld 天前，你录下了这段声音。回去听听吧。" } }
-      }
-    },
-    "Echo" : {
-      "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "こだま" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "回响" } }
-      }
-    },
-    "Echoes back %@ · in %lld days" : {
-      "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "%@にこだま · %lld日後" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "%@ 回响 · %lld 天后" } }
-      }
-    },
-    "A surprise reminder of what today sounded like." : {
-      "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "今日がどんな音だったか、思いがけない日に知らせてくれます。" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "在某个意想不到的日子，提醒你今天的声音。" } }
-      }
-    },
-    "Remind me of this later" : {
-      "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "あとで思い出させて" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "以后提醒我" } }
-      }
-    },
-    "Echo date" : {
-      "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "こだまの日付" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "回响日期" } }
-      }
-    },
-    "Done" : {
-      "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "完了" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "完成" } }
-      }
-    },
-    "Skip" : {
-      "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "スキップ" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "跳过" } }
-      }
-    },
-    "Up to a minute of real sound — rain, a café, a voice — kept as a beautiful, mood-tinted card." : {
-      "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "雨の音、カフェ、誰かの声——最長1分のリアルな音を、気分の色をまとった美しいカードに。" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "最长一分钟的真实声音——雨声、咖啡馆、某个声音——化作一张随心情上色的精美卡片。" } }
-      }
-    },
-    "Continue" : {
-      "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "続ける" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "继续" } }
-      }
-    },
-    "Remember where you were" : {
-      "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "どこにいたかも、覚えておく" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "记住你在哪里" } }
-      }
-    },
-    "Soundpost can tag each capsule with the place it was recorded — a memory of where, not just when. Tap Continue to choose whether to allow location." : {
-      "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "Soundpostは録音した場所をカプセルに記録できます——「いつ」だけでなく「どこで」も。「続ける」をタップすると、位置情報を許可するか選べます。" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Soundpost 可以为每枚胶囊记下录音地点——不只是何时，还有何地。点按“继续”即可选择是否允许定位。" } }
-      }
-    },
-    "Allow Location Access" : {
-      "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "位置情報を許可" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "允许定位" } }
-      }
-    },
-    "Not Now" : {
-      "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "あとで" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "暂不" } }
-      }
-    },
-    "Hear today again, someday" : {
-      "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "いつかまた、今日を聴く" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "在未来的某天，再听今天" } }
-      }
-    },
-    "Each new capsule picks a random day in the future to echo back and remind you of today. You can change or turn this off anytime." : {
-      "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "新しいカプセルは未来のランダムな日を選び、今日のことをこだまのように知らせてくれます。日付の変更もオフもいつでもできます。" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "每枚新胶囊都会随机选定未来的一天，回响提醒你今天的声音。日期可改，也可随时关闭。" } }
-      }
-    },
-    "Enable Reminders" : {
-      "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "通知を有効にする" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "开启提醒" } }
-      }
-    },
-    "Sealed — but reminders are off" : {
-      "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "封印しました — ただしリマインダーはオフです" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已封存——但提醒已关闭" } }
-      }
-    },
-    "This capsule is sealed and will reappear here on its date. To be reminded on the day, turn on notifications for Soundpost in Settings." : {
-      "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "このカプセルは封印され、指定の日付にここで再び現れます。当日にお知らせを受け取るには、設定でSoundpostの通知をオンにしてください。" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "这枚胶囊已封存，会在设定的日期重新出现在这里。若想在当天收到提醒，请在“设置”中开启 Soundpost 的通知。" } }
-      }
-    },
-    "Recording may pick up nearby voices — please be considerate of others." : {
-      "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "録音には周囲の声が入ることがあります。周りの方への配慮をお願いします。" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "录音可能会收录到附近的人声，请体谅周围的人。" } }
-      }
-    },
-    "Sound waveform" : {
-      "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "サウンド波形" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "声音波形" } }
-      }
-    },
-    "%lld percent played" : {
-      "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "%lld パーセント再生済み" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已播放 %lld%%" } }
-      }
-    },
-    "Resurfaced" : {
-      "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "再浮上しました" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已重现" } }
-      }
-    },
-    "Couldn't start recording. Please try again." : {
-      "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "録音を開始できませんでした。もう一度お試しください。" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法开始录音，请重试。" } }
-      }
-    },
-    "Couldn't save the capsule. Please try again." : {
-      "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "カプセルを保存できませんでした。もう一度お試しください。" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法保存胶囊，请重试。" } }
-      }
-    },
-    "That recording was too short. Try holding a moment longer." : {
-      "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "録音が短すぎました。もう少し長めに録音してみてください。" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "录音太短了，请按住再多录一会儿。" } }
-      }
-    },
-    "OK" : {
-      "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "OK" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "好" } }
-      }
+    "" : {
+
     },
     "%lld" : {
       "shouldTranslate" : false
     },
+    "%lld days ago, you captured this sound. Listen back." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld日前、あなたはこの音を残しました。聴き返してみましょう。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 天前，你录下了这段声音。回去听听吧。"
+          }
+        }
+      }
+    },
+    "%lld percent played" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld パーセント再生済み"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已播放 %lld%%"
+          }
+        }
+      }
+    },
     "A capsule has resurfaced" : {
       "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "カプセルがよみがえりました" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "一个胶囊重现了" } }
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "カプセルがよみがえりました"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一个胶囊重现了"
+          }
+        }
       }
     },
     "A gentle seal — held until then." : {
       "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "やさしい封印 — その日まで保管します。" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "温柔的封印——保存到那一天。" } }
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "やさしい封印 — その日まで保管します。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "温柔的封印——保存到那一天。"
+          }
+        }
       }
     },
     "A gentle seal: Soundpost keeps it hidden until then, but this is an honor-system lock on your device — not encryption." : {
       "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "やさしい封印：その日まで Soundpost が非表示にしますが、これは端末上の善意によるロックであり、暗号化ではありません。" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "温柔的封印：Soundpost 会将其隐藏到那一天，但这只是设备上基于自觉的锁定，并非加密。" } }
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "やさしい封印：その日まで Soundpost が非表示にしますが、これは端末上の善意によるロックであり、暗号化ではありません。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "温柔的封印：Soundpost 会将其隐藏到那一天，但这只是设备上基于自觉的锁定，并非加密。"
+          }
+        }
+      }
+    },
+    "A note to open on my birthday" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "誕生日に開く手紙"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "留到生日那天打开的一段话"
+          }
+        }
+      }
+    },
+    "A surprise reminder of what today sounded like." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今日がどんな音だったか、思いがけない日に知らせてくれます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在某个意想不到的日子，提醒你今天的声音。"
+          }
+        }
+      }
+    },
+    "Allow Location Access" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "位置情報を許可"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "允许定位"
+          }
+        }
+      }
+    },
+    "An echo from your past" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "過去からのこだま"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "来自过去的回响"
+          }
+        }
       }
     },
     "Anxious" : {
       "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "不安" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "焦虑" } }
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不安"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "焦虑"
+          }
+        }
+      }
+    },
+    "Backed up to your iCloud and synced across your devices." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "あなたのiCloudにバックアップされ、お使いのすべての端末で同期されます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已备份到你的 iCloud，并在你的设备间同步。"
+          }
+        }
       }
     },
     "Calm" : {
       "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "穏やか" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "平静" } }
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "穏やか"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "平静"
+          }
+        }
       }
     },
     "Cancel" : {
       "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "キャンセル" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "取消" } }
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "キャンセル"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "取消"
+          }
+        }
       }
     },
     "Capsule" : {
       "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "カプセル" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "胶囊" } }
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "カプセル"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "胶囊"
+          }
+        }
+      }
+    },
+    "Capsules live only on this device, so deleting the app erases them." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "カプセルはこの端末内にのみ保存されるため、アプリを削除すると失われます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "胶囊仅保存在本机，删除应用会一并清除它们。"
+          }
+        }
       }
     },
     "Capture how this moment sounds" : {
       "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "この瞬間の音を残す" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "捕捉此刻的声音" } }
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この瞬間の音を残す"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "捕捉此刻的声音"
+          }
+        }
       }
     },
     "Capture ten seconds of how your life sounds right now." : {
       "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "今のあなたの暮らしの音を、10秒だけ残しましょう。" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "录下此刻生活的声音，只需十秒。" } }
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今のあなたの暮らしの音を、10秒だけ残しましょう。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "录下此刻生活的声音，只需十秒。"
+          }
+        }
+      }
+    },
+    "Continue" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "続ける"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "继续"
+          }
+        }
+      }
+    },
+    "Couldn't save the capsule. Please try again." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "カプセルを保存できませんでした。もう一度お試しください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法保存胶囊，请重试。"
+          }
+        }
+      }
+    },
+    "Couldn't start recording. Please try again." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "録音を開始できませんでした。もう一度お試しください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法开始录音，请重试。"
+          }
+        }
       }
     },
     "Current location" : {
       "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "現在地" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "当前位置" } }
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現在地"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当前位置"
+          }
+        }
       }
     },
     "Delete" : {
       "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "削除" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "删除" } }
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "削除"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "删除"
+          }
+        }
       }
     },
     "Delete capsule" : {
       "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "カプセルを削除" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "删除胶囊" } }
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "カプセルを削除"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "删除胶囊"
+          }
+        }
       }
     },
     "Delete this capsule?" : {
       "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "このカプセルを削除しますか？" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "删除这个胶囊？" } }
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このカプセルを削除しますか？"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "删除这个胶囊？"
+          }
+        }
       }
     },
     "Discard & re-record" : {
       "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "破棄して録り直す" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "放弃并重录" } }
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "破棄して録り直す"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "放弃并重录"
+          }
+        }
+      }
+    },
+    "Done" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "完了"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "完成"
+          }
+        }
+      }
+    },
+    "Each new capsule picks a random day in the future to echo back and remind you of today. You can change or turn this off anytime." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新しいカプセルは未来のランダムな日を選び、今日のことをこだまのように知らせてくれます。日付の変更もオフもいつでもできます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每枚新胶囊都会随机选定未来的一天，回响提醒你今天的声音。日期可改，也可随时关闭。"
+          }
+        }
+      }
+    },
+    "Echo" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "こだま"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "回响"
+          }
+        }
+      }
+    },
+    "Echo date" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "こだまの日付"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "回响日期"
+          }
+        }
+      }
+    },
+    "Echo scheduled" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "こだま予約済み"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已设回响"
+          }
+        }
+      }
+    },
+    "Echoes back %@ · in %lld days" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@にこだま · %lld日後"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 回响 · %lld 天后"
+          }
+        }
+      }
+    },
+    "Enable Reminders" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通知を有効にする"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开启提醒"
+          }
+        }
       }
     },
     "Energized" : {
       "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "元気" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "活力" } }
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "元気"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "活力"
+          }
+        }
       }
     },
     "Finding location…" : {
       "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "現在地を取得中…" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在获取位置…" } }
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現在地を取得中…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在获取位置…"
+          }
+        }
+      }
+    },
+    "Hear today again, someday" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "いつかまた、今日を聴く"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在未来的某天，再听今天"
+          }
+        }
+      }
+    },
+    "Her humming in the kitchen" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "台所で口ずさむ彼女"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "她在厨房里哼着歌"
+          }
+        }
+      }
+    },
+    "Home" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自宅"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "家"
+          }
+        }
       }
     },
     "In 1 month" : {
       "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "1か月後" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "1 个月后" } }
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1か月後"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 个月后"
+          }
+        }
       }
     },
     "In 1 year" : {
       "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "1年後" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "1 年后" } }
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1年後"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 年后"
+          }
+        }
       }
     },
     "In 6 months" : {
       "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "6か月後" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "6 个月后" } }
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "6か月後"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "6 个月后"
+          }
+        }
       }
     },
     "Joyful" : {
       "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "うれしい" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "喜悦" } }
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "うれしい"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "喜悦"
+          }
+        }
+      }
+    },
+    "Kids laughing at the park" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "公園で笑う子どもたち"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "公园里孩子们的笑声"
+          }
+        }
       }
     },
     "Melancholy" : {
       "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "もの悲しい" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "忧伤" } }
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "もの悲しい"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "忧伤"
+          }
+        }
       }
     },
     "Microphone access is off." : {
       "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "マイクへのアクセスがオフです。" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "麦克风权限已关闭。" } }
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "マイクへのアクセスがオフです。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "麦克风权限已关闭。"
+          }
+        }
       }
     },
     "Mood" : {
       "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "気分" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "心情" } }
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "気分"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "心情"
+          }
+        }
       }
     },
     "New capsule" : {
       "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "新しいカプセル" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "新建胶囊" } }
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新しいカプセル"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新建胶囊"
+          }
+        }
       }
     },
     "No capsules yet" : {
       "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "まだカプセルがありません" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "还没有胶囊" } }
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "まだカプセルがありません"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "还没有胶囊"
+          }
+        }
       }
     },
     "Nostalgic" : {
       "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "なつかしい" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "怀旧" } }
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "なつかしい"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "怀旧"
+          }
+        }
+      }
+    },
+    "Not Now" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "あとで"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂不"
+          }
+        }
+      }
+    },
+    "OK" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OK"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "好"
+          }
+        }
       }
     },
     "One line" : {
       "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ひとこと" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "一句话" } }
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ひとこと"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一句话"
+          }
+        }
+      }
+    },
+    "Only on this device — sign in to iCloud to back up your capsules." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この端末にのみ保存されています。iCloudにサインインするとカプセルをバックアップできます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "仅保存在本机。登录 iCloud 即可备份你的胶囊。"
+          }
+        }
       }
     },
     "Open on" : {
       "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "開く日" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "开启日期" } }
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開く日"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开启日期"
+          }
+        }
       }
     },
     "Open Settings" : {
       "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "設定を開く" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "打开设置" } }
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "設定を開く"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开设置"
+          }
+        }
       }
     },
     "Open Soundpost to hear this moment again." : {
       "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "Soundpost を開いて、この瞬間をもう一度聞きましょう。" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "打开 Soundpost，再次聆听这一刻。" } }
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Soundpost を開いて、この瞬間をもう一度聞きましょう。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开 Soundpost，再次聆听这一刻。"
+          }
+        }
       }
     },
     "Opens %@" : {
       "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "%@に開きます" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "%@ 开启" } }
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@に開きます"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 开启"
+          }
+        }
       }
     },
     "Pause" : {
       "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "一時停止" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "暂停" } }
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一時停止"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂停"
+          }
+        }
       }
     },
     "Place" : {
       "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "場所" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "地点" } }
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "場所"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "地点"
+          }
+        }
       }
     },
     "Play" : {
       "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "再生" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "播放" } }
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "再生"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "播放"
+          }
+        }
       }
     },
     "Quick pick" : {
       "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "クイック選択" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "快速选择" } }
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クイック選択"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "快速选择"
+          }
+        }
+      }
+    },
+    "Rain on the window this morning" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今朝、窓をたたく雨"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今早窗上的雨声"
+          }
+        }
       }
     },
     "Record a sound" : {
       "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "音を録音" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "录制声音" } }
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "音を録音"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "录制声音"
+          }
+        }
+      }
+    },
+    "Recording may pick up nearby voices — please be considerate of others." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "録音には周囲の声が入ることがあります。周りの方への配慮をお願いします。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "录音可能会收录到附近的人声，请体谅周围的人。"
+          }
+        }
       }
     },
     "Recording…" : {
       "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "録音中…" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "录音中…" } }
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "録音中…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "录音中…"
+          }
+        }
+      }
+    },
+    "Remember where you were" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "どこにいたかも、覚えておく"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "记住你在哪里"
+          }
+        }
+      }
+    },
+    "Remind me of this later" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "あとで思い出させて"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "以后提醒我"
+          }
+        }
       }
     },
     "Remove" : {
       "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "削除" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "移除" } }
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "削除"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移除"
+          }
+        }
       }
     },
     "Resurface date" : {
       "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "再会の日" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "重现日期" } }
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "再会の日"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重现日期"
+          }
+        }
+      }
+    },
+    "Resurfaced" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "再浮上しました"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已重现"
+          }
+        }
       }
     },
     "Save capsule" : {
       "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "カプセルを保存" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "保存胶囊" } }
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "カプセルを保存"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存胶囊"
+          }
+        }
       }
     },
     "Seal" : {
       "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "封印" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "封存" } }
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "封印"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "封存"
+          }
+        }
       }
     },
     "Seal to the future" : {
       "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "未来へ封印" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "封存到未来" } }
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未来へ封印"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "封存到未来"
+          }
+        }
       }
     },
     "Sealed" : {
       "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "封印済み" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已封存" } }
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "封印済み"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已封存"
+          }
+        }
+      }
+    },
+    "Sealed — but reminders are off" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "封印しました — ただしリマインダーはオフです"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已封存——但提醒已关闭"
+          }
+        }
+      }
+    },
+    "Skip" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スキップ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "跳过"
+          }
+        }
       }
     },
     "Sound" : {
       "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "音" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "声音" } }
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "音"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "声音"
+          }
+        }
+      }
+    },
+    "Sound waveform" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "サウンド波形"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "声音波形"
+          }
+        }
+      }
+    },
+    "Soundpost" : {
+
+    },
+    "Soundpost can tag each capsule with the place it was recorded — a memory of where, not just when. Tap Continue to choose whether to allow location." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Soundpostは録音した場所をカプセルに記録できます——「いつ」だけでなく「どこで」も。「続ける」をタップすると、位置情報を許可するか選べます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Soundpost 可以为每枚胶囊记下录音地点——不只是何时，还有何地。点按“继续”即可选择是否允许定位。"
+          }
+        }
       }
     },
     "Soundpost will hide this capsule and notify you on %@. This is a gentle, honor-system seal kept on your device — not encryption." : {
       "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "Soundpost はこのカプセルを非表示にし、%@にお知らせします。これは端末上のやさしい善意の封印で、暗号化ではありません。" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Soundpost 会隐藏这个胶囊，并在 %@ 通知你。这是设备上温柔、基于自觉的封印，并非加密。" } }
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Soundpost はこのカプセルを非表示にし、%@にお知らせします。これは端末上のやさしい善意の封印で、暗号化ではありません。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Soundpost 会隐藏这个胶囊，并在 %@ 通知你。这是设备上温柔、基于自觉的封印，并非加密。"
+          }
+        }
       }
     },
     "Start recording" : {
       "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "録音を開始" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "开始录音" } }
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "録音を開始"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开始录音"
+          }
+        }
       }
     },
     "Stop recording" : {
       "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "録音を停止" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "停止录音" } }
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "録音を停止"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "停止录音"
+          }
+        }
       }
     },
     "Tag where I am" : {
       "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "現在地を追加" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "标记当前位置" } }
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現在地を追加"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "标记当前位置"
+          }
+        }
       }
     },
     "Tender" : {
       "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "やさしい" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "温柔" } }
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "やさしい"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "温柔"
+          }
+        }
+      }
+    },
+    "That recording was too short. Try holding a moment longer." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "録音が短すぎました。もう少し長めに録音してみてください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "录音太短了，请按住再多录一会儿。"
+          }
+        }
+      }
+    },
+    "The old train crossing bell" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "懐かしい踏切の音"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "老式道口的铃声"
+          }
+        }
+      }
+    },
+    "This capsule is sealed and will reappear here on its date. To be reminded on the day, turn on notifications for Soundpost in Settings." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このカプセルは封印され、指定の日付にここで再び現れます。当日にお知らせを受け取るには、設定でSoundpostの通知をオンにしてください。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这枚胶囊已封存，会在设定的日期重新出现在这里。若想在当天收到提醒，请在“设置”中开启 Soundpost 的通知。"
+          }
+        }
       }
     },
     "This capsule opens %@." : {
       "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "このカプセルは%@に開きます。" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "这个胶囊将于 %@ 开启。" } }
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このカプセルは%@に開きます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这个胶囊将于 %@ 开启。"
+          }
+        }
       }
     },
     "This permanently removes the recording." : {
       "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "録音が完全に削除されます。" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "这将永久删除录音。" } }
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "録音が完全に削除されます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这将永久删除录音。"
+          }
+        }
+      }
+    },
+    "Ueno Park" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上野公園"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上野公园"
+          }
+        }
       }
     },
     "Unseal" : {
       "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "封印を解除" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "解除封印" } }
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "封印を解除"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "解除封印"
+          }
+        }
       }
     },
     "Up to 60 seconds. Tap to start." : {
       "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "最大60秒。タップして開始。" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "最长 60 秒。点按开始。" } }
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最大60秒。タップして開始。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最长 60 秒。点按开始。"
+          }
+        }
+      }
+    },
+    "Up to a minute of real sound — rain, a café, a voice — kept as a beautiful, mood-tinted card." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "雨の音、カフェ、誰かの声——最長1分のリアルな音を、気分の色をまとった美しいカードに。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最长一分钟的真实声音——雨声、咖啡馆、某个声音——化作一张随心情上色的精美卡片。"
+          }
+        }
       }
     },
     "What is this?" : {
       "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "これは何ですか？" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "这是什么？" } }
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "これは何ですか？"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这是什么？"
+          }
+        }
       }
     },
     "Yesterday" : {
       "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "昨日" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "昨天" } }
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "昨日"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "昨天"
+          }
+        }
+      }
+    },
+    "Your iCloud storage is full, so new capsules stay on this device for now." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iCloudの容量がいっぱいのため、新しいカプセルは当面この端末に保存されます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你的 iCloud 空间已满，新胶囊暂时只保存在本机。"
+          }
+        }
       }
     }
   },

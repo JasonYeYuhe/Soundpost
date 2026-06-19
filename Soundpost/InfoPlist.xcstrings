@@ -1,18 +1,64 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "CFBundleName" : {
+      "comment" : "Bundle name",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Soundpost"
+          }
+        }
+      }
+    },
     "NSLocationWhenInUseUsageDescription" : {
       "comment" : "Why Soundpost asks for location",
+      "extractionState" : "extracted_with_value",
       "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "録音した場所をカプセルに添えることができます。" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Soundpost 可以为胶囊标记你录制时所在的位置。" } }
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Soundpost can tag a capsule with where you recorded it."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "録音した場所をカプセルに添えることができます。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Soundpost 可以为胶囊标记你录制时所在的位置。"
+          }
+        }
       }
     },
     "NSMicrophoneUsageDescription" : {
       "comment" : "Why Soundpost asks for the microphone",
+      "extractionState" : "extracted_with_value",
       "localizations" : {
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "思い出のカプセルを作るために短い音を録音します。" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Soundpost 会录制简短的声音来制作你的记忆胶囊。" } }
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Soundpost records short sounds to make your memory capsules."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "思い出のカプセルを作るために短い音を録音します。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Soundpost 会录制简短的声音来制作你的记忆胶囊。"
+          }
+        }
       }
     }
   },
