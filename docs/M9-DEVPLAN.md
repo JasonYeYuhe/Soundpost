@@ -221,12 +221,13 @@ policy in lockstep as the project rule requires.
 
 ## 8. Human-in-the-loop checklist (needs Jason / Xcode GUI — like the Sentry SPM add)
 
-- [ ] **Create the CloudKit container** `iCloud.com.soundpost.Soundpost` in the Developer portal (or let `xcodebuild -allowProvisioningUpdates` mint it on the first archive). *The only step that genuinely needs your Apple account.*
-- [x] Enable capabilities in the target: **iCloud → CloudKit**, **Background Modes → Remote notifications**, **Push** — done in code (`Soundpost/Soundpost.entitlements` + `Soundpost-Info.plist` `UIBackgroundModes`, commit `86357f2`). With these committed, the next device/TestFlight archive needs the container to exist (above); a file-only hotfix build would need them temporarily removed.
-- [ ] Confirm the provisioning profile picks up the container (automatic signing + `-allowProvisioningUpdates` should, once the container exists).
-- [ ] After the schema is final and tested in Development, **promote the CloudKit schema to Production** in the CloudKit Dashboard (required before the App Store build syncs for real users).
+- [x] **Created the CloudKit container** `iCloud.com.soundpost.Soundpost` (Developer portal, via the web UI) and **assigned it** to App ID `com.soundpost.Soundpost` (M3B2SV6M8B).
+- [x] Enabled capabilities: **iCloud → CloudKit**, **Background Modes → Remote notifications**, **Push** — in code (`Soundpost/Soundpost.entitlements` + `Soundpost-Info.plist` `UIBackgroundModes`, commit `86357f2`) and on the App ID (iCloud/CloudKit + Push enabled via the ASC API).
+- [x] Provisioning confirmed: created the App Store profile **"Soundpost App Store M9"** (grants `iCloud.com.soundpost.Soundpost`, `aps-environment: production`); a Release archive signs cleanly with it (`build/Soundpost.xcarchive`, entitlements verified). NOTE: `xcodebuild -allowProvisioningUpdates` could NOT authenticate with the ASC API key (works for the REST API but not the provisioning *write* path) — so provisioning was done via the REST API + the portal, and the archive uses manual signing with that profile.
+- [ ] After the schema is created in Development, **promote the CloudKit schema to Production** in the CloudKit Dashboard. The Development schema (Capsule record types) is created when the app first runs CloudKit on a device/simulator **signed into iCloud** — that needs your iCloud account (couldn't be done from here).
 - [ ] Two physical/simulator devices on the same iCloud account for the §S8 manual pass.
 - [ ] Publish the privacy-policy update in `JasonYeYuhe/soundpost-site` (prepared on branch `m9-icloud-privacy`; merge to `main` + push when the CloudKit build ships).
+- [ ] Upload a CloudKit build to TestFlight when ready (bump `CURRENT_PROJECT_VERSION` past 5 first — the in-review build is 1.1.0(5); and promote the schema to Production first or testers won't sync).
 
 ## 9. Reuse map
 
