@@ -418,21 +418,34 @@ ownership bearer (not Supabase anon-auth). Reuses M9, no anon-auth surface,
 groups a user's devices/reinstalls cleanly. Swappable behind `DeliveryBackend` /
 `DeliveryIdentityProviding` if Jason prefers otherwise.
 
-**Still gated on §8 (cannot be done from here):**
-1. **Create the Supabase project** `soundpost` (org Kanousei, Pro paid) + set the
-   function secrets (.p8, team, bundle, service-role, a separate cron secret),
-   enable `pg_cron`+`pg_net`, apply the migrations, deploy both functions,
-   schedule the cron. Full runbook: `backend/README.md`. Claude can drive the
-   apply-migration / deploy-function steps via the Supabase MCP **once Jason
-   creates the project + sets the secrets**. Until then `SupabaseDeliveryConfig`
-   is empty ⇒ the backend is `isConfigured == false` ⇒ the app stays on the local
-   path (fully functional).
-2. **Wire the client config** (`SupabaseDeliveryConfig.current` URL + anon key)
-   after deploy — flips delivery live.
-3. **ASC App Privacy nutrition label** + **publish the policy delta**
+**Backend DEPLOYED (2026-06-20) — co-located in `cli-pulse` (decision: §below).**
+Rather than a new paid project, the backend was **co-located in the existing
+`cli-pulse` Supabase project** (org Kanousei, already Pro) at **$0 extra** — its
+`pg_cron`/`pg_net`/Vault/APNs were already enabled, and the tables are namespaced
+(no collision). Driven via the Supabase MCP:
+- Applied migrations: tables + RLS + RPCs + the `delivery_optouts` tombstone +
+  anon/authenticated revokes (clears advisor 0026/0027) + `read_m10_secret` (the
+  service-role PostgREST client can't reach the `vault` schema directly) + the
+  pg_cron minute trigger.
+- Reused cli-pulse's **team-`KHMK6Q3L3K` APNs key** already in Vault (same Apple
+  team, so it signs `com.soundpost.Soundpost`); set `m10_cron_secret`
+  (server-generated) + `m10_app_url` in Vault. The functions read secrets from
+  Vault (env fallback retained for a future dedicated-project move).
+- Deployed `sync-delivery` + `send-due-notifications` (both `verify_jwt=false`,
+  own auth). Smoke-tested end-to-end: register/upsert/cancel via the live
+  function; bad-key→401; cron-secret gate (missing/bad auth); the **per-minute
+  cron returns `200 {"claimed:0}`** (reads secrets, claims due jobs). Test rows
+  cleaned. Client config wired (`SupabaseDeliveryConfig.current`).
+
+**Still human-gated:**
+1. **ASC App Privacy nutrition label** + **publish the policy delta**
    (`docs/M10-privacy-policy-delta.md` → `JasonYeYuhe/soundpost-site`), shipped
    with/before the label.
-4. **The two-device manual acceptance pass** (§S6): far seal fires once on A *and*
-   B at its date; force-quit; delete+reinstall+reopen on A; near seal exact local;
-   JA/ZH push localized; signed-out local path; airplane-mode-at-fire arrives
-   later / in-app resurface. Record here when done.
+2. **The two-device manual acceptance pass** (§S6): a far seal needs a Release/
+   TestFlight build (prod APNs) signed-in on two iCloud devices — fires once on A
+   *and* B at its date; force-quit; delete+reinstall+reopen on A; near seal exact
+   local; JA/ZH push localized; signed-out local path; airplane-mode-at-fire
+   arrives later / in-app resurface. Record here when done.
+   - Note: an Xcode **Debug** build registers a **development** (sandbox) APNs
+     token; the poller routes it to the sandbox host automatically (per-token), so
+     dev-build testing works too — but App Store delivery is the Release/prod path.

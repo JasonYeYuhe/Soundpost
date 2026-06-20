@@ -40,6 +40,24 @@ function logEvt(evt: string, jobId: string, code: string): void {
   console.error(JSON.stringify({ evt, job: jobId, code }));
 }
 
+// Secret resolution: prefer Supabase Vault (so the function can be CO-LOCATED in
+// an existing project — e.g. cli-pulse — reusing its team-scoped APNs key, with
+// no per-function env secrets), falling back to Deno.env for a dedicated-project
+// deployment. APNs auth keys are team-scoped, so the same key signs any bundle in
+// the team (the topic is per-token).
+// deno-lint-ignore no-explicit-any
+async function loadVaultSecret(supabase: any, name: string): Promise<string | null> {
+  // Via a SECURITY DEFINER RPC, because the `vault` schema isn't REST-exposed to
+  // the service-role PostgREST client.
+  const { data, error } = await supabase.rpc("read_m10_secret", { p_name: name });
+  if (error || !data) return null;
+  return (data as string) || null;
+}
+// deno-lint-ignore no-explicit-any
+async function secretOrEnv(supabase: any, vaultName: string, envName: string): Promise<string> {
+  return (await loadVaultSecret(supabase, vaultName)) ?? Deno.env.get(envName) ?? "";
+}
+
 interface JobRow {
   id: string;
   user_key: string;
@@ -54,7 +72,13 @@ interface TokenRow {
 }
 
 Deno.serve(async (req) => {
-  const cronSecret = Deno.env.get("CRON_SECRET");
+  const supabase = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+  );
+
+  // Cron auth — secret from Vault (m10_cron_secret) or env (CRON_SECRET).
+  const cronSecret = await secretOrEnv(supabase, "m10_cron_secret", "CRON_SECRET");
   const auth = await checkCronAuth(req.headers, cronSecret);
   if (!auth.ok) {
     return new Response(JSON.stringify({ error: auth.reason }), {
@@ -63,15 +87,12 @@ Deno.serve(async (req) => {
     });
   }
 
-  const supabase = createClient(
-    Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-  );
-
-  const teamId = Deno.env.get("APNS_TEAM_ID") ?? "";
-  const keyId = Deno.env.get("APNS_KEY_ID") ?? "";
-  const p8 = Deno.env.get("APNS_P8") ?? "";
-  const defaultTopic = Deno.env.get("APNS_BUNDLE_ID") ?? "com.soundpost.Soundpost";
+  // APNs creds — reuse the co-located project's team key from Vault, or env.
+  const teamId = await secretOrEnv(supabase, "apns_team_id", "APNS_TEAM_ID");
+  const keyId = await secretOrEnv(supabase, "apns_key_id", "APNS_KEY_ID");
+  const p8 = await secretOrEnv(supabase, "apns_p8_pem", "APNS_P8");
+  const defaultTopic = (await secretOrEnv(supabase, "sp_apns_bundle_id", "APNS_BUNDLE_ID")) ||
+    "com.soundpost.Soundpost";
   if (!teamId || !keyId || !p8) {
     return new Response(JSON.stringify({ error: "apns_unconfigured" }), { status: 500 });
   }

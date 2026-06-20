@@ -13,9 +13,15 @@ struct SupabaseDeliveryConfig: Sendable {
     /// The project's anon (publishable) key, passed as the `apikey` header.
     let anonKey: String
 
-    /// **Fill these in after S2 deploy** (docs/M10-DEVPLAN.md §8 / backend/README.md,
-    /// step 7). Empty by default ⇒ delivery is inert ⇒ local path only.
-    static let current = SupabaseDeliveryConfig(functionsURL: "", anonKey: "")
+    /// Live config. The M10 delivery backend is **co-located in the `cli-pulse`
+    /// Supabase project** (org Kanousei, already Pro) — additive, namespaced
+    /// tables/functions, $0 extra (docs/M10-DEVPLAN.md §13). The URL + publishable
+    /// key are public, not secret; the only secret is the per-user CloudKit key
+    /// sent as the bearer at call time.
+    static let current = SupabaseDeliveryConfig(
+        functionsURL: "https://gkjwsxotmwrgqsvfijzs.supabase.co/functions/v1",
+        anonKey: "sb_publishable_cXlWLnMmPSHkYx3ZsAxTYA_L_x8mqM1"
+    )
 }
 
 enum DeliveryError: Error, Equatable {

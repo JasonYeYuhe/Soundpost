@@ -92,6 +92,13 @@ create table if not exists public.delivery_optouts (
 );
 alter table public.delivery_optouts enable row level security; -- service-role only
 
+-- Defense-in-depth: revoke the default table-level grants so anon/authenticated
+-- can't even introspect these tables (RLS already returns zero rows). The service
+-- role + the SECURITY DEFINER RPCs are unaffected. (Clears advisor 0026/0027.)
+revoke all on public.device_tokens    from anon, authenticated;
+revoke all on public.notification_jobs from anon, authenticated;
+revoke all on public.delivery_optouts  from anon, authenticated;
+
 -- ── 3. App-facing RPCs (called by sync-delivery, service role only) ──
 -- All keyed on the app-supplied `p_user_key` (the CloudKit secret / bearer).
 -- SECURITY DEFINER + revoked from anon/authenticated: only the service role
@@ -316,6 +323,15 @@ begin
   delete from public.device_tokens where token = p_token;
 end;
 $$ language plpgsql security definer set search_path = pg_catalog, public, extensions;
+
+-- Read a decrypted Vault secret by name. send-due-notifications uses this because
+-- the service-role PostgREST client can't reach the `vault` schema directly (it's
+-- not REST-exposed). Service-role only.
+create or replace function public.read_m10_secret(p_name text) returns text as $$
+  select decrypted_secret from vault.decrypted_secrets where name = p_name;
+$$ language sql security definer set search_path = pg_catalog, public, vault;
+revoke all on function public.read_m10_secret(text) from public, anon, authenticated;
+grant execute on function public.read_m10_secret(text) to service_role;
 
 -- Lock down every RPC: service role only (the Edge Functions). Never anon.
 do $$

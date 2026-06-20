@@ -52,7 +52,19 @@ deno test --no-check send-due-notifications/payload_test.ts \
 deno check --unstable-kv send-due-notifications/index.ts sync-delivery/index.ts
 ```
 
-## Deploy (HUMAN-GATED — needs Jason; docs/M10-DEVPLAN.md §8)
+## ✅ DEPLOYED (2026-06-20) — co-located in `cli-pulse`
+
+Live in the existing **`cli-pulse`** Supabase project (ref `gkjwsxotmwrgqsvfijzs`,
+org Kanousei, already Pro) at **$0 extra** — namespaced tables, reused
+pg_cron/pg_net/Vault and the team-`KHMK6Q3L3K` APNs key. The functions read
+secrets from Vault via `read_m10_secret` (env fallback retained). The per-minute
+cron is verified returning `200 {"claimed":0}`. The migrations below also include
+`read_m10_secret` + the anon/authenticated revokes that the live deploy added.
+
+The dedicated-project runbook is kept below for a future move (the functions work
+unchanged — set the same-named secrets as Deno.env or Vault).
+
+## Deploy from scratch (dedicated project) — runbook
 
 These cannot be done from app code. Claude can drive steps 2–4 via the Supabase
 MCP **once you've done step 1 and set the secrets in step 3**.
