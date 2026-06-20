@@ -4,8 +4,17 @@ import SwiftData
 /// App entry point.
 @main
 struct SoundpostApp: App {
+    /// Owns only the APNs registration handshake (M10 §S1); the SwiftUI-native
+    /// `NotificationCoordinator` keeps the presentation/tap delegate role.
+    @UIApplicationDelegateAdaptor(SoundpostAppDelegate.self) private var appDelegate
     @State private var notifications = NotificationCoordinator()
     @State private var syncMonitor = CloudSyncMonitor()
+
+    /// Cloud-backed delivery: device-token registration + per-user identity
+    /// bootstrap (M10 §S1). The default backend is *not yet configured* (no
+    /// server until S2/S3), so this is inert in production — it caches the token
+    /// and does no network/iCloud work until the real backend is wired.
+    @State private var registrar = DeliveryRegistrar()
 
     /// The production SwiftData stack (CloudKit-mirrored, S3), built once and
     /// retained for the app's lifetime so the file→Data backfill (S2) can run
@@ -30,6 +39,11 @@ struct SoundpostApp: App {
             RootView(store: store)
                 .environment(notifications)
                 .environment(syncMonitor)
+                .environment(registrar)
+                // Hand the registrar to the AppDelegate so APNs token callbacks
+                // can reach it. The register-on-launch reconciliation in the
+                // delegate covers the brief race before this runs.
+                .task { SoundpostAppDelegate.registrar = registrar }
         }
     }
 }

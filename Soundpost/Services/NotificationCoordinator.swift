@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 import UserNotifications
+import UIKit
 
 /// App-level glue for local notifications: requests permission, reconciles the
 /// scheduled set with the current capsules (via the 64-nearest planner), and
@@ -22,7 +23,16 @@ final class NotificationCoordinator: NSObject, UNUserNotificationCenterDelegate 
 
     @discardableResult
     func requestAuthorization() async -> Bool {
-        (try? await center.requestAuthorization(options: [.alert, .sound, .badge])) ?? false
+        let granted = (try? await center.requestAuthorization(options: [.alert, .sound, .badge])) ?? false
+        if granted {
+            // Cloud-backed delivery (M10 §S1): once the user has allowed alerts,
+            // register for remote notifications so the APNs token reaches the
+            // server. Inert until the backend is configured (S2/S3); the local
+            // path keeps working regardless. The OS mints the token and the
+            // AppDelegate forwards it to `DeliveryRegistrar`.
+            UIApplication.shared.registerForRemoteNotifications()
+        }
+        return granted
     }
 
     /// Reconcile pending notifications with the current capsules: sealed ones
