@@ -13,6 +13,7 @@ struct ContentView: View {
     @State private var showingCapture = false
     @State private var path: [Capsule] = []
     @State private var confirmingCloudDelete = false
+    @State private var cloudDeleteFailed = false
     /// Mirrors `DeliveryPreferences.cloudOptedOut` so the control reacts to it.
     @AppStorage(DeliveryPreferences.optedOutKey) private var cloudOptedOut = false
 
@@ -112,16 +113,27 @@ struct ContentView: View {
         } message: {
             Text("This removes the reminder schedule and device tokens Soundpost keeps on its server. Your capsules stay on this device and in iCloud. Far-future reminders fall back to this device's local schedule.")
         }
+        .alert("Couldn't delete cloud data", isPresented: $cloudDeleteFailed) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("Check your connection and try again. Your cloud data hasn't been changed.")
+        }
     }
 
-    /// Purge the server-side tokens + jobs and opt out so they aren't re-collected
-    /// (§S5). Clears each capsule's `serverJobSyncedAt` so the local planner re-arms
-    /// its backstop, then re-syncs (server reconcile is now gated off).
+    /// Purge the server-side tokens + jobs (which also sets the account-wide
+    /// opt-out tombstone) and, **only on success**, opt out + clear each capsule's
+    /// `serverJobSyncedAt` so the local planner re-arms its backstop, then re-sync.
+    /// On failure (e.g. offline) nothing is latched and the control stays visible
+    /// to retry — so we never report success while the data still exists (§S5).
     private func deleteCloudData() {
-        cloudOptedOut = true
         Task {
-            await notifications.sealDelivery?.deleteAllCloudData()
+            let purged = await notifications.sealDelivery?.deleteAllCloudData() ?? false
             await registrar.signOut()
+            guard purged else {
+                cloudDeleteFailed = true
+                return
+            }
+            cloudOptedOut = true
             let store = CapsuleStore(context: modelContext)
             for capsule in (try? store.all()) ?? [] where capsule.serverJobSyncedAt != nil {
                 capsule.serverJobSyncedAt = nil

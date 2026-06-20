@@ -182,6 +182,9 @@ struct CapsuleDetailView: View {
         // the id before the delete; offline-first — the local delete proceeds
         // regardless, and the cancel is best-effort (idempotent, signed-in only).
         let capsuleID = capsule.id
+        // Persist the cancel intent before deleting so it survives a cold launch
+        // or a momentarily-unresolved key and is retried by reconcile (§S4).
+        DeliveryPreferences.enqueuePendingCancel(capsuleID)
         if let file = capsule.audioFileName { try? AudioStore().delete(file) }
         modelContext.delete(capsule)
         try? modelContext.save()

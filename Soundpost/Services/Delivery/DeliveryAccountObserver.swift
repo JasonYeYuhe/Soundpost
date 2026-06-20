@@ -19,6 +19,7 @@ final class DeliveryAccountObserver {
     private var token: NSObjectProtocol?
     private var center: NotificationCenter?
     private var onChange: (() async -> Void)?
+    private var work: Task<Void, Never>?
 
     /// Register for `CKAccountChanged` with an action. Idempotent.
     func observe(onAccountChange: @escaping () async -> Void, center: NotificationCenter = .default) {
@@ -55,10 +56,16 @@ final class DeliveryAccountObserver {
         }, center: center)
     }
 
+    /// Coalesces a burst of `CKAccountChanged` (CloudKit posts several per
+    /// sign-in/switch) into a single relink+reconcile pass, like the sibling
+    /// `RemoteChangeReconciler`.
     @discardableResult
     func handle() -> Task<Void, Never>? {
         guard let onChange else { return nil }
-        return Task { @MainActor in await onChange() }
+        work?.cancel()
+        let task = Task { @MainActor in await onChange() }
+        work = task
+        return task
     }
 
     func stop() {
@@ -66,5 +73,7 @@ final class DeliveryAccountObserver {
         token = nil
         center = nil
         onChange = nil
+        work?.cancel()
+        work = nil
     }
 }

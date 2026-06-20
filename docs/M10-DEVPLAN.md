@@ -390,3 +390,49 @@ the Gemini 3.1 Pro MCP was offline). 5 blockers + 27 majors; folded in:
 - Minors: `apns-expiration`/`priority`/`collapse-id`; retry backoff + terminal rule;
   `assertPayloadIsClean` must allowlist the UUID; a minimal "Delete my cloud data" entry
   for App Review; ship deletion+policy before the label. → folded into §C/§E/§S5.
+
+## 13. Implementation status (2026-06-20)
+
+All code-side steps **implemented + committed on `master`**, each compiling and
+passing tests before the next (per the plan). **116 Swift tests / 17 suites +
+18 Deno tests green**; warning-free **Debug + Release**; i18n **EN/JA/ZH-Hans 100%**
+(107 keys); **zero new third-party iOS deps** (raw `UNUserNotificationCenter` +
+`registerForRemoteNotifications`; server uses Deno std + SubtleCrypto). Each step
+was dual-reviewed by a multi-lens adversarial workflow before commit; confirmed
+findings folded in (S1: 4, S2: 8, S3: 1, S4+S5: 5 — see the per-step commits + the
+review-fixes commit).
+
+| Step | Commit | What landed | Review findings folded |
+|---|---|---|---|
+| S1 token reg + identity | `0789aaa` | AppDelegate adaptor; `PushTokenSync`; `DeliveryEnvironment` (#if DEBUG); `DeliveryBackend` (stub); `CloudKitDeliveryIdentity` (per-user private-DB secret); `DeliveryRegistrar` (pending cache, dedup, relink, prune) | 4 (actor-reentrancy coalescing, account-bound cache, reentrancy-safe flush claim, malformed-record self-heal) |
+| S2 backend (poller) | `3b5c1f8` | `device_tokens`+`notification_jobs`+RLS+RPCs; `send-due-notifications` (claim-lock, per-token host, ES256 JWT cache, 410-prune, backoff+dead-letter, content-free loc-key payload + `assertPayloadIsClean`); `sync-delivery`; pg_cron; runbook | 8 (poison-tz head-of-line block + throw-proof `is_job_due`; 10s fetch timeout + lease sizing; token-read-error mislabel; settle-RPC error checks; labelled `mark_job_deferred`; `kind` whitelist; KvU64 rate-limit) |
+| S3 router + dedup | `18d1105` | `Capsule.serverJobSyncedAt`; `SealDeliveryRouter` (near→local/far→server, 24h horizon); `SealDeliveryService` (idempotent+debounced reconcile); planner backstop-drop; on-receipt dedup (`apns-collapse-id` + local-request removal); `SupabaseDeliveryBackend`; push loc-keys | 1 (reconcile upsert/cancel reentrancy race → claim-before-await) |
+| S4 transitions | `400bc49` | delete→cancel-job (bypass fix); unseal/resurface/re-seal via reconcile; `DeliveryAccountObserver` (sign-in/out/switch); `lastUserKey` for prune-after-signout | — |
+| S5 privacy + delete | `464d855` | PrivacyInfo (Device ID + User ID + Other Data, App Functionality/not-linked/not-tracking); "Delete my cloud data" control + opt-out gate; policy-delta draft | — |
+| S6 tests + acceptance | _this commit_ | `apns_test.ts` (per-token host); status record | — |
+| S4+S5 review fixes | _this commit_ | account-scoped opt-out **tombstone** (`delivery_optouts`) so "Delete my cloud data" sticks across devices; latch opt-out only on a confirmed purge (+ failure alert); durable delete-path job cancel (survives cold launch / unresolved key); `CKAccountChanged` burst coalescing | 5 (the two "doesn't stick" majors, the offline-purge-lies major, the orphan-on-unresolved-key minor, the coalescing nit) |
+
+**Auth-model decision (the §8 open item):** chose the plan's recommendation —
+the **per-user CloudKit private-DB secret** as both fan-out key and proof-of-
+ownership bearer (not Supabase anon-auth). Reuses M9, no anon-auth surface,
+groups a user's devices/reinstalls cleanly. Swappable behind `DeliveryBackend` /
+`DeliveryIdentityProviding` if Jason prefers otherwise.
+
+**Still gated on §8 (cannot be done from here):**
+1. **Create the Supabase project** `soundpost` (org Kanousei, Pro paid) + set the
+   function secrets (.p8, team, bundle, service-role, a separate cron secret),
+   enable `pg_cron`+`pg_net`, apply the migrations, deploy both functions,
+   schedule the cron. Full runbook: `backend/README.md`. Claude can drive the
+   apply-migration / deploy-function steps via the Supabase MCP **once Jason
+   creates the project + sets the secrets**. Until then `SupabaseDeliveryConfig`
+   is empty ⇒ the backend is `isConfigured == false` ⇒ the app stays on the local
+   path (fully functional).
+2. **Wire the client config** (`SupabaseDeliveryConfig.current` URL + anon key)
+   after deploy — flips delivery live.
+3. **ASC App Privacy nutrition label** + **publish the policy delta**
+   (`docs/M10-privacy-policy-delta.md` → `JasonYeYuhe/soundpost-site`), shipped
+   with/before the label.
+4. **The two-device manual acceptance pass** (§S6): far seal fires once on A *and*
+   B at its date; force-quit; delete+reinstall+reopen on A; near seal exact local;
+   JA/ZH push localized; signed-out local path; airplane-mode-at-fire arrives
+   later / in-app resurface. Record here when done.

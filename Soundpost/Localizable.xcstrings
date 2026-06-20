@@ -279,6 +279,22 @@
         }
       }
     },
+    "Check your connection and try again. Your cloud data hasn't been changed.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "接続を確認してもう一度お試しください。クラウドデータは変更されていません。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请检查网络连接后重试。你的云端数据未被更改。"
+          }
+        }
+      }
+    },
     "Continue": {
       "localizations": {
         "ja": {
@@ -291,6 +307,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "继续"
+          }
+        }
+      }
+    },
+    "Couldn't delete cloud data": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "クラウドデータを削除できませんでした"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法删除云端数据"
           }
         }
       }

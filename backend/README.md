@@ -24,10 +24,17 @@ supabase/
       *_test.ts                            # deno tests (payload privacy, cron auth, state machine)
 ```
 
-Tables (`device_tokens`, `notification_jobs`) are content-free: only the capsule
-UUID, fire instant (`wall_clock` + IANA `time_zone`), and kind. No note / place /
-audio ever reaches the server. RLS denies anon/authenticated everything; only the
-Edge Functions (service role) write, via the SECURITY DEFINER RPCs.
+Tables (`device_tokens`, `notification_jobs`, `delivery_optouts`) are content-free:
+only the capsule UUID, fire instant (`wall_clock` + IANA `time_zone`), and kind.
+No note / place / audio ever reaches the server. RLS denies anon/authenticated
+everything; only the Edge Functions (service role) write, via the SECURITY DEFINER
+RPCs.
+
+**"Delete my cloud data" is account-scoped + sticky:** `delete_user_delivery_data`
+purges the user's tokens+jobs **and** writes a `delivery_optouts` tombstone, so
+`register_device_token` / `upsert_notification_job` then no-op (raise) for that
+user key — a sibling device can't re-collect what was deleted. Re-enabling
+delivery (deleting the tombstone) is a future opt-in surface (M11/M12).
 
 **Auth (proof-of-ownership, §B/§G):** the app's per-user secret lives in its M9
 CloudKit **private DB** and is BOTH the `user_key` (fan-out group) AND the

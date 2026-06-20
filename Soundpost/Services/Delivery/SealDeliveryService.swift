@@ -57,8 +57,9 @@ final class SealDeliveryService {
     /// ⇒ no-op (jobs are user-scoped and are NOT cancelled on sign-out, §4A).
     func reconcile(capsules: [Capsule], now: Date = .now) async {
         guard backend.isConfigured else { return }
-        guard !isOptedOut() else { return }                                 // user deleted cloud data (§S5)
         guard let userKey = await identity.currentUserKey() else { return } // signed out: local path
+        await drainPendingCancels(userKey: userKey)                         // durable delete-cancels (§S4)
+        guard !isOptedOut() else { return }                                 // user deleted cloud data (§S5)
 
         let desired = SealDeliveryRouter.desiredJobs(capsules: capsules, now: now)
         let desiredIDs = Set(desired.map(\.capsuleID))
@@ -101,18 +102,43 @@ final class SealDeliveryService {
     }
 
     /// Cancel one capsule's job by id — for the delete path, which removes the
-    /// capsule before `reconcile` could see it (§S4). Best-effort + idempotent
-    /// (the server no-ops if the job is already gone).
+    /// capsule before `reconcile` could see it (§S4). Durable: the id is enqueued
+    /// in `DeliveryPreferences` by the caller, and is only resolved when the
+    /// server confirms the cancel; if the key is momentarily unresolved (cold
+    /// launch / transient CloudKit), it stays queued and `reconcile` retries it.
     func cancelJob(capsuleID: UUID) async {
         guard backend.isConfigured, let userKey = await identity.currentUserKey() else { return }
-        try? await backend.cancelJob(capsuleID: capsuleID, userKey: userKey)
+        do {
+            try await backend.cancelJob(capsuleID: capsuleID, userKey: userKey)
+            DeliveryPreferences.resolvePendingCancel(capsuleID)
+        } catch {
+            log.info("cancelJob failed; queued for retry on next sync")
+        }
     }
 
-    /// "Delete my cloud data": remove every token + job for this user (§S5).
-    /// Returns whether it succeeded (signed-out / unconfigured ⇒ nothing to do).
+    /// Retry every queued delete-path cancel; resolve each only once the server
+    /// confirms it (idempotent, so retries are safe).
+    private func drainPendingCancels(userKey: String) async {
+        for capsuleID in DeliveryPreferences.pendingCancelCapsuleIDs {
+            do {
+                try await backend.cancelJob(capsuleID: capsuleID, userKey: userKey)
+                DeliveryPreferences.resolvePendingCancel(capsuleID)
+            } catch {
+                // Leave queued; retried on the next sync.
+            }
+        }
+    }
+
+    /// "Delete my cloud data": purge every token + job for this user and set the
+    /// server-side opt-out tombstone (§S5). Returns whether the data is gone:
+    /// `true` when there's nothing to purge (no server configured) or the purge
+    /// succeeded; `false` only when an actual purge attempt failed (e.g. offline)
+    /// — so the caller can keep the control visible and retry rather than falsely
+    /// reporting success.
     @discardableResult
     func deleteAllCloudData() async -> Bool {
-        guard backend.isConfigured, let userKey = await identity.currentUserKey() else { return false }
+        guard backend.isConfigured else { return true }         // no server ⇒ nothing to delete
+        guard let userKey = await identity.currentUserKey() else { return false } // can't authenticate ⇒ retry
         do {
             try await backend.deleteAll(userKey: userKey)
             return true

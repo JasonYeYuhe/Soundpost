@@ -161,6 +161,51 @@ struct SealDeliveryTests {
         #expect(backend.deleteAllCalls == ["K"])
     }
 
+    @Test func upsertFailureRevertsSoLocalBackstopStays() async throws {
+        // The server tombstone (a sibling device after "Delete my cloud data")
+        // makes upsert fail; the client must REVERT serverJobSyncedAt so the local
+        // planner keeps the backstop — not silently drop delivery (§S5 cross-device).
+        let store = try TestSupport.freshStore()
+        let c = try sealed(offset: 100 * day)
+        store.context.insert(c)
+        try store.save()
+        let backend = SpyDeliveryBackend(configured: true)
+        backend.shouldThrow = true
+        let service = SealDeliveryService(backend: backend, identity: StubDeliveryIdentity(key: "K"))
+
+        await service.reconcile(capsules: try store.all(), now: now)
+
+        #expect(c.serverJobSyncedAt == nil)   // reverted → planner re-includes the local backstop
+        #expect(NotificationPlanner.plan(capsules: [c], now: now).count == 1)
+    }
+
+    @Test func reconcileDrainsDurableDeleteCancels() async throws {
+        let store = try TestSupport.freshStore()
+        let backend = SpyDeliveryBackend(configured: true)
+        let service = SealDeliveryService(backend: backend, identity: StubDeliveryIdentity(key: "K"))
+        let id = UUID()
+        defer { DeliveryPreferences.resolvePendingCancel(id) }   // keep UserDefaults clean
+        DeliveryPreferences.enqueuePendingCancel(id)
+
+        await service.reconcile(capsules: try store.all(), now: now)
+
+        #expect(backend.cancelledJobs.map(\.capsuleID).contains(id))   // retried…
+        #expect(!DeliveryPreferences.pendingCancelCapsuleIDs.contains(id)) // …and resolved on success
+    }
+
+    @Test func deleteAllSucceedsTriviallyWithoutAServer() async {
+        // No backend configured ⇒ nothing to delete ⇒ "deleted" (so the UI doesn't
+        // falsely report failure pre-deploy).
+        let unconfigured = SealDeliveryService(
+            backend: SpyDeliveryBackend(configured: false), identity: StubDeliveryIdentity(key: "K"))
+        #expect(await unconfigured.deleteAllCloudData() == true)
+        // Configured but the purge throws ⇒ failure (caller keeps the control + retries).
+        let failing = SpyDeliveryBackend(configured: true)
+        failing.shouldThrow = true
+        let svc = SealDeliveryService(backend: failing, identity: StubDeliveryIdentity(key: "K"))
+        #expect(await svc.deleteAllCloudData() == false)
+    }
+
     @Test func optedOutReconcileDoesNothingButDeleteStillWorks() async throws {
         let store = try TestSupport.freshStore()
         let c = try sealed(offset: 100 * day)

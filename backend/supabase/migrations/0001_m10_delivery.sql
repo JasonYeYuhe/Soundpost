@@ -78,6 +78,20 @@ create index if not exists idx_notification_jobs_due
 alter table public.notification_jobs enable row level security;
 -- No policies => service-role only, same as device_tokens.
 
+-- ── 2b. delivery_optouts (server-side "Delete my cloud data" tombstone) ──
+-- Account-scoped, so the deletion STICKS across all the user's devices (a
+-- per-device client flag can't — clearing serverJobSyncedAt mirrors via M9
+-- CloudKit and a sibling device would otherwise re-upsert, §S5/§6). While a
+-- user_key is tombstoned, register_device_token + upsert_notification_job no-op
+-- (raise), so a sibling device's re-upsert fails and it keeps the LOCAL backstop
+-- (the client reverts serverJobSyncedAt on a failed upsert). Re-enabling delivery
+-- (deleting the tombstone) is a future opt-in surface (M11/M12).
+create table if not exists public.delivery_optouts (
+  user_key   text primary key,
+  created_at timestamptz not null default now()
+);
+alter table public.delivery_optouts enable row level security; -- service-role only
+
 -- ── 3. App-facing RPCs (called by sync-delivery, service role only) ──
 -- All keyed on the app-supplied `p_user_key` (the CloudKit secret / bearer).
 -- SECURITY DEFINER + revoked from anon/authenticated: only the service role
@@ -100,6 +114,9 @@ begin
   end if;
   if p_environment not in ('development', 'production') then
     raise exception 'invalid environment';
+  end if;
+  if exists (select 1 from public.delivery_optouts where user_key = p_user_key) then
+    raise exception 'opted_out';   -- user deleted their cloud data (§S5)
   end if;
 
   insert into public.device_tokens (token, user_key, environment, platform, bundle_id)
@@ -148,6 +165,9 @@ begin
   if p_time_zone is null or not exists (select 1 from pg_timezone_names where name = p_time_zone) then
     raise exception 'invalid time_zone';
   end if;
+  if exists (select 1 from public.delivery_optouts where user_key = p_user_key) then
+    raise exception 'opted_out';   -- user deleted their cloud data (§S5)
+  end if;
 
   insert into public.notification_jobs
     (user_key, capsule_id, kind, wall_clock, time_zone, status, attempts, next_attempt_at, locked_at)
@@ -192,11 +212,14 @@ begin
 end;
 $$ language plpgsql security definer set search_path = pg_catalog, public, extensions;
 
--- "Delete my cloud data": remove every token + job for this user key.
+-- "Delete my cloud data": remove every token + job for this user key AND
+-- tombstone the key so a sibling device can't re-collect them (§S5/§6).
 create or replace function public.delete_user_delivery_data(
   p_user_key text
 ) returns void as $$
 begin
+  insert into public.delivery_optouts (user_key) values (p_user_key)
+    on conflict (user_key) do nothing;
   delete from public.notification_jobs where user_key = p_user_key;
   delete from public.device_tokens   where user_key = p_user_key;
 end;
