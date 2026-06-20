@@ -177,9 +177,15 @@ struct CapsuleDetailView: View {
     }
 
     private func delete() {
+        // Cancel the far-future server job first: a deleted capsule isn't in the
+        // @Query array, so the sync→reconcile path can't cancel it (§S4). Capture
+        // the id before the delete; offline-first — the local delete proceeds
+        // regardless, and the cancel is best-effort (idempotent, signed-in only).
+        let capsuleID = capsule.id
         if let file = capsule.audioFileName { try? AudioStore().delete(file) }
         modelContext.delete(capsule)
         try? modelContext.save()
+        Task { await notifications.sealDelivery?.cancelJob(capsuleID: capsuleID) }
         dismiss()
     }
 

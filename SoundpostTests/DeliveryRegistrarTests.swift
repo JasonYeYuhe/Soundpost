@@ -140,6 +140,23 @@ struct DeliveryRegistrarTests {
         #expect(registrar.registeredToken == nil)
     }
 
+    @Test func signOutPrunesUsingLastKeyEvenAfterTheAccountIsGone() async {
+        // Register while signed in, then the account disappears (key → nil).
+        let backend = MockBackend(configured: true)
+        let identity = MockIdentity(key: "K")
+        let registrar = DeliveryRegistrar(backend: backend, identity: identity)
+        await registrar.register(hexToken: token)
+        identity.key = nil                                    // signed out: live key gone
+
+        await registrar.signOut()
+
+        // The prune still authenticates with the last-registered key.
+        #expect(backend.unregisterCalls.count == 1)
+        #expect(backend.unregisterCalls[0].userKey == "K")
+        #expect(backend.unregisterCalls[0].token == token)
+        #expect(registrar.registeredToken == nil)
+    }
+
     @Test func accountChangeReRegistersUnderNewKey() async {
         let backend = MockBackend(configured: true)
         let identity = MockIdentity(key: "OLDKEY")

@@ -27,6 +27,11 @@ final class DeliveryRegistrar {
     /// key on an Apple-ID switch.
     private var lastRegistration: DeviceTokenRegistration?
 
+    /// The user key the current `registeredToken` was registered under. Kept so
+    /// `signOut()` can prune this device's token even after the account is gone
+    /// (the identity key resolves to nil once signed out, §4A).
+    private var lastUserKey: String?
+
     init(
         backend: DeliveryBackend = UnconfiguredDeliveryBackend(),
         identity: DeliveryIdentityProviding = CloudKitDeliveryIdentity(),
@@ -81,6 +86,7 @@ final class DeliveryRegistrar {
         registeredToken = registration.token                       // claim before the await
         do {
             try await backend.registerToken(registration, userKey: userKey)
+            lastUserKey = userKey
         } catch {
             // Release the claim so the next launch / sign-in retries.
             if registeredToken == registration.token { registeredToken = nil }
@@ -103,13 +109,15 @@ final class DeliveryRegistrar {
 
     /// Sign-out: prune **only this device's token**. The user-scoped jobs are
     /// deliberately left intact so the user's other signed-in devices keep
-    /// receiving pushes (§4A). Best-effort — if the key is already gone, the
-    /// server prunes the token later via 410 / the staleness sweep.
+    /// receiving pushes (§4A). Uses the *last registered* key (not the live one,
+    /// which is already nil once signed out) so the prune actually authenticates;
+    /// if that's gone too, the server prunes later via 410 / the staleness sweep.
     func signOut() async {
-        defer { registeredToken = nil }
-        guard backend.isConfigured,
-              let token = registeredToken,
-              let userKey = await identity.currentUserKey() else { return }
+        let token = registeredToken
+        let userKey = lastUserKey
+        registeredToken = nil
+        lastUserKey = nil
+        guard backend.isConfigured, let token, let userKey else { return }
         try? await backend.unregisterToken(token, userKey: userKey)
     }
 }

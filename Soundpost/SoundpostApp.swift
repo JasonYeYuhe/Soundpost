@@ -77,12 +77,17 @@ private struct RootView: View {
 
     @Environment(NotificationCoordinator.self) private var notifications
     @Environment(CloudSyncMonitor.self) private var syncMonitor
+    @Environment(DeliveryRegistrar.self) private var registrar
 
     /// App-layer observer that reschedules notifications when CloudKit merges
-    /// remote changes (S4). Held in `@State` so it (and its NotificationCenter
+    /// remote changes (M9 S4). Held in `@State` so it (and its NotificationCenter
     /// registration) outlives view-body evaluation and keeps firing in the
     /// background — the case the reactive `@Query` path can't cover.
     @State private var remoteChanges = RemoteChangeReconciler()
+
+    /// App-layer observer that relinks/prunes the APNs token and reconciles
+    /// far-seal jobs when the iCloud account changes (M10 §S4).
+    @State private var accountChanges = DeliveryAccountObserver()
 
     /// One-shot first-run flag. (UserDefaults — declared in PrivacyInfo as CA92.1.)
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
@@ -115,6 +120,8 @@ private struct RootView: View {
                 .task {
                     // Start app-layer remote-change observation once (idempotent).
                     remoteChanges.start(container: store.container, notifications: notifications)
+                    // React to iCloud account changes for cloud-backed delivery (M10 §S4).
+                    accountChanges.start(container: store.container, notifications: notifications, registrar: registrar)
                     // Watch CloudKit sync health for honest, calm in-app copy (S5/S6).
                     syncMonitor.start(rung: store.rung)
                 }
