@@ -437,6 +437,12 @@ Rather than a new paid project, the backend was **co-located in the existing
   cron returns `200 {"claimed:0}`** (reads secrets, claims due jobs). Test rows
   cleaned. Client config wired (`SupabaseDeliveryConfig.current`).
 
+**Uploaded to App Store Connect (2026-06-20): 1.3.0 (build 7).** Bumped 1.2.0→1.3.0
+/ build 6→7; archived (Release, device, automatic signing) + uploaded via the ASC
+API key (`scripts/build-upload-asc.sh`). `ARCHIVE/EXPORT SUCCEEDED`, `Upload
+succeeded` → TestFlight processing. (Only warning: the known Sentry-dSYM non-blocker
+from M8 — the app's own dSYM uploads fine.)
+
 **Still human-gated:**
 1. **ASC App Privacy nutrition label** + **publish the policy delta**
    (`docs/M10-privacy-policy-delta.md` → `JasonYeYuhe/soundpost-site`), shipped
