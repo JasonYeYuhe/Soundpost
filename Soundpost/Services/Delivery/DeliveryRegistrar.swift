@@ -14,6 +14,9 @@ final class DeliveryRegistrar {
     private let identity: DeliveryIdentityProviding
     private let bundleID: String
     private let environment: String
+    /// Whether the user has opted out of cloud delivery ("Delete my cloud data",
+    /// §S5). Injectable so tests don't touch UserDefaults.
+    private let isOptedOut: @Sendable () -> Bool
     private let log = Logger(subsystem: "com.soundpost.Soundpost", category: "delivery")
 
     /// The token confirmed-registered under the *current* key (hex). Memory-only:
@@ -36,12 +39,14 @@ final class DeliveryRegistrar {
         backend: DeliveryBackend = UnconfiguredDeliveryBackend(),
         identity: DeliveryIdentityProviding = CloudKitDeliveryIdentity(),
         bundleID: String = Bundle.main.bundleIdentifier ?? "com.soundpost.Soundpost",
-        environment: String = DeliveryEnvironment.current
+        environment: String = DeliveryEnvironment.current,
+        isOptedOut: @escaping @Sendable () -> Bool = { DeliveryPreferences.cloudOptedOut }
     ) {
         self.backend = backend
         self.identity = identity
         self.bundleID = bundleID
         self.environment = environment
+        self.isOptedOut = isOptedOut
     }
 
     /// Entry point from the AppDelegate's `didRegister…DeviceToken`.
@@ -80,6 +85,7 @@ final class DeliveryRegistrar {
     func flushPending() async {
         guard let registration = lastRegistration else { return }
         guard backend.isConfigured else { return }                 // S1 stub: stay retained
+        guard !isOptedOut() else { return }                        // user deleted cloud data (§S5)
         guard registeredToken != registration.token else { return } // already current
         guard let userKey = await identity.currentUserKey() else { return } // signed out: stay retained
         guard registeredToken != registration.token else { return } // a racing flush won

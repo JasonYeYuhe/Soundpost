@@ -39,17 +39,25 @@ enum SealDeliveryRouter {
 final class SealDeliveryService {
     private let backend: DeliveryBackend
     private let identity: DeliveryIdentityProviding
+    /// Whether the user has opted out of cloud delivery (§S5). Injectable for tests.
+    private let isOptedOut: @Sendable () -> Bool
     private let log = Logger(subsystem: "com.soundpost.Soundpost", category: "delivery")
 
-    init(backend: DeliveryBackend, identity: DeliveryIdentityProviding) {
+    init(
+        backend: DeliveryBackend,
+        identity: DeliveryIdentityProviding,
+        isOptedOut: @escaping @Sendable () -> Bool = { DeliveryPreferences.cloudOptedOut }
+    ) {
         self.backend = backend
         self.identity = identity
+        self.isOptedOut = isOptedOut
     }
 
     /// Diff the desired far-seal jobs against the server. Signed-out / unconfigured
     /// ⇒ no-op (jobs are user-scoped and are NOT cancelled on sign-out, §4A).
     func reconcile(capsules: [Capsule], now: Date = .now) async {
         guard backend.isConfigured else { return }
+        guard !isOptedOut() else { return }                                 // user deleted cloud data (§S5)
         guard let userKey = await identity.currentUserKey() else { return } // signed out: local path
 
         let desired = SealDeliveryRouter.desiredJobs(capsules: capsules, now: now)

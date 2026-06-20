@@ -161,6 +161,24 @@ struct SealDeliveryTests {
         #expect(backend.deleteAllCalls == ["K"])
     }
 
+    @Test func optedOutReconcileDoesNothingButDeleteStillWorks() async throws {
+        let store = try TestSupport.freshStore()
+        let c = try sealed(offset: 100 * day)
+        store.context.insert(c)
+        try store.save()
+        let backend = SpyDeliveryBackend(configured: true)
+        // After "Delete my cloud data" the reconcile must be a no-op (§S5)…
+        let service = SealDeliveryService(
+            backend: backend, identity: StubDeliveryIdentity(key: "K"), isOptedOut: { true })
+        await service.reconcile(capsules: try store.all(), now: now)
+        #expect(backend.upsertedJobs.isEmpty)
+        #expect(c.serverJobSyncedAt == nil)
+        // …but the deletion action itself is never gated.
+        let ok = await service.deleteAllCloudData()
+        #expect(ok)
+        #expect(backend.deleteAllCalls == ["K"])
+    }
+
     // MARK: Delivery-time dedup (pure helpers)
 
     @Test func parsesCapsuleIDFromPushUserInfo() {

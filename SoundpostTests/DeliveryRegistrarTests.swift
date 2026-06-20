@@ -181,4 +181,14 @@ struct DeliveryRegistrarTests {
         #expect(backend.registerCalls.isEmpty)
         #expect(registrar.registeredToken == nil)
     }
+
+    @Test func optedOutSuppressesRegistration() async {
+        // After "Delete my cloud data", the token must not be re-registered (§S5).
+        let backend = MockBackend(configured: true)
+        let registrar = DeliveryRegistrar(
+            backend: backend, identity: MockIdentity(key: "K"), isOptedOut: { true })
+        await registrar.register(hexToken: token)
+        #expect(backend.registerCalls.isEmpty)
+        #expect(registrar.registeredToken == nil)
+    }
 }

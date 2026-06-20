@@ -375,6 +375,38 @@
         }
       }
     },
+    "Delete my cloud data": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "クラウドデータを削除"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删除我的云端数据"
+          }
+        }
+      }
+    },
+    "Delete my cloud data?": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "クラウドデータを削除しますか？"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删除我的云端数据？"
+          }
+        }
+      }
+    },
     "Delete this capsule?": {
       "localizations": {
         "ja": {
@@ -1417,6 +1449,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "这将永久删除录音。"
+          }
+        }
+      }
+    },
+    "This removes the reminder schedule and device tokens Soundpost keeps on its server. Your capsules stay on this device and in iCloud. Far-future reminders fall back to this device's local schedule.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Soundpost がサーバーに保存しているリマインダーのスケジュールとデバイストークンを削除します。カプセルはこの端末と iCloud に残ります。遠い未来のリマインダーは、この端末のローカルスケジュールに切り替わります。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这会删除 Soundpost 保存在服务器上的提醒计划和设备令牌。你的胶囊仍保留在本机和 iCloud 中。远期提醒将回退到本机的本地计划。"
           }
         }
       }

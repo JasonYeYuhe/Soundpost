@@ -8,9 +8,13 @@ struct ContentView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(NotificationCoordinator.self) private var notifications
     @Environment(CloudSyncMonitor.self) private var syncMonitor
+    @Environment(DeliveryRegistrar.self) private var registrar
     @Query(sort: \Capsule.createdAt, order: .reverse) private var capsules: [Capsule]
     @State private var showingCapture = false
     @State private var path: [Capsule] = []
+    @State private var confirmingCloudDelete = false
+    /// Mirrors `DeliveryPreferences.cloudOptedOut` so the control reacts to it.
+    @AppStorage(DeliveryPreferences.optedOutKey) private var cloudOptedOut = false
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -86,10 +90,45 @@ struct ContentView: View {
             }
             .labelStyle(.titleAndIcon)
             .multilineTextAlignment(.center)
+
+            // "Delete my cloud data" — required once delivery tokens are collected
+            // (S5). Shown only when signed in (so there's cloud data) and not
+            // already opted out. The local path keeps working after.
+            if syncMonitor.backup == .iCloud && !cloudOptedOut {
+                Button("Delete my cloud data") { confirmingCloudDelete = true }
+                    .font(.caption)
+                    .padding(.top, 2)
+            }
         }
         .font(.caption)
         .foregroundStyle(.secondary)
         .padding(.top, 6)
+        .confirmationDialog(
+            "Delete my cloud data?",
+            isPresented: $confirmingCloudDelete,
+            titleVisibility: .visible
+        ) {
+            Button("Delete my cloud data", role: .destructive, action: deleteCloudData)
+        } message: {
+            Text("This removes the reminder schedule and device tokens Soundpost keeps on its server. Your capsules stay on this device and in iCloud. Far-future reminders fall back to this device's local schedule.")
+        }
+    }
+
+    /// Purge the server-side tokens + jobs and opt out so they aren't re-collected
+    /// (§S5). Clears each capsule's `serverJobSyncedAt` so the local planner re-arms
+    /// its backstop, then re-syncs (server reconcile is now gated off).
+    private func deleteCloudData() {
+        cloudOptedOut = true
+        Task {
+            await notifications.sealDelivery?.deleteAllCloudData()
+            await registrar.signOut()
+            let store = CapsuleStore(context: modelContext)
+            for capsule in (try? store.all()) ?? [] where capsule.serverJobSyncedAt != nil {
+                capsule.serverJobSyncedAt = nil
+            }
+            try? store.save()
+            await notifications.sync(capsules: (try? store.all()) ?? [])
+        }
     }
 
     /// Honest, iCloud-state-aware durability copy (S6). Strings are literals so
