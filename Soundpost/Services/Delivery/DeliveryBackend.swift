@@ -15,6 +15,21 @@ struct DeviceTokenRegistration: Equatable, Sendable {
     let bundleID: String
 }
 
+/// One far-future delivery job for a sealed capsule — a content-free SIGNAL. The
+/// backend stores only the capsule UUID, the fire instant, its IANA time zone,
+/// and the kind. No note / place / audio ever leaves the device.
+struct DeliveryJob: Equatable, Sendable {
+    let capsuleID: UUID
+    /// `"seal"` (only sealed capsules are ever enqueued server-side; echoes and
+    /// near seals stay on the local path).
+    let kind: String
+    /// The absolute fire instant (the capsule's `sealUntil`).
+    let fireDate: Date
+    /// IANA id captured at seal time; the server fires at this wall-clock-in-zone
+    /// so a years-out seal stays DST-correct.
+    let timeZoneID: String
+}
+
 /// The seam between the app and the (Supabase) delivery server. Abstracted so
 /// S1's token-registration plumbing compiles and unit-tests **before** the
 /// backend exists (S2): production wires a not-yet-configured stub; tests inject
@@ -37,12 +52,26 @@ protocol DeliveryBackend: Sendable {
     /// Remove **only this device's** token (sign-out). User-scoped jobs are left
     /// untouched, so the user's other signed-in devices keep delivering (§4A).
     func unregisterToken(_ token: String, userKey: String) async throws
+
+    /// Upsert a far-future job (idempotent; the server re-arms only when the fire
+    /// instant changed and never resurrects a `sent` job).
+    func upsertJob(_ job: DeliveryJob, userKey: String) async throws
+
+    /// Cancel a capsule's job — on delete / unseal / resurface / re-seal.
+    func cancelJob(capsuleID: UUID, userKey: String) async throws
+
+    /// "Delete my cloud data": remove every token + job for this user (§S5).
+    func deleteAll(userKey: String) async throws
 }
 
-/// The S1 placeholder backend: no server exists yet, so it is *not configured*
-/// and does nothing. Swapped for the real Supabase client in S3.
+/// The placeholder backend used before the real client is configured: it is
+/// *not configured* and does nothing, so the app caches/queues locally and the
+/// local path keeps working. (Kept for tests / a missing config.)
 struct UnconfiguredDeliveryBackend: DeliveryBackend {
     var isConfigured: Bool { false }
     func registerToken(_ registration: DeviceTokenRegistration, userKey: String) async throws {}
     func unregisterToken(_ token: String, userKey: String) async throws {}
+    func upsertJob(_ job: DeliveryJob, userKey: String) async throws {}
+    func cancelJob(capsuleID: UUID, userKey: String) async throws {}
+    func deleteAll(userKey: String) async throws {}
 }

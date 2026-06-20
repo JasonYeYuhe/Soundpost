@@ -7,20 +7,25 @@ struct SoundpostApp: App {
     /// Owns only the APNs registration handshake (M10 §S1); the SwiftUI-native
     /// `NotificationCoordinator` keeps the presentation/tap delegate role.
     @UIApplicationDelegateAdaptor(SoundpostAppDelegate.self) private var appDelegate
-    @State private var notifications = NotificationCoordinator()
+    @State private var notifications: NotificationCoordinator
     @State private var syncMonitor = CloudSyncMonitor()
 
     /// Cloud-backed delivery: device-token registration + per-user identity
-    /// bootstrap (M10 §S1). The default backend is *not yet configured* (no
-    /// server until S2/S3), so this is inert in production — it caches the token
-    /// and does no network/iCloud work until the real backend is wired.
-    @State private var registrar = DeliveryRegistrar()
+    /// bootstrap (M10 §S1). Until the backend's config is filled in (after S2
+    /// deploy), `SupabaseDeliveryBackend.isConfigured == false`, so this is inert
+    /// in production — it caches the token and does no network work; the local
+    /// path keeps working.
+    @State private var registrar: DeliveryRegistrar
 
-    /// The production SwiftData stack (CloudKit-mirrored, S3), built once and
-    /// retained for the app's lifetime so the file→Data backfill (S2) can run
-    /// against it and remote CloudKit changes can be observed (S4). `nil` under
-    /// tests / DEBUG demo / self-test — those paths use their own store and must
-    /// never create the production (or a second) container for `Capsule`.
+    /// The far-seal job reconciler (M10 §S3), sharing the same backend + identity
+    /// as the registrar. Injected into `NotificationCoordinator` so server jobs
+    /// reconcile in lockstep with the local notification sync.
+    @State private var sealDelivery: SealDeliveryService
+
+    /// The production SwiftData stack (CloudKit-mirrored), built once and retained
+    /// for the app's lifetime. `nil` under tests / DEBUG demo / self-test — those
+    /// paths use their own store and must never create the production (or a
+    /// second) container for `Capsule`.
     private let store: ProductionStore?
 
     init() {
@@ -32,6 +37,17 @@ struct SoundpostApp: App {
         store = AppEnvironment.usesProductionContainer
             ? SoundpostModelContainer.makeProductionContainer()
             : nil
+
+        // One backend + one identity shared by token registration (S1) and job
+        // reconcile (S3), so the identity cache and backend config stay consistent.
+        let identity = CloudKitDeliveryIdentity()
+        let backend: DeliveryBackend = SupabaseDeliveryBackend()
+        let coordinator = NotificationCoordinator()
+        let delivery = SealDeliveryService(backend: backend, identity: identity)
+        coordinator.sealDelivery = delivery
+        _notifications = State(initialValue: coordinator)
+        _registrar = State(initialValue: DeliveryRegistrar(backend: backend, identity: identity))
+        _sealDelivery = State(initialValue: delivery)
     }
 
     var body: some Scene {

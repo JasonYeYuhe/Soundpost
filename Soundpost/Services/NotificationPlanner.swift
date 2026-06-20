@@ -49,6 +49,14 @@ enum NotificationPlanner {
     ) -> [PlannedNotification] {
         let candidates = capsules.compactMap { capsule -> PlannedNotification? in
             if capsule.state == .sealed, let due = capsule.sealUntil {
+                // Drop the local backstop once the cloud server owns delivery for
+                // this seal (M10 §4D): `serverJobSyncedAt` is set when the job is
+                // confirmed and syncs across the user's devices via M9 CloudKit, so
+                // every device defers to the server push — exactly one notification
+                // fires per resurfacing. Echoes + near + not-yet-server-owned seals
+                // keep their local request; delivery-time dedup (the push receipt
+                // removing any matching local request) covers the transition window.
+                if capsule.serverJobSyncedAt != nil { return nil }
                 return PlannedNotification(
                     capsuleID: capsule.id,
                     fireDate: due,

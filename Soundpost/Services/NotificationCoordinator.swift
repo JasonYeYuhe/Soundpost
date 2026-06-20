@@ -12,8 +12,16 @@ final class NotificationCoordinator: NSObject, UNUserNotificationCenterDelegate 
     /// Set when a notification is tapped; ContentView observes this to navigate.
     var pendingDeepLinkCapsuleID: UUID?
 
+    /// Cloud-backed delivery reconciler (M10 §S3). Injected by the app; nil under
+    /// tests/previews, where only the local path runs. Reconciled in lockstep with
+    /// the local notification sync so routing is recomputed at the same points.
+    var sealDelivery: SealDeliveryService?
+
     private let center = UNUserNotificationCenter.current()
     private let scheduler: NotificationScheduler
+
+    /// Key the content-free server push carries so the app can dedup/deep-link.
+    nonisolated static let capsulePushKey = "capsule_id"
 
     override init() {
         scheduler = NotificationScheduler(center: UNUserNotificationCenter.current())
@@ -65,6 +73,49 @@ final class NotificationCoordinator: NSObject, UNUserNotificationCenterDelegate 
                 )
             }
         }
+
+        // Reconcile the far-seal job set with the server in lockstep with the
+        // local plan (no-op when signed out / backend unconfigured).
+        await sealDelivery?.reconcile(capsules: capsules, now: now)
+    }
+
+    // MARK: Delivery-time dedup
+
+    /// The capsule UUID a notification refers to — from our local request
+    /// identifier, else the server push's `capsule_id` userInfo. Pure, so callable
+    /// from the `nonisolated` delegate callbacks.
+    nonisolated static func capsuleID(of notification: UNNotification) -> UUID? {
+        NotificationScheduler.capsuleID(fromIdentifier: notification.request.identifier)
+            ?? capsuleID(fromPushUserInfo: notification.request.content.userInfo)
+    }
+
+    /// Parse the capsule UUID a server push carries in its `capsule_id` userInfo.
+    nonisolated static func capsuleID(fromPushUserInfo userInfo: [AnyHashable: Any]) -> UUID? {
+        (userInfo[capsulePushKey] as? String).flatMap(UUID.init(uuidString:))
+    }
+
+    /// True if this is our content-free server push (carries `capsule_id`).
+    nonisolated static func isServerPush(_ notification: UNNotification) -> Bool {
+        notification.request.content.userInfo[capsulePushKey] != nil
+    }
+
+    /// Which of `identifiers` are this capsule's local **seal** requests — the set
+    /// a server push dedups away. Pure, so the dedup rule is unit-testable.
+    nonisolated static func localSealIdentifiers(for capsuleID: UUID, among identifiers: [String]) -> [String] {
+        let prefix = "\(NotificationScheduler.identifierPrefix)\(capsuleID.uuidString)|seal|"
+        return identifiers.filter { $0.hasPrefix(prefix) }
+    }
+
+    /// Remove any pending OR delivered LOCAL seal request for `capsuleID`, so a
+    /// server push that already arrived doesn't also let a local backstop fire —
+    /// the hard, delivery-time dedup guarantee (§4). Every device does this.
+    func removeLocalSealRequests(for capsuleID: UUID) async {
+        let pending = Self.localSealIdentifiers(
+            for: capsuleID, among: await center.pendingNotificationRequests().map(\.identifier))
+        if !pending.isEmpty { center.removePendingNotificationRequests(withIdentifiers: pending) }
+        let delivered = Self.localSealIdentifiers(
+            for: capsuleID, among: await center.deliveredNotifications().map(\.request.identifier))
+        if !delivered.isEmpty { center.removeDeliveredNotifications(withIdentifiers: delivered) }
     }
 
     // MARK: UNUserNotificationCenterDelegate
@@ -73,16 +124,22 @@ final class NotificationCoordinator: NSObject, UNUserNotificationCenterDelegate 
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification
     ) async -> UNNotificationPresentationOptions {
-        [.banner, .sound]
+        // On our server push, drop any local backstop for the same capsule first.
+        if Self.isServerPush(notification), let uuid = Self.capsuleID(of: notification) {
+            await self.removeLocalSealRequests(for: uuid)
+        }
+        return [.banner, .sound]
     }
 
     nonisolated func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         didReceive response: UNNotificationResponse
     ) async {
-        guard let uuid = NotificationScheduler.capsuleID(
-            fromIdentifier: response.notification.request.identifier
-        ) else { return }
+        let notification = response.notification
+        guard let uuid = Self.capsuleID(of: notification) else { return }
+        if Self.isServerPush(notification) {
+            await self.removeLocalSealRequests(for: uuid)
+        }
         await MainActor.run { self.pendingDeepLinkCapsuleID = uuid }
     }
 }

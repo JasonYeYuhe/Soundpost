@@ -2,43 +2,11 @@ import Testing
 import Foundation
 @testable import Soundpost
 
-// MARK: - Test doubles
-
-private enum DeliveryTestError: Error { case boom }
-
-/// In-memory `DeliveryBackend` that records calls (mirrors the project's
-/// `@unchecked Sendable` mock style; tests await each call so access is serial).
-private final class MockBackend: DeliveryBackend, @unchecked Sendable {
-    var configured: Bool
-    var shouldThrow = false
-    private(set) var registerCalls: [(registration: DeviceTokenRegistration, userKey: String)] = []
-    private(set) var unregisterCalls: [(token: String, userKey: String)] = []
-
-    init(configured: Bool = true) { self.configured = configured }
-
-    var isConfigured: Bool { configured }
-
-    func registerToken(_ registration: DeviceTokenRegistration, userKey: String) async throws {
-        if shouldThrow { throw DeliveryTestError.boom }
-        registerCalls.append((registration, userKey))
-    }
-
-    func unregisterToken(_ token: String, userKey: String) async throws {
-        if shouldThrow { throw DeliveryTestError.boom }
-        unregisterCalls.append((token, userKey))
-    }
-}
-
-/// In-memory `DeliveryIdentityProviding` with a settable key (nil = signed out).
-private final class MockIdentity: DeliveryIdentityProviding, @unchecked Sendable {
-    var key: String?
-    private(set) var accountChangeCount = 0
-
-    init(key: String?) { self.key = key }
-
-    func currentUserKey() async -> String? { key }
-    func accountDidChange() async { accountChangeCount += 1 }
-}
+// Shared test doubles live in DeliveryTestSupport.swift (SpyDeliveryBackend /
+// StubDeliveryIdentity) so the S1 + S3 suites use one mock that covers the full
+// DeliveryBackend protocol (token + job methods).
+private typealias MockBackend = SpyDeliveryBackend
+private typealias MockIdentity = StubDeliveryIdentity
 
 // MARK: - Pure helpers
 

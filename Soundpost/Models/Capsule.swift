@@ -68,6 +68,15 @@ final class Capsule {
     /// tz-rule changes — see docs/PROJECT.md §1e.5.
     var sealTimeZoneID: String?
 
+    /// When the cloud-delivery server confirmed a far-future job for this sealed
+    /// capsule (M10 §S3/§4D). `nil` until a signed-in device registers the job;
+    /// once set (and synced to the user's other devices via M9 CloudKit), every
+    /// device drops its **local** notification backstop and lets the server push
+    /// own delivery — so exactly one notification fires per resurfacing. Cleared
+    /// when the job is cancelled (unseal / resurface / re-seal). Optional + additive
+    /// so the CloudKit-mirrored schema stays legal.
+    var serverJobSyncedAt: Date?
+
     /// Current lifecycle state. Mutate via `transition(to:)`.
     private(set) var state: CapsuleState = CapsuleState.draft
 
