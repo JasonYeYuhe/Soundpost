@@ -1,0 +1,17 @@
+# Soundpost M10 delivery backend — Supabase config (project `soundpost`).
+# Only the function-gating keys M10 needs; the rest is Supabase defaults.
+
+project_id = "soundpost"
+
+# Both functions do their OWN auth, so the platform JWT gate is disabled:
+#  * sync-delivery   — auth = the per-user CloudKit secret (Bearer), §G.
+#  * send-due-notifications — auth = the timing-safe cron secret (Bearer +
+#    X-Internal-Trigger), distinct from the service-role key, §E/§G.
+# The .p8, service-role key, and cron secret live ONLY in the function env
+# (Project Settings → Edge Functions → Secrets), never in the app binary.
+
+[functions.sync-delivery]
+verify_jwt = false
+
+[functions.send-due-notifications]
+verify_jwt = false
