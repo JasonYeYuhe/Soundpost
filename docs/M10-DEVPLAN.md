@@ -443,15 +443,29 @@ API key (`scripts/build-upload-asc.sh`). `ARCHIVE/EXPORT SUCCEEDED`, `Upload
 succeeded` → TestFlight processing. (Only warning: the known Sentry-dSYM non-blocker
 from M8 — the app's own dSYM uploads fine.)
 
-**Still human-gated:**
-1. **ASC App Privacy nutrition label** + **publish the policy delta**
-   (`docs/M10-privacy-policy-delta.md` → `JasonYeYuhe/soundpost-site`), shipped
-   with/before the label.
-2. **The two-device manual acceptance pass** (§S6): a far seal needs a Release/
-   TestFlight build (prod APNs) signed-in on two iCloud devices — fires once on A
-   *and* B at its date; force-quit; delete+reinstall+reopen on A; near seal exact
-   local; JA/ZH push localized; signed-out local path; airplane-mode-at-fire
-   arrives later / in-app resurface. Record here when done.
+**Privacy lockstep DONE + SUBMITTED (2026-06-22):**
+- **Policy published** — the M10 "Cloud-backed reminders" disclosure (token + the
+  anonymous user key + content-free schedule; content never leaves the device;
+  Supabase as the delivery host; auto-deletion + "Delete my cloud data") merged to
+  `JasonYeYuhe/soundpost-site` `main`, live on GitHub Pages (effective 22 Jun 2026).
+- **ASC App Privacy nutrition label updated** — added **Identifiers → Device ID**
+  + **User ID** and **Other Data**, each *App Functionality / Data Not Linked /
+  not tracking*, alongside the existing Crash + Diagnostics — an exact match to
+  `PrivacyInfo.xcprivacy`. Published. (No new Required-Reason API.)
+- **1.3.0 (build 7) SUBMITTED for review** — folded the in-review 1.2.0 (M9) into
+  1.3.0 (build 7 carries M9 **and** M10): withdrew the 1.2.0 submission, renamed
+  the version 1.2.0→1.3.0, attached build 7, set localized "What's New" (EN/JA/ZH
+  covering iCloud durability + cloud-backed reminders), resubmitted. State
+  `WAITING_FOR_REVIEW`; **release type stays MANUAL** — nothing goes public until
+  Jason presses Release after approval.
+
+**Still genuinely human (can't be automated):**
+1. **The two-device manual acceptance pass** (§S6) — run it on TestFlight (build 7
+   is processed) during the review window, *before* pressing Release: a far seal
+   fires once on A *and* B at its date; force-quit; delete+reinstall+reopen on A;
+   near seal exact-local; JA/ZH push localized; signed-out local path;
+   airplane-mode-at-fire arrives later / in-app resurface. Record here when done.
    - Note: an Xcode **Debug** build registers a **development** (sandbox) APNs
      token; the poller routes it to the sandbox host automatically (per-token), so
      dev-build testing works too — but App Store delivery is the Release/prod path.
+2. **Press Release** in ASC once 1.3.0 is approved and the device test passes.

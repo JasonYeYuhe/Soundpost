@@ -1,1 +1,3 @@
-The first Soundpost. Capture the sound of a moment, keep it as a mood-tinted waveform card, and seal it for your future self. Thank you for being here at the start.
+• Your capsules now back up to your private iCloud and sync across your devices — and come back when you reinstall.
+• Sealed a capsule for years from now? Its reminder is now cloud-backed, so it can still reach you on the day — best-effort, and your recordings never leave your device; only the reminder travels.
+• Reliability fixes and small refinements throughout.
