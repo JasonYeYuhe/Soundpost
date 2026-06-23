@@ -179,7 +179,7 @@ Swift 6 strict concurrency (`Tetsuzukit:project.yml`); grow tests around reinsta
 | M10 | **APNs device tokens + server jobs** | add Device ID/Identifiers (functionality, not tracking) | server-side delete on capsule/app deletion |
 | M11 | purchase/entitlement | add Purchases (not linked to identity if anonymous) | App Store Server Notifications |
 
-Also from launch: **in-app delete** (exists) + **export** (M12), age rating, content-rights, **no ATT** (no tracking).
+Also from launch: **in-app delete** (exists) + **data export** (bulk export-your-data, M12 — distinct from M11's Pro per-capsule *share* export), age rating, content-rights, **no ATT** (no tracking).
 
 ---
 
