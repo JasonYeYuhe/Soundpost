@@ -51,4 +51,21 @@ struct WaveformExtractorTests {
         let url = try makeSineClip()
         #expect(try WaveformExtractor.samples(from: url, buckets: 0).isEmpty)
     }
+
+    /// A multi-second clip spans many streaming chunks (chunkFrames = 16,384);
+    /// the bounded-buffer reader must still return a full, normalized waveform —
+    /// the §S3 "5-min extract doesn't spike memory, waveform still reads" path.
+    @Test func longClipStreamsToFullNormalizedWaveform() throws {
+        let url = try makeSineClip(seconds: 6) // ~264,600 frames → ~17 chunks
+        let samples = try WaveformExtractor.samples(from: url, buckets: 56)
+        #expect(samples.count == 56)
+        #expect(samples.allSatisfy { $0 >= 0 && $0 <= 1.0001 })
+        #expect((samples.max() ?? 0) > 0.9)     // peak still normalizes
+        #expect(samples.contains { $0 > 0.05 })  // not all-zero across chunks
+    }
+
+    @Test func longClipHonorsArbitraryBucketCount() throws {
+        let url = try makeSineClip(seconds: 3)
+        #expect(try WaveformExtractor.samples(from: url, buckets: 37).count == 37)
+    }
 }

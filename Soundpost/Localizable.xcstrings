@@ -359,6 +359,22 @@
         }
       }
     },
+    "Card theme": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "カードのテーマ"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "卡片主题"
+          }
+        }
+      }
+    },
     "Check your connection and try again. Your cloud data hasn't been changed.": {
       "localizations": {
         "ja": {
@@ -938,6 +954,22 @@
         }
       }
     },
+    "Locked": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ロック中"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已锁定"
+          }
+        }
+      }
+    },
     "Manage Subscription": {
       "localizations": {
         "ja": {
@@ -1339,6 +1371,22 @@
         }
       }
     },
+    "Reached the 60-second limit. Record up to 5 minutes with Pro.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "60秒の上限に達しました。Pro なら最長5分まで録音できます。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已达到 60 秒上限。升级 Pro 可录制最长 5 分钟。"
+          }
+        }
+      }
+    },
     "Record a sound": {
       "localizations": {
         "ja": {
@@ -1371,6 +1419,22 @@
         }
       }
     },
+    "Record up to 5 minutes with Pro": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pro で最長5分まで録音"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "升级 Pro，录制最长 5 分钟"
+          }
+        }
+      }
+    },
     "Recording may pick up nearby voices — please be considerate of others.": {
       "localizations": {
         "ja": {
@@ -1383,6 +1447,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "录音可能会收录到附近的人声，请体谅周围的人。"
+          }
+        }
+      }
+    },
+    "Recording up to 5 minutes is a Pro feature.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最長5分の録音は Pro の機能です。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "录制最长 5 分钟是 Pro 功能。"
           }
         }
       }
@@ -1591,6 +1671,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "已封存——但提醒已关闭"
+          }
+        }
+      }
+    },
+    "Selected": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "選択中"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已选择"
           }
         }
       }
@@ -1982,6 +2078,22 @@
         }
       }
     },
+    "Unlock the theme pack with Soundpost Pro.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Soundpost Pro でテーマパックを解除しましょう。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通过 Soundpost Pro 解锁主题包。"
+          }
+        }
+      }
+    },
     "Unseal": {
       "localizations": {
         "ja": {
@@ -1994,6 +2106,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "解除封印"
+          }
+        }
+      }
+    },
+    "Up to 5 minutes. Tap to start.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最長5分まで。タップして開始。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最长 5 分钟。点按开始。"
           }
         }
       }

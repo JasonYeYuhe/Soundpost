@@ -31,8 +31,11 @@ final class AudioRecorder: NSObject {
     /// How many recent level samples to retain for the live waveform.
     private let levelHistory = 80
 
-    /// Max clip length; recording auto-stops here.
-    let maxDuration: TimeInterval
+    /// Max clip length; recording auto-stops here. Settable (M11 §4D) so the
+    /// capture VM can raise it to the Pro cap at record-start, read from
+    /// `ProGate.maxRecordingDuration`. Read each metering tick, so it must be set
+    /// before `start()`; changing it mid-recording is not supported.
+    var maxDuration: TimeInterval
 
     private let store: AudioStore
     private var recorder: AVAudioRecorder?

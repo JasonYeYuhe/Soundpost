@@ -25,6 +25,10 @@ struct ProPaywallView: View {
     @Environment(\.openURL) private var openURL
     @Environment(StoreService.self) private var store
     @State private var purchaseError: String?
+    /// The live card-theme preference (M11 §2B(c)) — same key `CapsuleCard`
+    /// renders, so a selection applies immediately and persists across launches.
+    @AppStorage("cardTheme") private var cardTheme: Theme = .classic
+    @State private var showLockedThemeHint = false
 
     /// Apple's Standard EULA (Schedule 1) — the Terms of Use for the
     /// auto-renewable subscription (App Review 3.1.2(c)); no EULA page to author.
@@ -44,6 +48,9 @@ struct ProPaywallView: View {
                     if let context { contextNote(context) }
                     statusBadge
                     features
+                    // The theme picker belongs to the hub entry, not the focused
+                    // in-context gate presentations (export, longer clip).
+                    if context == nil { themePicker }
                     pricing
                     restoreAndManage
                     legal
@@ -217,6 +224,80 @@ struct ProPaywallView: View {
             }
             .font(.caption2)
         }
+    }
+
+    // MARK: - Theme picker (hub entry only)
+
+    private var themePicker: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Card theme").font(.headline)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 12) {
+                    ForEach(Theme.allCases) { themeSwatch($0) }
+                }
+                .padding(.vertical, 2)
+            }
+            // Lapse-safe: choosing a locked theme never applies it; the applied
+            // theme keeps rendering. Free users see how to unlock — the plans are
+            // in this same surface (M11 §4D(iii)).
+            if showLockedThemeHint {
+                Text("Unlock the theme pack with Soundpost Pro.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func themeSwatch(_ theme: Theme) -> some View {
+        let isSelected = cardTheme == theme
+        let locked = !store.gate.canUse(theme)
+        let swatchTint = Color.accentColor
+        let barHeights: [CGFloat] = [14, 22, 10]
+        return Button {
+            if locked {
+                showLockedThemeHint = true
+            } else {
+                cardTheme = theme
+                showLockedThemeHint = false
+            }
+        } label: {
+            VStack(spacing: 6) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 12).fill(theme.baseFill)
+                    RoundedRectangle(cornerRadius: 12).fill(swatchTint.opacity(theme.tintWashOpacity))
+                    HStack(spacing: 3) {
+                        ForEach(barHeights.indices, id: \.self) { i in
+                            // SwiftUI's Capsule shape — the app's `Capsule` model shadows it.
+                            SwiftUI.Capsule().fill(swatchTint).frame(width: 4, height: barHeights[i])
+                        }
+                    }
+                }
+                .frame(width: 64, height: 44)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(isSelected ? Color.accentColor : theme.strokeColor(tint: swatchTint),
+                                lineWidth: isSelected ? 2 : theme.strokeWidth)
+                )
+                .overlay(alignment: .topTrailing) {
+                    if locked {
+                        Image(systemName: "lock.fill")
+                            .font(.system(size: 9))
+                            .padding(3)
+                            .background(.ultraThinMaterial, in: Circle())
+                            .padding(3)
+                    }
+                }
+                .opacity(locked ? 0.7 : 1)
+                Text(theme.label)
+                    .font(.caption2)
+                    .foregroundStyle(isSelected ? .primary : .secondary)
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Text(theme.label))
+        .accessibilityValue(locked ? Text("Locked") : (isSelected ? Text("Selected") : Text("")))
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
     private func purchase(_ product: Product) {

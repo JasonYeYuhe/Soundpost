@@ -35,4 +35,50 @@ enum Theme: String, CaseIterable, Identifiable, Sendable {
         case .graphite: String(localized: "Graphite")
         }
     }
+
+    /// Resolve the theme to render from a stored raw value, defaulting to the
+    /// free base. **Never** consults entitlement — this is what makes an applied
+    /// theme keep rendering after a Pro lapse (M11 §4D): the card reads the stored
+    /// preference, not `isPro`.
+    static func resolved(fromStored raw: String?) -> Theme {
+        Theme(rawValue: raw ?? "") ?? .classic
+    }
+}
+
+// MARK: - Card rendering (applied in CapsuleCard, S3)
+//
+// Each theme adjusts only adaptive surfaces and the mood tint — never the text
+// color — so `.primary`/`.secondary` card text stays legible in light and dark.
+// `.classic` reproduces the card exactly as it shipped before Pro, so the default
+// (and any free / lapsed user) sees no change at all.
+extension Theme {
+    /// Base card surface (an adaptive system color, so text stays legible).
+    var baseFill: Color {
+        switch self {
+        case .graphite: Color(uiColor: .tertiarySystemBackground)
+        default: Color(uiColor: .secondarySystemBackground)
+        }
+    }
+
+    /// A gentle mood-tint wash layered over the base (0 = none).
+    var tintWashOpacity: Double {
+        switch self {
+        case .tinted: 0.12
+        default: 0
+        }
+    }
+
+    /// Border color, derived from the mood tint (or neutral for graphite).
+    func strokeColor(tint: Color) -> Color {
+        switch self {
+        case .classic: tint.opacity(0.15)
+        case .tinted: tint.opacity(0.30)
+        case .outlined: tint.opacity(0.55)
+        case .graphite: Color.secondary.opacity(0.22)
+        }
+    }
+
+    var strokeWidth: CGFloat {
+        self == .outlined ? 1.5 : 1
+    }
 }

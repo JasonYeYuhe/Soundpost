@@ -60,7 +60,13 @@ final class CaptureViewModel {
 
     // MARK: Recording
 
-    func startRecording() async {
+    /// `maxDuration` is read from `ProGate.maxRecordingDuration` by the view at
+    /// the moment the user taps record (M11 §4D) — so the cap reflects the
+    /// *current* entitlement, and a clip recorded while Pro is unaffected by a
+    /// later lapse. There is no "record past the cap" gesture (the recorder hard-
+    /// stops), so the longer-clip upsell is an explicit affordance in the view.
+    func startRecording(maxDuration: TimeInterval = 60) async {
+        recorder.maxDuration = maxDuration
         guard await AudioRecorder.requestPermission() else {
             permissionDenied = true
             return

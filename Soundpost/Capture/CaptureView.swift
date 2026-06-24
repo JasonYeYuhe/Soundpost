@@ -7,8 +7,10 @@ struct CaptureView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(StoreService.self) private var store
     @State private var viewModel = CaptureViewModel()
     @State private var showingEchoPicker = false
+    @State private var showingPaywall = false
     @State private var recordPulse = false
     @State private var saveCount = 0
 
@@ -39,6 +41,9 @@ struct CaptureView: View {
                 Button("OK", role: .cancel) {}
             }
             .sheet(isPresented: $showingEchoPicker) { echoPicker }
+            .sheet(isPresented: $showingPaywall) {
+                ProPaywallView(context: "Recording up to 5 minutes is a Pro feature.")
+            }
             .sensoryFeedback(.impact(weight: .medium), trigger: viewModel.phase)
             .sensoryFeedback(.success, trigger: saveCount)
         }
@@ -55,12 +60,22 @@ struct CaptureView: View {
             Text("Capture how this moment sounds")
                 .font(.title3.weight(.semibold))
                 .multilineTextAlignment(.center)
-            Text("Up to 60 seconds. Tap to start.")
+            // Honest, gate-aware hint reflecting the *current* cap (M11 §4D/S3).
+            Text(captureHint)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
+            // No "record past 60s" gesture exists (the recorder hard-stops), so
+            // the longer-clip upsell is an explicit affordance, never a nag.
+            if !store.gate.isPro {
+                Button { showingPaywall = true } label: {
+                    Label("Record up to 5 minutes with Pro", systemImage: "timer")
+                        .font(.footnote)
+                }
+                .padding(.top, 2)
+            }
             Spacer()
             Button {
-                Task { await viewModel.startRecording() }
+                Task { await viewModel.startRecording(maxDuration: store.gate.maxRecordingDuration) }
             } label: {
                 ZStack {
                     Circle()
@@ -150,6 +165,24 @@ struct CaptureView: View {
                         Spacer()
                         Text(timeString(viewModel.duration)).monospacedDigit().foregroundStyle(.secondary)
                     }
+                }
+
+                // Shown only when a free clip actually bumped the 60s cap — a
+                // gentle, in-context upsell, not an interruption.
+                if reachedFreeCap {
+                    Button { showingPaywall = true } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "timer")
+                            Text("Reached the 60-second limit. Record up to 5 minutes with Pro.")
+                                .multilineTextAlignment(.leading)
+                            Spacer(minLength: 0)
+                            Image(systemName: "chevron.right").font(.caption2).foregroundStyle(.tertiary)
+                        }
+                        .font(.footnote)
+                        .padding(12)
+                        .background(.tint.opacity(0.10), in: RoundedRectangle(cornerRadius: 10))
+                    }
+                    .buttonStyle(.plain)
                 }
 
                 section("Mood") {
@@ -317,5 +350,16 @@ struct CaptureView: View {
     private func timeString(_ seconds: TimeInterval) -> String {
         let total = Int(seconds.rounded())
         return String(format: "%d:%02d", total / 60, total % 60)
+    }
+
+    /// The honest capture hint, reflecting the current entitlement's cap.
+    private var captureHint: LocalizedStringKey {
+        store.gate.isPro ? "Up to 5 minutes. Tap to start." : "Up to 60 seconds. Tap to start."
+    }
+
+    /// True when a free recording hit its cap (≈60s) — the only moment the
+    /// review-screen longer-clip upsell appears.
+    private var reachedFreeCap: Bool {
+        !store.gate.isPro && viewModel.duration >= viewModel.recorder.maxDuration - 0.5
     }
 }

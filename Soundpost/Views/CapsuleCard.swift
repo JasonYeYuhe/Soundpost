@@ -7,6 +7,12 @@ import UIKit
 struct CapsuleCard: View {
     let capsule: Capsule
 
+    /// The global card theme (M11 §2B(c)). A single app-wide preference, read at
+    /// render time — never `isPro` — so an applied theme keeps rendering after a
+    /// Pro lapse (§4D). `.classic` is the free base and the default, so free /
+    /// lapsed users (and the pre-Pro app) see the card unchanged.
+    @AppStorage("cardTheme") private var theme: Theme = .classic
+
     private var tint: Color { capsule.mood?.tint ?? .accentColor }
     private var isLocked: Bool { capsule.state == .sealed && !capsule.isContentVisible() }
 
@@ -16,8 +22,18 @@ struct CapsuleCard: View {
             if isLocked { lockedBody } else { openBody }
         }
         .padding(16)
-        .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 22))
-        .overlay(RoundedRectangle(cornerRadius: 22).stroke(tint.opacity(0.15), lineWidth: 1))
+        .background {
+            RoundedRectangle(cornerRadius: 22)
+                .fill(theme.baseFill)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 22)
+                        .fill(tint.opacity(theme.tintWashOpacity))
+                )
+        }
+        .overlay(
+            RoundedRectangle(cornerRadius: 22)
+                .stroke(theme.strokeColor(tint: tint), lineWidth: theme.strokeWidth)
+        )
         .accessibilityElement(children: .combine)
     }
 
