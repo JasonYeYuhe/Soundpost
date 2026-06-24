@@ -526,3 +526,31 @@ A second, deeper pass — empirical, not just static — caught and fixed one re
   Classic selected, and — launched outside the StoreKit-testing scheme — the honest
   ship-dormant "Plans aren't available right now" + Restore. Confirms both the sheet
   wiring and the ship-dormant behavior end-to-end.
+
+### Go-live progress (2026-06-24, after the build)
+
+**ASC products created** (the §8 human-gated step, done via the logged-in console):
+- `com.soundpost.Soundpost.pro.lifetime` — non-consumable, Family Sharing ON,
+  all 175 regions, price JP ¥1,250 base / China ¥30 (others auto), EN/JA/ZH
+  localizations. Apple ID 6783717823.
+- `com.soundpost.Soundpost.pro.annual` — auto-renewable 1 year in subscription
+  group "Soundpost Pro", Family Sharing off (annual individual), all 175 regions
+  (1-Year-Upfront), price JP ¥400/yr base / China ¥25 (others auto), EN/JA/ZH
+  localizations + the subscription group's own EN/JA/ZH display names. Apple ID
+  6783722700; group 22184116.
+- Lineup confirmed **annual + lifetime only (no monthly)**. Product IDs match
+  `StoreService.ProProduct` exactly. Paid Apps Agreement + banking + tax already
+  Active. Both products sit at "Missing Metadata" pending only the IAP **review
+  screenshot**, which is supplied at submission with the build.
+
+**1.4.0 (build 8) uploaded** to App Store Connect (archive + ASC-API upload via
+`scripts/build-upload-asc.sh`); TestFlight processing. 150 tests green, warning-free
+(the Sentry-framework dSYM warning is benign and recurring). 1.3.0 (build 7,
+M9+M10) untouched and still in review.
+
+**Remaining to actually sell Pro (Jason, once 1.3.0 clears review + releases):**
+create the 1.4.0 App Store version, select build 8, attach both IAPs for review,
+add the IAP paywall **review screenshot** (capturable from a TestFlight/sandbox
+build now that the products exist), and submit. Optional price tuning: the ¥400/
+¥1,250 base makes non-JP/CN territories very cheap (e.g. US ≈ $1.99/yr, ≈ $7.99
+lifetime), and China lifetime (¥30) sits just above China annual (¥25).
