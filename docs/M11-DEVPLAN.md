@@ -436,3 +436,70 @@ the next began. Commits land on `master` (the established milestone branch).
 - **Copy** finalized EN/JA/ZH-Hans across the paywall, the longer-clip affordances,
   the theme picker, and the export entry; the String Catalog is 100% (only the bare
   brand "Soundpost" untranslated, unchanged from the pre-M11 baseline).
+
+### S6 — Tests, StoreKit-testing manual pass & acceptance
+
+**Automated (this machine — Xcode 26.5, iPhone 17 simulator):** 150 tests in 23
+suites pass; build warning-free; i18n EN/JA/ZH-Hans 100%; zero new third-party deps.
+New M11 coverage: `ProGate` free/Pro mapping + equatability + classic-always-
+available; `StoreService` product enum + `isPro`/`gate` from entitlements + lapse
+drop; `AudioRecorder` settable cap + VM pass-through; bounded-memory long-clip
+`WaveformExtractor` (multi-chunk, normalized); `Theme` baseline/resolved/entitlement-
+independent; `CapsuleExporter` content-bounded audio + @3x card raster + payload;
+and an end-to-end `LapseSafety` case (§10.3).
+
+**Independent adversarial audit:** four blind lenses (lapse-safety + never-charge;
+3.1.2 disclosure + honesty; Swift/SwiftUI correctness; scope/regression), each
+followed by an adversarial verify pass → **0 confirmed findings**.
+
+**Acceptance criteria (§10):** 2 (free tier unchanged/complete), 3 (lapse/refund
+never locks, incl. >60s clip + applied theme + after delete+reinstall), 4 (Pro
+unlocks the v1 set; one localized paywall), 5 (export faithful + content-bounded),
+6 (privacy lockstep, no Required-Reason API, no tracking), 7 (warning-free/green/
+i18n/no-deps), 8 (no server change; M10 untouched & free), 9 (paywall/entry
+VoiceOver-labeled + Dynamic-Type-safe pricing) — all met in code + tests + audit.
+Criterion 1 (buy/restore/updates) needs the live StoreKit pass below.
+
+**StoreKit-testing manual pass** (`Soundpost.storekit` is wired into the scheme's
+Run + Test actions). Open in Xcode, Run on a simulator, tap the Pro entry
+(person.crop.circle, top-right), and verify:
+- [ ] Paywall renders in EN / JA / ZH-Hans (Scheme ▸ Run ▸ Options ▸ App Language).
+- [ ] Buy **lifetime** → Pro; export shares a card+audio, capture hint reads 5 min,
+      locked themes unlock.
+- [ ] Buy **annual** → Pro; the card shows price + "/ year" + "Auto-renews yearly.
+      Cancel anytime." *before* Subscribe; "Manage Subscription" appears.
+- [ ] **Restore Purchases** re-derives Pro from entitlements.
+- [ ] **Expire the annual** (Debug ▸ StoreKit ▸ Manage Transactions) → not Pro, but
+      a >60s clip still plays full-length, an applied non-base theme still renders,
+      an exported file is unaffected, and a due seal still resurfaces. (Nothing locks.)
+- [ ] **Refund** the lifetime → not Pro; all content stays.
+- [ ] **Ask-to-Buy pending** → no unlock; later approval flips Pro via the updates
+      listener. **Family Sharing** on the lifetime (if enabled) reflects the entitlement.
+- [ ] Terms (Apple EULA) + Privacy links open; Restore is discoverable.
+
+**On-device pass (once ASC products exist — human-gated):** sandbox buy/restore/
+manage on a device; VoiceOver over Buy/Subscribe/Restore/Manage/Close; Dynamic Type
+at accessibility sizes doesn't clip the price/disclosure.
+
+**Ship-dormant (§0):** with no ASC products and the Paid Apps Agreement unsigned,
+`Product.products(for:)` returns empty → the paywall shows an honest "not available
+right now," nothing is for sale, and the gates simply present that empty paywall. So
+this build merges + ships as-is; turning monetization on later needs only the human
+steps below — **no new build**.
+
+### Human-gated — STOP / Jason (required before anything can sell)
+
+These cannot be done from code:
+- [ ] Sign the **Paid Applications Agreement** + complete **banking & tax** in ASC.
+- [ ] Create subscription group **"Soundpost Pro"** (+ its own localized display name
+      EN/JA/ZH-Hans) + the **annual** `com.soundpost.Soundpost.pro.annual`; set price.
+- [ ] Create the **non-consumable** `com.soundpost.Soundpost.pro.lifetime`; set price;
+      decide **Family Sharing** (recommended on).
+- [ ] Localized **display name + description for BOTH products** (EN/JA/ZH-Hans); a
+      review note; a **paywall screenshot** attached to the IAP review.
+- [ ] Decide final **prices** and whether to keep monetization dormant until launch.
+- [ ] (Confirmed in S5) No "Purchases" privacy declaration is needed.
+
+The product IDs in code/`.storekit` are the contract: `com.soundpost.Soundpost.pro.annual`
+(auto-renewable, group "Soundpost Pro") and `com.soundpost.Soundpost.pro.lifetime`
+(non-consumable). Create them in ASC with exactly these IDs.
