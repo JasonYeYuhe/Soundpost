@@ -455,6 +455,22 @@
         }
       }
     },
+    "Couldn't prepare the export": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "書き出しを準備できませんでした"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法准备导出"
+          }
+        }
+      }
+    },
     "Couldn't save the capsule. Please try again.": {
       "localizations": {
         "ja": {
@@ -727,6 +743,38 @@
         }
       }
     },
+    "Export & share": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "書き出して共有"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "导出并分享"
+          }
+        }
+      }
+    },
+    "Export & share is a Pro feature.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "書き出しと共有は Pro の機能です。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "导出与分享是 Pro 功能。"
+          }
+        }
+      }
+    },
     "Export & share your cards": {
       "localizations": {
         "ja": {
@@ -966,6 +1014,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "已锁定"
+          }
+        }
+      }
+    },
+    "Made with Soundpost": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Soundpost で作成"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "由 Soundpost 制作"
           }
         }
       }
@@ -1302,6 +1366,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "播放"
+          }
+        }
+      }
+    },
+    "Please try again.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "もう一度お試しください。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请再试一次。"
           }
         }
       }

@@ -10,10 +10,14 @@ struct CapsuleDetailView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @Environment(NotificationCoordinator.self) private var notifications
+    @Environment(StoreService.self) private var store
     @State private var player = AudioPlayer()
     @State private var confirmingDelete = false
     @State private var showingSeal = false
     @State private var sealedWithNotificationsOff = false
+    @State private var showingPaywall = false
+    @State private var sharePayload: SharePayload?
+    @State private var exportFailed = false
 
     private var tint: Color { capsule.mood?.tint ?? .accentColor }
     private var isLocked: Bool { capsule.state == .sealed && !capsule.isContentVisible() }
@@ -49,6 +53,15 @@ struct CapsuleDetailView: View {
             Button("OK", role: .cancel) { dismiss() }
         } message: {
             Text("This capsule is sealed and will reappear here on its date. To be reminded on the day, turn on notifications for Soundpost in Settings.")
+        }
+        .sheet(item: $sharePayload) { ShareSheet(items: $0.items) }
+        .sheet(isPresented: $showingPaywall) {
+            ProPaywallView(context: "Export & share is a Pro feature.")
+        }
+        .alert("Couldn't prepare the export", isPresented: $exportFailed) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("Please try again.")
         }
         .onAppear(perform: markOpenedIfResurfaced)
         .onDisappear { player.stop() }
@@ -102,6 +115,26 @@ struct CapsuleDetailView: View {
                 .tint(tint)
                 .padding(.top, 8)
             }
+
+            // Export/share — Pro-gated, offered only here in the *visible* view
+            // (the locked view has no export affordance, so a sealed-not-due
+            // capsule structurally can't be exported — M11 §4G).
+            Button(action: exportTapped) {
+                Label("Export & share", systemImage: "square.and.arrow.up")
+            }
+            .buttonStyle(.bordered)
+            .tint(tint)
+            .padding(.top, capsule.state == .captured ? 0 : 8)
+        }
+    }
+
+    /// Pro users share the card image + audio; free users meet the one paywall.
+    private func exportTapped() {
+        guard store.gate.canExport else { showingPaywall = true; return }
+        if let payload = CapsuleExporter.payload(for: capsule) {
+            sharePayload = payload
+        } else {
+            exportFailed = true
         }
     }
 
