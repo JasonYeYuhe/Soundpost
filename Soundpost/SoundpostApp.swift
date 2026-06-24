@@ -22,6 +22,12 @@ struct SoundpostApp: App {
     /// reconcile in lockstep with the local notification sync.
     @State private var sealDelivery: SealDeliveryService
 
+    /// On-device StoreKit 2 entitlement service for Soundpost Pro (M11). Inert
+    /// until ASC products exist (ship-dormant — §0): `Product.products(for:)`
+    /// returns empty and the paywall stays unreachable. `autoStart` is off under
+    /// tests so the unit-test runner opens no StoreKit network client.
+    @State private var storeService: StoreService
+
     /// The production SwiftData stack (CloudKit-mirrored), built once and retained
     /// for the app's lifetime. `nil` under tests / DEBUG demo / self-test — those
     /// paths use their own store and must never create the production (or a
@@ -48,6 +54,7 @@ struct SoundpostApp: App {
         _notifications = State(initialValue: coordinator)
         _registrar = State(initialValue: DeliveryRegistrar(backend: backend, identity: identity))
         _sealDelivery = State(initialValue: delivery)
+        _storeService = State(initialValue: StoreService(autoStart: !AppEnvironment.isRunningUnderTests))
     }
 
     var body: some Scene {
@@ -56,6 +63,7 @@ struct SoundpostApp: App {
                 .environment(notifications)
                 .environment(syncMonitor)
                 .environment(registrar)
+                .environment(storeService)
                 // Hand the registrar to the AppDelegate so APNs token callbacks
                 // can reach it. The register-on-launch reconciliation in the
                 // delegate covers the brief race before this runs.

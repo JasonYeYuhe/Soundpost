@@ -1,0 +1,94 @@
+{
+  "identifier" : "Soundpost-StoreKit-Configuration",
+  "nonRenewingSubscriptions" : [],
+  "products" : [
+    {
+      "displayPrice" : "24.99",
+      "familyShareable" : true,
+      "internalID" : "soundpost_pro_lifetime",
+      "localizations" : [
+        {
+          "description" : "Unlock Soundpost Pro forever — export & share your cards, record up to 5 minutes, and a card theme pack. Your memories are always free to keep, receive, and play.",
+          "displayName" : "Soundpost Pro — Lifetime",
+          "locale" : "en_US"
+        },
+        {
+          "description" : "Soundpost Pro を永久に解除 — カードの書き出し・共有、最長5分の録音、カードのテーマパック。思い出を残す・受け取る・再生することは、いつでも無料です。",
+          "displayName" : "Soundpost Pro — 買い切り",
+          "locale" : "ja_JP"
+        },
+        {
+          "description" : "永久解锁 Soundpost Pro — 导出与分享卡片、录制最长 5 分钟、卡片主题包。保存、接收和播放你的回忆，永远免费。",
+          "displayName" : "Soundpost Pro — 终身买断",
+          "locale" : "zh_Hans"
+        }
+      ],
+      "productID" : "com.soundpost.Soundpost.pro.lifetime",
+      "referenceName" : "Soundpost Pro Lifetime",
+      "type" : "NonConsumable"
+    }
+  ],
+  "settings" : {
+    "_compatibilityTimeRate" : 1,
+    "_storeKitErrors" : []
+  },
+  "subscriptionGroups" : [
+    {
+      "id" : "soundpost_pro_group",
+      "localizations" : [
+        {
+          "description" : "Soundpost Pro.",
+          "displayName" : "Soundpost Pro",
+          "locale" : "en_US"
+        },
+        {
+          "description" : "Soundpost Pro。",
+          "displayName" : "Soundpost Pro",
+          "locale" : "ja_JP"
+        },
+        {
+          "description" : "Soundpost Pro。",
+          "displayName" : "Soundpost Pro",
+          "locale" : "zh_Hans"
+        }
+      ],
+      "name" : "Soundpost Pro",
+      "subscriptions" : [
+        {
+          "adHocOffers" : [],
+          "codeOffers" : [],
+          "displayPrice" : "9.99",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "soundpost_pro_annual",
+          "localizations" : [
+            {
+              "description" : "Everything in Soundpost Pro for a year — export & share, 5-minute clips, and the theme pack. Auto-renews yearly; cancel anytime. Your memories are always free to keep and receive.",
+              "displayName" : "Soundpost Pro — Annual",
+              "locale" : "en_US"
+            },
+            {
+              "description" : "Soundpost Pro のすべてを1年間 — 書き出し・共有、5分の録音、テーマパック。毎年自動更新、いつでも解約可能。思い出を残す・受け取ることは、いつでも無料です。",
+              "displayName" : "Soundpost Pro — 年額",
+              "locale" : "ja_JP"
+            },
+            {
+              "description" : "一年内畅享 Soundpost Pro 全部功能 — 导出与分享、5 分钟录音、主题包。每年自动续订，可随时取消。保存和接收你的回忆，永远免费。",
+              "displayName" : "Soundpost Pro — 年付",
+              "locale" : "zh_Hans"
+            }
+          ],
+          "productID" : "com.soundpost.Soundpost.pro.annual",
+          "recurringSubscriptionPeriod" : "P1Y",
+          "referenceName" : "Soundpost Pro Annual",
+          "subscriptionGroupID" : "soundpost_pro_group",
+          "type" : "RecurringSubscription"
+        }
+      ]
+    }
+  ],
+  "version" : {
+    "major" : 4,
+    "minor" : 0
+  }
+}
