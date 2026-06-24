@@ -393,3 +393,46 @@ notes this distinction; keep them separate.) M12 also covers *broader/video* sha
 export (animated-waveform video, multi-capsule). Promo/offer codes +
 win-back offers are an optional M11 follow-up. Keep M11 to: a generous free app + a
 gentle, additive, never-charge-to-receive Pro.
+
+---
+
+## 12. Implementation log (M11 build — 2026-06-24)
+
+Built S1→S6 in sequence; each step compiled warning-free, kept all tests green,
+held i18n EN/JA/ZH-Hans at 100%, and added **zero** new third-party deps before
+the next began. Commits land on `master` (the established milestone branch).
+
+| Step | Commit | Adds |
+|---|---|---|
+| S1 | `27bb9b3` | `StoreService` (on-device StoreKit 2, lifetime+annual, no monthly) + pure `ProGate` + `Theme` enum + `Soundpost.storekit` + scheme wiring; in app env |
+| S2 | `8c7a2c5` | `ProPaywallView` (honest, 3.1.2 disclosure inline, Restore/Manage/Terms/Privacy) + Pro entry toolbar item |
+| S3 | `37c5387` | Lapse-safe gates: settable recorder cap read from `ProGate` at record-start + explicit longer-clip affordances; bounded-memory `WaveformExtractor`; global `@AppStorage` theme applied in `CapsuleCard` + picker |
+| S4 | `b59a9f2` | `CapsuleExporter` + `ShareCardView` (ImageRenderer PNG + audio `.m4a`), gated `ShareLink`/activity sheet in `CapsuleDetailView`, visible capsules only |
+
+### S5 — Privacy / legal lockstep + copy (resolved)
+
+- **Purchases declaration: NONE.** StoreKit purchases are processed by Apple;
+  entitlements are read entirely on-device via `Transaction.currentEntitlements`.
+  Soundpost runs **no server** for monetization, stores **no** purchase/transaction
+  data of its own, and does **no** purchase/conversion analytics → nothing
+  purchase-related is "collected" in the App Privacy sense. So **no**
+  `NSPrivacyCollectedDataTypePurchases`, and the **ASC nutrition label is
+  unchanged**. (`PrivacyInfo.xcprivacy` carries a comment recording this
+  evaluation, in the M10 lockstep discipline — the file is touched to document the
+  decision even though no data type is added.)
+- **No new Required-Reason API.** The card theme uses the app's own UserDefaults
+  (already declared CA92.1); export writes a temp file (already declared C617.1);
+  StoreKit 2 / `ImageRenderer` / `UIActivityViewController` are not Required-Reason
+  APIs.
+- **Analytics decision: none.** Ships with **no** conversion/paywall tracking SDK
+  (only the existing Sentry crash reporter). This is the v1 default and the only
+  posture consistent with the no-tracking stance; if a conversion signal is ever
+  wanted, the only acceptable form is a local-only coarse counter that never leaves
+  the device.
+- **Privacy-policy page** (external `soundpost-site` repo): **no change required**
+  (nothing new is collected). Optional, for transparency: a one-line note that
+  purchases are handled by Apple and Soundpost keeps no purchase data — Jason can
+  add it to the page at his discretion.
+- **Copy** finalized EN/JA/ZH-Hans across the paywall, the longer-clip affordances,
+  the theme picker, and the export entry; the String Catalog is 100% (only the bare
+  brand "Soundpost" untranslated, unchanged from the pre-M11 baseline).

@@ -81,6 +81,15 @@
 			</array>
 		</dict>
 	</array>
+	<!-- M11 monetization (Soundpost Pro, StoreKit 2): evaluated for a
+	     "Purchases" declaration and added NONE. Purchases are processed by
+	     Apple; entitlements are read entirely on-device via
+	     Transaction.currentEntitlements. Soundpost runs no server for this,
+	     stores no purchase/transaction data of its own, and does no purchase
+	     or conversion analytics — so nothing purchase-related is "collected"
+	     in the App Privacy sense. No new Required-Reason API either: the card
+	     theme uses the app's own UserDefaults (CA92.1, below) and export
+	     writes a temp file (C617.1, below). ASC nutrition label unchanged. -->
 	<key>NSPrivacyAccessedAPITypes</key>
 	<array>
 		<dict>
