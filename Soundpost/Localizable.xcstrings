@@ -37,6 +37,22 @@
         }
       }
     },
+    "/ year": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "／年"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "／年"
+          }
+        }
+      }
+    },
     "A capsule has resurfaced": {
       "localizations": {
         "ja": {
@@ -49,6 +65,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "一个胶囊重现了"
+          }
+        }
+      }
+    },
+    "A card theme pack": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "カードのテーマパック"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "卡片主题包"
           }
         }
       }
@@ -135,6 +167,22 @@
         }
       }
     },
+    "Alternate looks for your waveform cards, layered over each mood.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "気分の色に重ねる、波形カードの別の装い。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "为你的波形卡片换上别样外观，叠加在每种心情之上。"
+          }
+        }
+      }
+    },
     "An echo from your past": {
       "localizations": {
         "ja": {
@@ -167,6 +215,22 @@
         }
       }
     },
+    "Auto-renews yearly. Cancel anytime.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "毎年自動更新。いつでも解約できます。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每年自动续订。可随时取消。"
+          }
+        }
+      }
+    },
     "Backed up to your iCloud and synced across your devices.": {
       "localizations": {
         "ja": {
@@ -179,6 +243,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "已备份到你的 iCloud，并在你的设备间同步。"
+          }
+        }
+      }
+    },
+    "Buy": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "購入する"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "购买"
           }
         }
       }
@@ -291,6 +371,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "请检查网络连接后重试。你的云端数据未被更改。"
+          }
+        }
+      }
+    },
+    "Classic": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "クラシック"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "经典"
+          }
+        }
+      }
+    },
+    "Close": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "閉じる"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "关闭"
           }
         }
       }
@@ -599,6 +711,22 @@
         }
       }
     },
+    "Export & share your cards": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "カードを書き出して共有"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "导出并分享你的卡片"
+          }
+        }
+      }
+    },
     "Finding location…": {
       "localizations": {
         "ja": {
@@ -611,6 +739,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "正在获取位置…"
+          }
+        }
+      }
+    },
+    "Go beyond the free 60-second clip when a moment needs longer.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無料の60秒を超えて、もっと長く残したい瞬間に。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "当某个瞬间需要更长时，超越免费的 60 秒。"
+          }
+        }
+      }
+    },
+    "Graphite": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "グラファイト"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "石墨"
           }
         }
       }
@@ -713,6 +873,22 @@
         }
       }
     },
+    "It never locks a memory you've already made or received.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "すでに作った思い出や受け取った思い出を、ロックすることは決してありません。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "它绝不会锁住你已经创作或已经收到的回忆。"
+          }
+        }
+      }
+    },
     "Joyful": {
       "localizations": {
         "ja": {
@@ -742,6 +918,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "公园里孩子们的笑声"
+          }
+        }
+      }
+    },
+    "Loading plans…": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "プランを読み込み中…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在加载方案…"
+          }
+        }
+      }
+    },
+    "Manage Subscription": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "サブスクリプションを管理"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "管理订阅"
           }
         }
       }
@@ -890,6 +1098,22 @@
         }
       }
     },
+    "One-time purchase. Yours to keep.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "買い切り。ずっとあなたのものです。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "一次性购买。永久属于你。"
+          }
+        }
+      }
+    },
     "Only on this device — sign in to iCloud to back up your capsules.": {
       "localizations": {
         "ja": {
@@ -970,6 +1194,22 @@
         }
       }
     },
+    "Outlined": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アウトライン"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "描边"
+          }
+        }
+      }
+    },
     "Pause": {
       "localizations": {
         "ja": {
@@ -1002,6 +1242,22 @@
         }
       }
     },
+    "Plans aren't available right now.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "現在、プランをご利用いただけません。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暂时无法获取方案。"
+          }
+        }
+      }
+    },
     "Play": {
       "localizations": {
         "ja": {
@@ -1014,6 +1270,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "播放"
+          }
+        }
+      }
+    },
+    "Privacy Policy": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "プライバシーポリシー"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "隐私政策"
+          }
+        }
+      }
+    },
+    "Purchase failed": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "購入できませんでした"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "购买失败"
           }
         }
       }
@@ -1063,6 +1351,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "录制声音"
+          }
+        }
+      }
+    },
+    "Record up to 5 minutes": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最長5分まで録音"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "录制最长 5 分钟"
           }
         }
       }
@@ -1147,6 +1451,22 @@
         }
       }
     },
+    "Restore Purchases": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "購入を復元"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "恢复购买"
+          }
+        }
+      }
+    },
     "Resurface date": {
       "localizations": {
         "ja": {
@@ -1175,6 +1495,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "已重现"
+          }
+        }
+      }
+    },
+    "Save a card as an image with its audio, and share it anywhere.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "カードを音声付きの画像として保存し、どこへでも共有できます。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "把卡片连同音频保存为图片，分享到任何地方。"
           }
         }
       }
@@ -1308,6 +1644,38 @@
       }
     },
     "Soundpost": {},
+    "Soundpost Pro": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Soundpost Pro"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Soundpost Pro"
+          }
+        }
+      }
+    },
+    "Soundpost Pro is active — thank you.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Soundpost Pro が有効です — ありがとうございます。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Soundpost Pro 已启用 — 谢谢你。"
+          }
+        }
+      }
+    },
     "Soundpost can tag each capsule with the place it was recorded — a memory of where, not just when. Tap Continue to choose whether to allow location.": {
       "localizations": {
         "ja": {
@@ -1320,6 +1688,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Soundpost 可以为每枚胶囊记下录音地点——不只是何时，还有何地。点按“继续”即可选择是否允许定位。"
+          }
+        }
+      }
+    },
+    "Soundpost is free — capture, seal, resurface, back up to iCloud, and receive every memory. Pro adds richer ways to make and share them.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Soundpost は無料です — 録音、封印、再会、iCloud バックアップ、そしてすべての思い出を受け取ること。Pro は、思い出をより豊かに作り、共有する方法を加えます。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Soundpost 是免费的 — 录制、封存、重逢、备份到 iCloud，以及接收每一段回忆。Pro 让你以更丰富的方式创作和分享它们。"
           }
         }
       }
@@ -1372,6 +1756,22 @@
         }
       }
     },
+    "Subscribe": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "登録する"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "订阅"
+          }
+        }
+      }
+    },
     "Tag where I am": {
       "localizations": {
         "ja": {
@@ -1404,6 +1804,22 @@
         }
       }
     },
+    "Terms of Use": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "利用規約"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用条款"
+          }
+        }
+      }
+    },
     "That recording was too short. Try holding a moment longer.": {
       "localizations": {
         "ja": {
@@ -1416,6 +1832,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "录音太短了，请按住再多录一会儿。"
+          }
+        }
+      }
+    },
+    "The annual plan auto-renews each year until you cancel. Manage or cancel anytime in your App Store account settings, at least 24 hours before the renewal date. Payment is charged to your Apple Account at confirmation. Lifetime is a one-time purchase. Your existing and received memories are never locked.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "年額プランは、解約するまで毎年自動更新されます。更新日の少なくとも24時間前までに、App Store のアカウント設定でいつでも管理・解約できます。お支払いは確定時に Apple アカウントへ請求されます。買い切りは一度きりの購入です。すでにある思い出や受け取った思い出が、ロックされることはありません。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "年付方案在你取消前每年自动续订。你可以在续订日期前至少 24 小时，随时在 App Store 账户设置中管理或取消。确认购买时将向你的 Apple 账户收费。终身买断为一次性购买。你已有的和已收到的回忆绝不会被锁住。"
           }
         }
       }
@@ -1497,6 +1929,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "这会删除 Soundpost 保存在服务器上的提醒计划和设备令牌。你的胶囊仍保留在本机和 iCloud 中。远期提醒将回退到本机的本地计划。"
+          }
+        }
+      }
+    },
+    "Tinted": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ティント"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "淡彩"
+          }
+        }
+      }
+    },
+    "Try again": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "もう一度試す"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重试"
           }
         }
       }
@@ -1594,6 +2058,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "昨天"
+          }
+        }
+      }
+    },
+    "You have Soundpost Pro. Thank you for supporting Soundpost.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Soundpost Pro をご利用中です。Soundpost を応援してくれてありがとうございます。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你已拥有 Soundpost Pro。感谢你对 Soundpost 的支持。"
           }
         }
       }

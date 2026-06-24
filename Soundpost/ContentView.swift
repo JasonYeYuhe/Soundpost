@@ -11,6 +11,7 @@ struct ContentView: View {
     @Environment(DeliveryRegistrar.self) private var registrar
     @Query(sort: \Capsule.createdAt, order: .reverse) private var capsules: [Capsule]
     @State private var showingCapture = false
+    @State private var showingPro = false
     @State private var path: [Capsule] = []
     @State private var confirmingCloudDelete = false
     @State private var cloudDeleteFailed = false
@@ -29,7 +30,15 @@ struct ContentView: View {
             .navigationTitle("Soundpost")
             .navigationDestination(for: Capsule.self) { CapsuleDetailView(capsule: $0) }
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItemGroup(placement: .topBarTrailing) {
+                    // The minimal Pro entry point (M11 §4F): status, paywall,
+                    // restore, manage subscription, Terms/Privacy. Full Settings
+                    // is M12. Sits beside the primary "New capsule" action.
+                    Button { showingPro = true } label: {
+                        Image(systemName: "person.crop.circle")
+                    }
+                    .accessibilityLabel("Soundpost Pro")
+
                     Button { showingCapture = true } label: {
                         Image(systemName: "plus.circle.fill").font(.title2)
                     }
@@ -37,6 +46,7 @@ struct ContentView: View {
                 }
             }
             .sheet(isPresented: $showingCapture) { CaptureView() }
+            .sheet(isPresented: $showingPro) { ProPaywallView() }
         }
         .task { await refreshAndSync() }
         .onChange(of: scenePhase) { _, phase in
@@ -212,4 +222,5 @@ struct ContentView: View {
         .modelContainer(for: Capsule.self, inMemory: true)
         .environment(NotificationCoordinator())
         .environment(CloudSyncMonitor())
+        .environment(StoreService(autoStart: false))
 }
