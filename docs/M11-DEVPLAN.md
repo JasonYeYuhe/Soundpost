@@ -503,3 +503,26 @@ These cannot be done from code:
 The product IDs in code/`.storekit` are the contract: `com.soundpost.Soundpost.pro.annual`
 (auto-renewable, group "Soundpost Pro") and `com.soundpost.Soundpost.pro.lifetime`
 (non-consumable). Create them in ASC with exactly these IDs.
+
+### Post-review verification (2026-06-24, after S6)
+
+A second, deeper pass — empirical, not just static — caught and fixed one real defect:
+
+- **`.storekit` scheme path was wrong.** The `StoreKitConfigurationFileReference`
+  identifier was `"../../Soundpost.storekit"` (guessed from another project's
+  anomalous layout). Under StoreKit testing, `Product.products(for:)` returned **0**
+  — i.e. the manual Xcode StoreKit pass would have shown an empty paywall. Corrected
+  to the SRCROOT-relative `"Soundpost.storekit"`; verified by running a one-off
+  StoreKit-testing query in isolation → both products resolve with the right types
+  (auto-renewable / non-consumable), period (P1Y), and localized name/price. (That
+  one-off test isn't kept in the suite: StoreKit testing doesn't activate reliably
+  for unit tests under the parallel `xcodebuild test` runner — it's verified via the
+  isolated run + the manual Xcode pass instead.)
+- **Runtime smoke test on the simulator** (demo seed): the app launches to the
+  gallery with the new Pro toolbar item; tapping it presents `ProPaywallView`, which
+  renders correctly — proving `@Environment(StoreService.self)` propagates into the
+  sheet (no crash). The paywall shows the honest header + "never locks a memory…"
+  line, the three perks, the theme picker with the three Pro themes lock-badged and
+  Classic selected, and — launched outside the StoreKit-testing scheme — the honest
+  ship-dormant "Plans aren't available right now" + Restore. Confirms both the sheet
+  wiring and the ship-dormant behavior end-to-end.
