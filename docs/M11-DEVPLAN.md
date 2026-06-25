@@ -554,3 +554,26 @@ add the IAP paywall **review screenshot** (capturable from a TestFlight/sandbox
 build now that the products exist), and submit. Optional price tuning: the ¥400/
 ¥1,250 base makes non-JP/CN territories very cheap (e.g. US ≈ $1.99/yr, ≈ $7.99
 lifetime), and China lifetime (¥30) sits just above China annual (¥25).
+
+### Verified post-upload (2026-06-24) + the review-screenshot gotcha
+
+API-verified (`scripts/asc.py` + ASC API) after the products were created:
+- **Build 8 = VALID** (processing complete).
+- **Lifetime** `…pro.lifetime`: 3 localizations (EN/JA/ZH), price JP ¥1,250 / CN ¥30,
+  Family Sharing ON, all 175 regions. State MISSING_METADATA.
+- **Annual** `…pro.annual`: 3 localizations (EN/JA/ZH) + the subscription group's
+  EN/JA/ZH display names, price JP ¥400 / CN ¥25 / US $1.99, all 175 regions
+  (1-Year-Upfront). State MISSING_METADATA.
+
+Both products are fully configured; the **only** remaining field is the IAP
+**review screenshot**. Key gotcha discovered: that screenshot **cannot** be
+captured from TestFlight/sandbox while the products are MISSING_METADATA (they
+don't load there until ≥Ready-to-Submit) — it must come from a **StoreKit-testing**
+build (the wired `Soundpost.storekit`, i.e. Xcode ▸ Run with the Soundpost scheme
+→ open the Pro entry → screenshot the paywall showing both products). Since
+submitting 1.4.0 is gated on 1.3.0 clearing review anyway, the screenshot is a
+submission-time artifact — no benefit to producing it earlier.
+
+**Endgame (once 1.3.0 is approved + released):** capture the StoreKit-testing
+paywall screenshot → upload to both IAPs → create the 1.4.0 App Store version →
+select build 8 → add version + both IAPs to one review submission → submit.
