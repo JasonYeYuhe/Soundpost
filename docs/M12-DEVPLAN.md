@@ -476,6 +476,13 @@ in-app language override.
   `Soundpost.app` debug companions registered server-side. (1.1.0 and 1.3.0/build 7
   archives were already overwritten in `build/`; future archives auto-upload via
   `build-upload-asc.sh`.) `--backfill` was fixed to scan the repo `build/` dir.
-- The **CI workflow** is validated only on its first PR run (test-only, no secrets).
+- ✅ **CI — LIVE & GREEN (2026-06-28).** Repo published at
+  **github.com/JasonYeYuhe/Soundpost** (public); the CI workflow passes on push to
+  `master`: localization gate → 200 tests → warning gate, on **macos-26 / Xcode
+  26.5** (it must match the local toolchain — the app uses iOS-26-SDK symbols like
+  `AVAudioSession.allowBluetoothHFP`; deployment target stays iOS 17). Robustness
+  fixes folded in: dynamic newest-simulator selection, `mkdir -p build` for the log,
+  and gating on the `** TEST SUCCEEDED **` marker (xcodebuild exits non-zero even on
+  a clean pass).
 - Unchanged: the **M11 IAP review screenshot + 1.4.0 submission** remain separate
   go-live tasks gated on 1.3.0 clearing review — **not** part of M12.
