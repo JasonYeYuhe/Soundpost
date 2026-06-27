@@ -41,19 +41,19 @@ jobs:
       - name: Select an available iPhone simulator
         id: sim
         run: |
-          DEVICE_ID=$(xcrun simctl list devices available -j | python3 -c "import json,sys; d=json.load(sys.stdin)['devices']; ids=[v['udid'] for rt in sorted(d) for v in d[rt] if v.get('isAvailable') and v['name'].startswith('iPhone')]; print(ids[0] if ids else '')")
+          DEVICE_ID=$(xcrun simctl list devices available -j | python3 -c "import json,sys; d=json.load(sys.stdin)['devices']; ids=[v['udid'] for rt in sorted(d, reverse=True) for v in d[rt] if v.get('isAvailable') and v['name'].startswith('iPhone')]; print(ids[0] if ids else '')")
           if [ -z "$DEVICE_ID" ]; then echo 'No iPhone simulator available' >&2; exit 1; fi
           echo "Using simulator: $DEVICE_ID"
           echo "device_id=$DEVICE_ID" >> "$GITHUB_OUTPUT"
 
       - name: Build & test (iOS Simulator)
         run: |
-          set -o pipefail
           # Ad-hoc local signing ("-"): needs no Apple identity or provisioning
           # profile (so it works on a runner with no signing creds) yet still
           # signs the embedded Sentry framework enough to load on the simulator —
           # CODE_SIGNING_ALLOWED=NO would leave it unsigned and the host app would
           # SIGTRAP before the test bundle can attach.
+          set +e
           xcodebuild test \
             -project Soundpost.xcodeproj \
             -scheme Soundpost \
@@ -62,6 +62,13 @@ jobs:
             CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY="-" \
             PROVISIONING_PROFILE_SPECIFIER="" DEVELOPMENT_TEAM="" \
             | tee build/xcodebuild.log
+          set -e
+          # xcodebuild can exit non-zero even after "** TEST SUCCEEDED **" (a known
+          # post-test/teardown quirk), so gate on the actual result marker.
+          if ! grep -q "\*\* TEST SUCCEEDED \*\*" build/xcodebuild.log; then
+            echo "Tests did not succeed (no TEST SUCCEEDED marker)." >&2
+            exit 1
+          fi
 
       - name: Warning gate (warning-free project build)
         run: ./scripts/check-warnings.sh build/xcodebuild.log
