@@ -6,6 +6,7 @@ import SwiftData
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.requestReview) private var requestReview
     @Environment(NotificationCoordinator.self) private var notifications
     @Environment(CloudSyncMonitor.self) private var syncMonitor
     @Environment(DeliveryRegistrar.self) private var registrar
@@ -15,6 +16,10 @@ struct ContentView: View {
     @State private var path: [Capsule] = []
     /// The capsule currently presented as a full-screen resurface reveal (§S4).
     @State private var revealCapsule: Capsule?
+    /// Set when the current reveal opened a genuine resurface, so the milestone
+    /// review prompt fires *after* the reveal is dismissed — never during the
+    /// moment, never on launch/capture (§S5).
+    @State private var reviewAfterReveal = false
     @State private var confirmingCloudDelete = false
     @State private var cloudDeleteFailed = false
     /// Mirrors `DeliveryPreferences.cloudOptedOut` so the control reacts to it.
@@ -53,8 +58,8 @@ struct ContentView: View {
             }
             .sheet(isPresented: $showingCapture) { CaptureView() }
             .sheet(isPresented: $showingPro) { ProPaywallView() }
-            .fullScreenCover(item: $revealCapsule) { capsule in
-                ResurfaceView(capsule: capsule)
+            .fullScreenCover(item: $revealCapsule, onDismiss: requestReviewIfEarned) { capsule in
+                ResurfaceView(capsule: capsule) { reviewAfterReveal = true }
             }
         }
         .task { await refreshAndSync() }
@@ -237,6 +242,14 @@ struct ContentView: View {
         case .reveal: revealCapsule = capsule
         case .detail: path = [capsule]
         }
+    }
+
+    /// After the reveal closes, ask for a rating if this was a genuine resurface
+    /// and the per-version cap allows it (§S5). The OS further rate-limits.
+    private func requestReviewIfEarned() {
+        guard reviewAfterReveal else { return }
+        reviewAfterReveal = false
+        ReviewPrompt.requestIfEligible(requestReview)
     }
 
     private func handleDeepLink(_ id: UUID?) {
