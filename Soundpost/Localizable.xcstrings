@@ -2,122 +2,6 @@
   "sourceLanguage": "en",
   "strings": {
     "": {},
-    "Clear filters": {
-      "localizations": {
-        "ja": { "stringUnit": { "state": "translated", "value": "フィルタをクリア" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "清除筛选" } }
-      }
-    },
-    "Earlier this year": {
-      "comment": "Gallery date section header",
-      "localizations": {
-        "ja": { "stringUnit": { "state": "translated", "value": "今年のそれ以前" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "今年早些时候" } }
-      }
-    },
-    "Filter": {
-      "comment": "Gallery filter disclosure label",
-      "localizations": {
-        "ja": { "stringUnit": { "state": "translated", "value": "フィルタ" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "筛选" } }
-      }
-    },
-    "Older": {
-      "comment": "Gallery date section header",
-      "localizations": {
-        "ja": { "stringUnit": { "state": "translated", "value": "それ以前" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "更早" } }
-      }
-    },
-    "Search your sounds": {
-      "comment": "Gallery search field prompt",
-      "localizations": {
-        "ja": { "stringUnit": { "state": "translated", "value": "サウンドを検索" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "搜索你的声音" } }
-      }
-    },
-    "Sealed only": {
-      "comment": "Gallery filter toggle: show only sealed/resurfaced capsules",
-      "localizations": {
-        "ja": { "stringUnit": { "state": "translated", "value": "封印済みのみ" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "仅已封存" } }
-      }
-    },
-    "This month": {
-      "comment": "Gallery date section header",
-      "localizations": {
-        "ja": { "stringUnit": { "state": "translated", "value": "今月" } },
-        "zh-Hans": { "stringUnit": { "state": "translated", "value": "本月" } }
-      }
-    },
-    "A sound resurfaces": {
-      "comment": "Title of the resurface reveal",
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "音がよみがえる"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "一段声音重现"
-          }
-        }
-      }
-    },
-    "You captured this %@": {
-      "comment": "Resurface reveal subtitle; %@ is a relative time like \"8 months ago\"",
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@にこの音を残しました"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "你在%@录下了这段声音"
-          }
-        }
-      }
-    },
-    "“%@” — %lld days ago. Listen back.": {
-      "comment": "Personalized echo notification (opt-in); %@ is the user's own one-line or place",
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "「%@」— %lld日前のあなたが残した音。聴き返してみましょう。"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "“%@” — %lld 天前你录下的声音。回去听听吧。"
-          }
-        }
-      }
-    },
-    "“%@” — tap to listen.": {
-      "comment": "Personalized resurface notification (opt-in); %@ is the user's own one-line or place",
-      "localizations": {
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "「%@」— タップして聴いてみましょう。"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "“%@” — 轻点即可聆听。"
-          }
-        }
-      }
-    },
     "%lld": {
       "shouldTranslate": false
     },
@@ -201,6 +85,22 @@
         }
       }
     },
+    "A copy of every capsule's audio and a manifest of your notes, moods, places and dates. Your own data — nothing new leaves your device.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "すべてのカプセルの音声と、メモ・気分・場所・日付の一覧のコピーです。あなた自身のデータで、新たに端末の外に出るものはありません。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每个胶囊的音频，加上你的笔记、心情、地点和日期的清单。这是你自己的数据——没有新内容离开你的设备。"
+          }
+        }
+      }
+    },
     "A gentle seal — held until then.": {
       "localizations": {
         "ja": {
@@ -250,6 +150,23 @@
         }
       }
     },
+    "A sound resurfaces": {
+      "comment": "Title of the resurface reveal",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "音がよみがえる"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "一段声音重现"
+          }
+        }
+      }
+    },
     "A surprise reminder of what today sounded like.": {
       "localizations": {
         "ja": {
@@ -262,6 +179,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "在某个意想不到的日子，提醒你今天的声音。"
+          }
+        }
+      }
+    },
+    "About": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "情報"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "关于"
           }
         }
       }
@@ -523,6 +456,22 @@
         }
       }
     },
+    "Clear filters": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "フィルタをクリア"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清除筛选"
+          }
+        }
+      }
+    },
     "Close": {
       "localizations": {
         "ja": {
@@ -583,6 +532,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "无法准备导出"
+          }
+        }
+      }
+    },
+    "Couldn't restore purchases. Please check your connection and try again.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "購入を復元できませんでした。接続を確認してもう一度お試しください。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法恢复购买。请检查网络连接后重试。"
           }
         }
       }
@@ -763,6 +728,23 @@
         }
       }
     },
+    "Earlier this year": {
+      "comment": "Gallery date section header",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "今年のそれ以前"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "今年早些时候"
+          }
+        }
+      }
+    },
     "Echo": {
       "localizations": {
         "ja": {
@@ -859,6 +841,22 @@
         }
       }
     },
+    "Export": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "エクスポート"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "导出"
+          }
+        }
+      }
+    },
     "Export & share": {
       "localizations": {
         "ja": {
@@ -903,6 +901,55 @@
           "stringUnit": {
             "state": "translated",
             "value": "导出并分享你的卡片"
+          }
+        }
+      }
+    },
+    "Export my data": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "データをエクスポート"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "导出我的数据"
+          }
+        }
+      }
+    },
+    "Export your data?": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "データをエクスポートしますか？"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "导出你的数据？"
+          }
+        }
+      }
+    },
+    "Filter": {
+      "comment": "Gallery filter disclosure label",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "フィルタ"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "筛选"
           }
         }
       }
@@ -967,6 +1014,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "在未来的某天，再听今天"
+          }
+        }
+      }
+    },
+    "Help & Support": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ヘルプとサポート"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "帮助与支持"
           }
         }
       }
@@ -1246,6 +1309,22 @@
         }
       }
     },
+    "No purchases were found to restore.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "復元できる購入は見つかりませんでした。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未找到可恢复的购买。"
+          }
+        }
+      }
+    },
     "Nostalgic": {
       "localizations": {
         "ja": {
@@ -1278,6 +1357,22 @@
         }
       }
     },
+    "Notifications": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通知"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通知"
+          }
+        }
+      }
+    },
     "OK": {
       "localizations": {
         "ja": {
@@ -1290,6 +1385,39 @@
           "stringUnit": {
             "state": "translated",
             "value": "好"
+          }
+        }
+      }
+    },
+    "Off by default. When on, a capsule's one-line or place can appear in its resurface notification — your private words, shown on the lock screen. Turn notifications on or off for Soundpost in iOS Settings.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "初期設定はオフです。オンにすると、カプセルの一言や場所が再浮上の通知に表示され、あなたの言葉がロック画面に出ます。Soundpostの通知のオン・オフはiOSの設定で変更できます。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "默认关闭。开启后，胶囊的一句话或地点会出现在重现通知中——你的私人文字会显示在锁屏上。可在 iOS 设置中开启或关闭 Soundpost 的通知。"
+          }
+        }
+      }
+    },
+    "Older": {
+      "comment": "Gallery date section header",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "それ以前"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更早"
           }
         }
       }
@@ -1370,6 +1498,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "打开 Soundpost，再次聆听这一刻。"
+          }
+        }
+      }
+    },
+    "Open iOS Settings": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iOSの設定を開く"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开 iOS 设置"
           }
         }
       }
@@ -1855,6 +1999,23 @@
         }
       }
     },
+    "Sealed only": {
+      "comment": "Gallery filter toggle: show only sealed/resurfaced capsules",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "封印済みのみ"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "仅已封存"
+          }
+        }
+      }
+    },
     "Sealed — but reminders are off": {
       "localizations": {
         "ja": {
@@ -1871,6 +2032,23 @@
         }
       }
     },
+    "Search your sounds": {
+      "comment": "Gallery search field prompt",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "サウンドを検索"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "搜索你的声音"
+          }
+        }
+      }
+    },
     "Selected": {
       "localizations": {
         "ja": {
@@ -1883,6 +2061,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "已选择"
+          }
+        }
+      }
+    },
+    "Settings": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "設定"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "设置"
+          }
+        }
+      }
+    },
+    "Show your words on the lock screen": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ロック画面に自分の言葉を表示"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在锁屏上显示你的文字"
           }
         }
       }
@@ -1954,6 +2164,22 @@
         }
       }
     },
+    "Soundpost Pro is active": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Soundpost Pro 有効"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Soundpost Pro 已启用"
+          }
+        }
+      }
+    },
     "Soundpost Pro is active — thank you.": {
       "localizations": {
         "ja": {
@@ -1998,6 +2224,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Soundpost 是免费的 — 录制、封存、重逢、备份到 iCloud，以及接收每一段回忆。Pro 让你以更丰富的方式创作和分享它们。"
+          }
+        }
+      }
+    },
+    "Soundpost is free — capture, seal, resurface, back up, and receive every memory. Pro adds richer ways to make and share them, and never locks a memory.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Soundpostは無料です——録音、封印、再浮上、バックアップ、そしてすべての思い出を受け取れます。Proはより豊かな作成・共有を加えますが、思い出をロックすることはありません。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Soundpost 是免费的——录制、封存、重现、备份并接收每一段记忆。Pro 增添更丰富的制作与分享方式，且永不锁住任何记忆。"
           }
         }
       }
@@ -2163,6 +2405,22 @@
         }
       }
     },
+    "This bundles %@ of audio plus a manifest of your notes, moods, places and dates. It's your own data — nothing new leaves your device.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "音声約%@と、メモ・気分・場所・日付の一覧をまとめます。あなた自身のデータで、新たに端末の外に出るものはありません。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这会打包约 %@ 的音频，以及你的笔记、心情、地点和日期清单。这是你自己的数据——没有新内容离开你的设备。"
+          }
+        }
+      }
+    },
     "This capsule is sealed and will reappear here on its date. To be reminded on the day, turn on notifications for Soundpost in Settings.": {
       "localizations": {
         "ja": {
@@ -2191,6 +2449,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "这个胶囊将于 %@ 开启。"
+          }
+        }
+      }
+    },
+    "This month": {
+      "comment": "Gallery date section header",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "今月"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本月"
           }
         }
       }
@@ -2388,6 +2663,23 @@
         }
       }
     },
+    "You captured this %@": {
+      "comment": "Resurface reveal subtitle; %@ is a relative time like \"8 months ago\"",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@にこの音を残しました"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你在%@录下了这段声音"
+          }
+        }
+      }
+    },
     "You have Soundpost Pro. Thank you for supporting Soundpost.": {
       "localizations": {
         "ja": {
@@ -2404,6 +2696,22 @@
         }
       }
     },
+    "Your data": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "あなたのデータ"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你的数据"
+          }
+        }
+      }
+    },
     "Your iCloud storage is full, so new capsules stay on this device for now.": {
       "localizations": {
         "ja": {
@@ -2416,6 +2724,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "你的 iCloud 空间已满，新胶囊暂时只保存在本机。"
+          }
+        }
+      }
+    },
+    "Your purchases were restored.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "購入を復元しました。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已恢复你的购买。"
+          }
+        }
+      }
+    },
+    "iCloud & delivery": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iCloudと配信"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iCloud 与投递"
           }
         }
       }
@@ -2508,6 +2848,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "一个胶囊重现了"
+          }
+        }
+      }
+    },
+    "“%@” — %lld days ago. Listen back.": {
+      "comment": "Personalized echo notification (opt-in); %@ is the user's own one-line or place",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「%@」— %lld日前のあなたが残した音。聴き返してみましょう。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%@” — %lld 天前你录下的声音。回去听听吧。"
+          }
+        }
+      }
+    },
+    "“%@” — tap to listen.": {
+      "comment": "Personalized resurface notification (opt-in); %@ is the user's own one-line or place",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「%@」— タップして聴いてみましょう。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%@” — 轻点即可聆听。"
           }
         }
       }

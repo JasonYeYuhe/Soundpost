@@ -138,13 +138,20 @@ final class StoreService {
 
     // MARK: - Restore
 
-    func restorePurchases() async {
+    /// The outcome of a restore, so the caller can tell the user what happened
+    /// instead of the action silently swallowing the result (M12 §S7/§4H).
+    enum RestoreOutcome: Equatable { case restored, nothingToRestore, failed }
+
+    @discardableResult
+    func restorePurchases() async -> RestoreOutcome {
         do {
             try await AppStore.sync()
             await refreshPurchasedProducts()
             logger.info("Purchases restored")
+            return isPro ? .restored : .nothingToRestore
         } catch {
             logger.error("Restore failed: \(error)")
+            return .failed
         }
     }
 

@@ -9,10 +9,9 @@ struct ContentView: View {
     @Environment(\.requestReview) private var requestReview
     @Environment(NotificationCoordinator.self) private var notifications
     @Environment(CloudSyncMonitor.self) private var syncMonitor
-    @Environment(DeliveryRegistrar.self) private var registrar
     @Query(sort: \Capsule.createdAt, order: .reverse) private var capsules: [Capsule]
     @State private var showingCapture = false
-    @State private var showingPro = false
+    @State private var showingSettings = false
     @State private var path: [Capsule] = []
     /// The capsule currently presented as a full-screen resurface reveal (§S4).
     @State private var revealCapsule: Capsule?
@@ -20,15 +19,11 @@ struct ContentView: View {
     /// review prompt fires *after* the reveal is dismissed — never during the
     /// moment, never on launch/capture (§S5).
     @State private var reviewAfterReveal = false
-    @State private var confirmingCloudDelete = false
-    @State private var cloudDeleteFailed = false
     // Calm gallery browsability (§S6): search + a collapsible mood/sealed filter.
     @State private var searchText = ""
     @State private var filterMoods: Set<Mood> = []
     @State private var sealedOnly = false
     @State private var showingFilters = false
-    /// Mirrors `DeliveryPreferences.cloudOptedOut` so the control reacts to it.
-    @AppStorage(DeliveryPreferences.optedOutKey) private var cloudOptedOut = false
     /// Mirrors the lock-screen-preview preference (toggled in Settings, §S3/§S7).
     /// Changing it must force a full notification reconcile so already-scheduled
     /// requests don't keep a stale personalized/generic body (§S3 P0).
@@ -48,13 +43,14 @@ struct ContentView: View {
             .navigationDestination(for: Capsule.self) { CapsuleDetailView(capsule: $0) }
             .toolbar {
                 ToolbarItemGroup(placement: .topBarTrailing) {
-                    // The minimal Pro entry point (M11 §4F): status, paywall,
-                    // restore, manage subscription, Terms/Privacy. Full Settings
-                    // is M12. Sits beside the primary "New capsule" action.
-                    Button { showingPro = true } label: {
-                        Image(systemName: "person.crop.circle")
+                    // The calm Settings hub (§S7): notifications, iCloud + delivery,
+                    // export-your-data, Pro, privacy/support. Replaces the M11 minimal
+                    // Pro entry (a person icon read as "account"). Sits beside the
+                    // primary "New capsule" action.
+                    Button { showingSettings = true } label: {
+                        Image(systemName: "gearshape")
                     }
-                    .accessibilityLabel("Soundpost Pro")
+                    .accessibilityLabel("Settings")
 
                     Button { showingCapture = true } label: {
                         Image(systemName: "plus.circle.fill").font(.title2)
@@ -63,7 +59,7 @@ struct ContentView: View {
                 }
             }
             .sheet(isPresented: $showingCapture) { CaptureView() }
-            .sheet(isPresented: $showingPro) { ProPaywallView() }
+            .sheet(isPresented: $showingSettings) { SettingsView() }
             .fullScreenCover(item: $revealCapsule, onDismiss: requestReviewIfEarned) { capsule in
                 ResurfaceView(capsule: capsule) { reviewAfterReveal = true }
             }
@@ -219,56 +215,10 @@ struct ContentView: View {
             }
             .labelStyle(.titleAndIcon)
             .multilineTextAlignment(.center)
-
-            // "Delete my cloud data" — required once delivery tokens are collected
-            // (S5). Shown only when signed in (so there's cloud data) and not
-            // already opted out. The local path keeps working after.
-            if syncMonitor.backup == .iCloud && !cloudOptedOut {
-                Button("Delete my cloud data") { confirmingCloudDelete = true }
-                    .font(.caption)
-                    .padding(.top, 2)
-            }
         }
         .font(.caption)
         .foregroundStyle(.secondary)
         .padding(.top, 6)
-        .confirmationDialog(
-            "Delete my cloud data?",
-            isPresented: $confirmingCloudDelete,
-            titleVisibility: .visible
-        ) {
-            Button("Delete my cloud data", role: .destructive, action: deleteCloudData)
-        } message: {
-            Text("This removes the reminder schedule and device tokens Soundpost keeps on its server. Your capsules stay on this device and in iCloud. Far-future reminders fall back to this device's local schedule.")
-        }
-        .alert("Couldn't delete cloud data", isPresented: $cloudDeleteFailed) {
-            Button("OK", role: .cancel) { }
-        } message: {
-            Text("Check your connection and try again. Your cloud data hasn't been changed.")
-        }
-    }
-
-    /// Purge the server-side tokens + jobs (which also sets the account-wide
-    /// opt-out tombstone) and, **only on success**, opt out + clear each capsule's
-    /// `serverJobSyncedAt` so the local planner re-arms its backstop, then re-sync.
-    /// On failure (e.g. offline) nothing is latched and the control stays visible
-    /// to retry — so we never report success while the data still exists (§S5).
-    private func deleteCloudData() {
-        Task {
-            let purged = await notifications.sealDelivery?.deleteAllCloudData() ?? false
-            await registrar.signOut()
-            guard purged else {
-                cloudDeleteFailed = true
-                return
-            }
-            cloudOptedOut = true
-            let store = CapsuleStore(context: modelContext)
-            for capsule in (try? store.all()) ?? [] where capsule.serverJobSyncedAt != nil {
-                capsule.serverJobSyncedAt = nil
-            }
-            try? store.save()
-            await notifications.sync(capsules: (try? store.all()) ?? [])
-        }
     }
 
     /// Honest, iCloud-state-aware durability copy (S6). Strings are literals so
