@@ -37,7 +37,9 @@ final class StoreService {
     var loadError: String?
     var isPurchasing = false
     private var loadAttempts = 0
-    private var transactionListener: Task<Void, Never>?
+    /// `nonisolated(unsafe)`: assigned once on the main actor (init) and only read
+    /// by `deinit` (which has exclusive access), so cancelling it there is race-free.
+    @ObservationIgnored private nonisolated(unsafe) var transactionListener: Task<Void, Never>?
 
     /// On-device entitlement: Pro the moment ANY Soundpost Pro product is owned.
     /// A lapsed annual (or a refund) drops its ID here, flipping `isPro` to false —
@@ -70,6 +72,13 @@ final class StoreService {
         startTransactionListener()
         Task { await loadProducts() }
         Task { await refreshPurchasedProducts() }
+    }
+
+    deinit {
+        // Cancel the detached `Transaction.updates` listener so it doesn't outlive
+        // the service (the §S8 deinit convention). In practice the service lives for
+        // the app's lifetime, but this keeps the lifecycle honest and test-clean.
+        transactionListener?.cancel()
     }
 
     // MARK: - Load products
@@ -186,7 +195,9 @@ final class StoreService {
         // simply no-ops. The service lives for the app's lifetime in practice.
         transactionListener = Task.detached { [weak self] in
             for await result in Transaction.updates {
-                guard let self else { continue }
+                // Dead self ⇒ the service is gone; end the loop rather than spin
+                // (the §S8 `continue → break` fix).
+                guard let self else { break }
                 if let transaction = await self.checkVerified(result) {
                     await transaction.finish()
                     await self.refreshPurchasedProducts()

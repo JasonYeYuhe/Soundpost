@@ -23,6 +23,12 @@ final class AudioPlayer: NSObject {
         super.init()
     }
 
+    // No deinit cleanup needed (§S8): the progress timer captures `[weak self]`, so
+    // it never retains a freed player, and both hosts of an `AudioPlayer`
+    // (CapsuleDetailView, ResurfaceView) call `stop()` in `.onDisappear`, which
+    // invalidates the timer and deactivates the audio session on the main actor —
+    // the correct thread for both, which a nonisolated `deinit` could not guarantee.
+
     /// Play a capsule, preferring its durable `audioData` blob and falling back
     /// to the legacy on-disk file for capsules captured before the M9 backfill.
     /// Dual-read so playback works mid-migration; see `Capsule.audioSource`.

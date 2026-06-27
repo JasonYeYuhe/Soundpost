@@ -60,6 +60,9 @@ final class RemoteChangeReconciler {
     func handleRemoteChange() -> Task<Void, Never>? {
         guard let reschedule else { return nil }
         work?.cancel()
+        // os.Logger on the durability path (§S8): background CloudKit merges are
+        // otherwise invisible. Local log only — info, non-PII, no Sentry noise.
+        Diagnostics.info("Remote store change merged — rescheduling notifications")
         let task = Task { @MainActor in await reschedule() }
         work = task
         return task

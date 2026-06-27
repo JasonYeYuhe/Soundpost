@@ -85,11 +85,16 @@ struct CapsuleDetailView: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel(player.state == .playing ? "Pause" : "Play")
+            // Read the play control and clip length as one unit (§S8 a11y): the
+            // visible duration is folded into the button's value so VoiceOver
+            // announces "Play, 0:08" together instead of two stray elements.
+            .accessibilityValue(durationString)
             .sensoryFeedback(.impact(weight: .light), trigger: player.state)
 
             Text(durationString)
                 .font(.headline.monospacedDigit())
                 .foregroundStyle(.secondary)
+                .accessibilityHidden(true)
 
             if let note = capsule.note, !note.isEmpty {
                 Text(note)
@@ -182,8 +187,14 @@ struct CapsuleDetailView: View {
         Task {
             let granted = await notifications.requestAuthorization()
             let store = CapsuleStore(context: modelContext)
-            try? store.seal(capsule, until: date)
-            try? store.save()
+            do {
+                try store.seal(capsule, until: date)
+                try store.save()
+            } catch {
+                // Surface the rare failure instead of swallowing it (§S8) — a static,
+                // non-PII message to Sentry (Release) + the local log.
+                Diagnostics.notice("Seal failed at user action")
+            }
             await notifications.sync(capsules: (try? store.all()) ?? [])
             if granted {
                 dismiss() // back to the gallery, where the card now shows the seal
@@ -204,8 +215,12 @@ struct CapsuleDetailView: View {
 
     private func unseal() {
         let store = CapsuleStore(context: modelContext)
-        try? store.unseal(capsule)
-        try? store.save()
+        do {
+            try store.unseal(capsule)
+            try store.save()
+        } catch {
+            Diagnostics.notice("Unseal failed at user action")
+        }
         Task { await notifications.sync(capsules: (try? store.all()) ?? []) }
     }
 
@@ -220,7 +235,11 @@ struct CapsuleDetailView: View {
         DeliveryPreferences.enqueuePendingCancel(capsuleID)
         if let file = capsule.audioFileName { try? AudioStore().delete(file) }
         modelContext.delete(capsule)
-        try? modelContext.save()
+        do {
+            try modelContext.save()
+        } catch {
+            Diagnostics.notice("Delete save failed at user action")
+        }
         Task { await notifications.sealDelivery?.cancelJob(capsuleID: capsuleID) }
         dismiss()
     }

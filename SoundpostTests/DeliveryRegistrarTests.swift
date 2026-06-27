@@ -182,6 +182,31 @@ struct DeliveryRegistrarTests {
         #expect(registrar.registeredToken == nil)
     }
 
+    @Test func reinstallReRegistersExactlyOnceUnderTheSameKey() async {
+        // The CloudKit identity survives a reinstall (same per-user key), but the
+        // registrar's registeredToken is memory-only, so a fresh launch must
+        // re-upsert exactly once — token reconciliation, not zero, not twice (§S8).
+        let backend = MockBackend(configured: true)
+        let identity = MockIdentity(key: "STABLEKEY")
+
+        // First install/launch.
+        let first = DeliveryRegistrar(backend: backend, identity: identity)
+        await first.register(hexToken: token)
+        #expect(backend.registerCalls.count == 1)
+
+        // Reinstall → a brand-new registrar; OS re-issues the token; identity
+        // returns the SAME key.
+        let afterReinstall = DeliveryRegistrar(backend: backend, identity: identity)
+        await afterReinstall.register(hexToken: token)
+        #expect(backend.registerCalls.count == 2)              // re-upserted once
+        #expect(backend.registerCalls.last?.userKey == "STABLEKEY")
+
+        // …and deduped within this new launch.
+        await afterReinstall.flushPending()
+        await afterReinstall.identityDidBecomeAvailable()
+        #expect(backend.registerCalls.count == 2)
+    }
+
     @Test func optedOutSuppressesRegistration() async {
         // After "Delete my cloud data", the token must not be re-registered (§S5).
         let backend = MockBackend(configured: true)

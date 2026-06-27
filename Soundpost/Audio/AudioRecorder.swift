@@ -40,6 +40,13 @@ final class AudioRecorder: NSObject {
     private let store: AudioStore
     private var recorder: AVAudioRecorder?
     private var meterTimer: Timer?
+    /// The interruption + route-change observer tokens, retained so `deinit` can
+    /// remove them. Block-based `addObserver` returns a token that must be removed
+    /// explicitly; without storing them each recorder leaked two permanent
+    /// registrations (one per capture VM) — the §S8 observer-leak fix.
+    /// `nonisolated(unsafe)`: only mutated on the main actor (init), and `deinit`
+    /// has exclusive access when it reads them, so there is no race.
+    @ObservationIgnored private nonisolated(unsafe) var observerTokens: [NSObjectProtocol] = []
 
     init(store: AudioStore = AudioStore(), maxDuration: TimeInterval = 60) {
         self.store = store
@@ -47,6 +54,10 @@ final class AudioRecorder: NSObject {
         super.init()
         registerForInterruptions()
         registerForRouteChanges()
+    }
+
+    deinit {
+        observerTokens.forEach { NotificationCenter.default.removeObserver($0) }
     }
 
     /// Ask for microphone permission (iOS 17+ API).
@@ -150,45 +161,52 @@ final class AudioRecorder: NSObject {
     // MARK: Interruptions & route changes
 
     private func registerForInterruptions() {
-        let center = NotificationCenter.default
-        center.addObserver(
+        let token = NotificationCenter.default.addObserver(
             forName: AVAudioSession.interruptionNotification,
             object: nil,
             queue: .main
         ) { [weak self] note in
             Task { @MainActor in self?.handleInterruption(note) }
         }
+        observerTokens.append(token)
     }
 
     private func registerForRouteChanges() {
-        let center = NotificationCenter.default
-        center.addObserver(
+        let token = NotificationCenter.default.addObserver(
             forName: AVAudioSession.routeChangeNotification,
             object: nil,
             queue: .main
         ) { [weak self] note in
             Task { @MainActor in self?.handleRouteChange(note) }
         }
+        observerTokens.append(token)
+    }
+
+    /// Whether an interruption notification means we should finalize the clip — an
+    /// interruption that *began* (a call, Siri, another app). Pure, so the "never
+    /// lose a clip" trigger is unit-testable without a live recording (§S8).
+    nonisolated static func shouldFinalizeForInterruption(_ note: Notification) -> Bool {
+        guard let raw = note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
+              let type = AVAudioSession.InterruptionType(rawValue: raw) else { return false }
+        return type == .began
+    }
+
+    /// Whether a route change means we should finalize — the input device went away
+    /// (`oldDeviceUnavailable`), e.g. a Bluetooth or wired mic unplugged. Pure.
+    nonisolated static func shouldFinalizeForRouteChange(_ note: Notification) -> Bool {
+        guard let raw = note.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt,
+              let reason = AVAudioSession.RouteChangeReason(rawValue: raw) else { return false }
+        return reason == .oldDeviceUnavailable
     }
 
     private func handleInterruption(_ note: Notification) {
-        guard state == .recording,
-              let info = note.userInfo,
-              let raw = info[AVAudioSessionInterruptionTypeKey] as? UInt,
-              let type = AVAudioSession.InterruptionType(rawValue: raw),
-              type == .began
-        else { return }
+        guard state == .recording, Self.shouldFinalizeForInterruption(note) else { return }
         // Finalize rather than risk a corrupt/half clip (no background recording).
         finishAutomatically()
     }
 
     private func handleRouteChange(_ note: Notification) {
-        guard state == .recording,
-              let info = note.userInfo,
-              let raw = info[AVAudioSessionRouteChangeReasonKey] as? UInt,
-              let reason = AVAudioSession.RouteChangeReason(rawValue: raw),
-              reason == .oldDeviceUnavailable
-        else { return }
+        guard state == .recording, Self.shouldFinalizeForRouteChange(note) else { return }
         // The input device (e.g. a Bluetooth or wired mic) went away mid-record —
         // finalize the clip cleanly instead of leaving it half-open (PROJECT.md §1e.4).
         finishAutomatically()

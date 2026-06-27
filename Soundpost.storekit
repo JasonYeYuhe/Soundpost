@@ -3,7 +3,7 @@
   "nonRenewingSubscriptions" : [],
   "products" : [
     {
-      "displayPrice" : "24.99",
+      "displayPrice" : "1250",
       "familyShareable" : true,
       "internalID" : "soundpost_pro_lifetime",
       "localizations" : [
@@ -30,6 +30,7 @@
   ],
   "settings" : {
     "_compatibilityTimeRate" : 1,
+    "_storefront" : "JPN",
     "_storeKitErrors" : []
   },
   "subscriptionGroups" : [
@@ -57,7 +58,7 @@
         {
           "adHocOffers" : [],
           "codeOffers" : [],
-          "displayPrice" : "9.99",
+          "displayPrice" : "400",
           "familyShareable" : false,
           "groupNumber" : 1,
           "internalID" : "soundpost_pro_annual",
