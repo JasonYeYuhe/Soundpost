@@ -13,6 +13,8 @@ struct ContentView: View {
     @State private var showingCapture = false
     @State private var showingPro = false
     @State private var path: [Capsule] = []
+    /// The capsule currently presented as a full-screen resurface reveal (§S4).
+    @State private var revealCapsule: Capsule?
     @State private var confirmingCloudDelete = false
     @State private var cloudDeleteFailed = false
     /// Mirrors `DeliveryPreferences.cloudOptedOut` so the control reacts to it.
@@ -51,6 +53,9 @@ struct ContentView: View {
             }
             .sheet(isPresented: $showingCapture) { CaptureView() }
             .sheet(isPresented: $showingPro) { ProPaywallView() }
+            .fullScreenCover(item: $revealCapsule) { capsule in
+                ResurfaceView(capsule: capsule)
+            }
         }
         .task { await refreshAndSync() }
         .onChange(of: scenePhase) { _, phase in
@@ -84,7 +89,7 @@ struct ContentView: View {
         ScrollView {
             LazyVStack(spacing: 16) {
                 ForEach(capsules) { capsule in
-                    NavigationLink(value: capsule) {
+                    Button { openCapsule(capsule) } label: {
                         CapsuleCard(capsule: capsule)
                     }
                     .buttonStyle(.plain)
@@ -219,13 +224,25 @@ struct ContentView: View {
         await notifications.sync(capsules: capsules)
     }
 
-    private func handleDeepLink(_ id: UUID?) {
-        guard let id else { return }
+    /// The single "open capsule" action every card tap and deep link routes
+    /// through (§S4/§4C): refresh due seals first (so a `.sealed`-past-date capsule
+    /// flips to `.resurfaced`), then present the **reveal** for a due/resurfaced
+    /// capsule or navigate to detail otherwise. One decision point, so a due seal
+    /// never opens as a plain detail screen.
+    private func openCapsule(_ capsule: Capsule) {
         let store = CapsuleStore(context: modelContext)
         _ = try? store.refreshDueSeals()
         try? store.save()
+        switch CapsuleOpenRoute.route(for: capsule) {
+        case .reveal: revealCapsule = capsule
+        case .detail: path = [capsule]
+        }
+    }
+
+    private func handleDeepLink(_ id: UUID?) {
+        guard let id else { return }
         if let capsule = capsules.first(where: { $0.id == id }) {
-            path = [capsule]
+            openCapsule(capsule)
         }
         notifications.pendingDeepLinkCapsuleID = nil
     }

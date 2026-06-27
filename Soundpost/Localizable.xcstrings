@@ -2,6 +2,40 @@
   "sourceLanguage": "en",
   "strings": {
     "": {},
+    "A sound resurfaces": {
+      "comment": "Title of the resurface reveal",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "音がよみがえる"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "一段声音重现"
+          }
+        }
+      }
+    },
+    "You captured this %@": {
+      "comment": "Resurface reveal subtitle; %@ is a relative time like \"8 months ago\"",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@にこの音を残しました"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你在%@录下了这段声音"
+          }
+        }
+      }
+    },
     "“%@” — %lld days ago. Listen back.": {
       "comment": "Personalized echo notification (opt-in); %@ is the user's own one-line or place",
       "localizations": {
