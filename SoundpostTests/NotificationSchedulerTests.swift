@@ -82,6 +82,40 @@ struct NotificationSchedulerTests {
         #expect(Set(mock.removed) == ["capsule.A", "capsule.B"])
     }
 
+    /// §S3 P0: a notification's body is baked at schedule time, so flipping the
+    /// personalized preference must re-issue every owned request — otherwise stale
+    /// personalized text would linger on the lock screen after opt-out. Folding the
+    /// content version into the identity makes the old request read as stale.
+    @Test func flippingContentVersionReissuesOwnedRequestsWithFreshCopy() async {
+        let mock = MockCenter()
+        let scheduler = NotificationScheduler(center: mock)
+        let item = planned(UUID(), 5_000)
+
+        // Opted in: personalized body.
+        await scheduler.reconcile(plan: [item], contentVersion: "p1") { _ in ("t", "personal words") }
+        let pID = NotificationScheduler.identifier(for: item, contentVersion: "p1")
+        #expect(mock.pending == [pID])
+
+        // Opt out: the personalized request is removed and a generic one re-added.
+        await scheduler.reconcile(plan: [item], contentVersion: "g1") { _ in ("t", "generic") }
+        let gID = NotificationScheduler.identifier(for: item, contentVersion: "g1")
+        #expect(mock.removed.contains(pID))         // stale personalized body gone
+        #expect(mock.pending == [gID])
+        #expect(mock.added.last?.content.body == "generic")
+        // The capsule-prefix dedup still matches both forms (M10 server push).
+        #expect(pID.hasPrefix("capsule.\(item.capsuleID.uuidString)|seal|"))
+        #expect(gID.hasPrefix("capsule.\(item.capsuleID.uuidString)|seal|"))
+    }
+
+    @Test func emptyContentVersionKeepsTheLegacyIdentifierForm() {
+        // Backward compatibility: the default "" tag yields the v1.0 identifier, so
+        // the convenience reconcile + existing tests are unaffected.
+        let item = planned(UUID(), 1_000)
+        #expect(NotificationScheduler.identifier(for: item)
+                == NotificationScheduler.identifier(for: item, contentVersion: ""))
+        #expect(!NotificationScheduler.identifier(for: item).hasSuffix("|"))
+    }
+
     @Test func triggerPinsToStoredTimeZoneAndDoesNotRepeat() {
         let item = planned(UUID(), 5_000, tz: "Asia/Tokyo")
         let trigger = NotificationScheduler.trigger(for: item)

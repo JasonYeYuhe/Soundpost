@@ -2,6 +2,40 @@
   "sourceLanguage": "en",
   "strings": {
     "": {},
+    "“%@” — %lld days ago. Listen back.": {
+      "comment": "Personalized echo notification (opt-in); %@ is the user's own one-line or place",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「%@」— %lld日前のあなたが残した音。聴き返してみましょう。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%@” — %lld 天前你录下的声音。回去听听吧。"
+          }
+        }
+      }
+    },
+    "“%@” — tap to listen.": {
+      "comment": "Personalized resurface notification (opt-in); %@ is the user's own one-line or place",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「%@」— タップして聴いてみましょう。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%@” — 轻点即可聆听。"
+          }
+        }
+      }
+    },
     "%lld": {
       "shouldTranslate": false
     },

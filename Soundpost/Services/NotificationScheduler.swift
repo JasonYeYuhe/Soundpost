@@ -37,10 +37,19 @@ struct NotificationScheduler {
     /// Identifier encodes capsule + kind + fire instant, so when a capsule's
     /// scheduling *changes* (echo edited, or superseded by a seal) the old
     /// request reads as stale and is replaced — a same-UUID identifier would
-    /// silently keep the outdated one. Format: `capsule.<uuid>|<kind>|<epoch>`.
-    static func identifier(for item: PlannedNotification) -> String {
+    /// silently keep the outdated one. Format: `capsule.<uuid>|<kind>|<epoch>`,
+    /// plus an optional `|<contentVersion>` tag.
+    ///
+    /// The `contentVersion` folds the *body's* identity (personalized vs generic —
+    /// §S3) into the request id: a notification's body is baked at schedule time,
+    /// so flipping the lock-screen-preview preference must change the identifier or
+    /// the stale body lingers. Empty (the default, and the legacy v1.0 form) adds
+    /// no tag. The capsule prefix (`capsule.<uuid>|seal|`) is unaffected, so the
+    /// M10 server-push dedup and the UUID round-trip still hold.
+    static func identifier(for item: PlannedNotification, contentVersion: String = "") -> String {
         let kind = item.kind == .seal ? "seal" : "echo"
-        return "\(identifierPrefix)\(item.capsuleID.uuidString)|\(kind)|\(Int(item.fireDate.timeIntervalSince1970))"
+        let base = "\(identifierPrefix)\(item.capsuleID.uuidString)|\(kind)|\(Int(item.fireDate.timeIntervalSince1970))"
+        return contentVersion.isEmpty ? base : "\(base)|\(contentVersion)"
     }
 
     /// Recover the capsule UUID from one of our request identifiers (used by
@@ -58,12 +67,13 @@ struct NotificationScheduler {
     /// the title/body per item, so seals and echoes can read differently.
     func reconcile(
         plan: [PlannedNotification],
+        contentVersion: String = "",
         content: (PlannedNotification) -> (title: String, body: String)
     ) async {
         let existing = await center.pendingRequestIdentifiers()
             .filter { $0.hasPrefix(Self.identifierPrefix) }
         let existingSet = Set(existing)
-        let desiredSet = Set(plan.map(Self.identifier(for:)))
+        let desiredSet = Set(plan.map { Self.identifier(for: $0, contentVersion: contentVersion) })
 
         let stale = existing.filter { !desiredSet.contains($0) }
         if !stale.isEmpty {
@@ -71,7 +81,7 @@ struct NotificationScheduler {
         }
 
         for item in plan {
-            let id = Self.identifier(for: item)
+            let id = Self.identifier(for: item, contentVersion: contentVersion)
             guard !existingSet.contains(id) else { continue } // already scheduled
             let (title, body) = content(item)
             let notification = UNMutableNotificationContent()

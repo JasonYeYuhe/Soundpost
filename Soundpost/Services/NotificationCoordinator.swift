@@ -44,34 +44,31 @@ final class NotificationCoordinator: NSObject, UNUserNotificationCenterDelegate 
     }
 
     /// Reconcile pending notifications with the current capsules: sealed ones
-    /// resurfacing on their date, and captured ones echoing back later.
+    /// resurfacing on their date, and captured ones echoing back later. Bodies are
+    /// built by the pure `NotificationCopy` (metadata-only — never faults audio),
+    /// personalized when the user opted in (§S3/§4A, default off). The current
+    /// personalized state is folded into each request's identity via
+    /// `contentVersion`, so flipping the preference re-issues every owned request
+    /// rather than leaving a stale body baked on the lock screen (§S3 P0).
     func sync(capsules: [Capsule], now: Date = .now) async {
         let plan = NotificationPlanner.plan(capsules: capsules, now: now)
-        let createdAt = Dictionary(
-            capsules.map { ($0.id, $0.createdAt) },
+        let personalized = NotificationPreferences.personalized
+        let digests = Dictionary(
+            capsules.map {
+                ($0.id, NotificationCopy.Digest(
+                    createdAt: $0.createdAt,
+                    note: $0.note,
+                    placeName: $0.place?.name,
+                    mood: $0.mood
+                ))
+            },
             uniquingKeysWith: { first, _ in first }
         )
-        await scheduler.reconcile(plan: plan) { item in
-            switch item.kind {
-            case .seal:
-                return (
-                    String(localized: "A capsule has resurfaced"),
-                    String(localized: "Open Soundpost to hear this moment again.")
-                )
-            case .echo:
-                let days = max(
-                    1,
-                    Calendar.current.dateComponents(
-                        [.day],
-                        from: createdAt[item.capsuleID] ?? item.fireDate,
-                        to: item.fireDate
-                    ).day ?? 1
-                )
-                return (
-                    String(localized: "An echo from your past"),
-                    String(localized: "\(days) days ago, you captured this sound. Listen back.")
-                )
-            }
+        await scheduler.reconcile(
+            plan: plan,
+            contentVersion: NotificationPreferences.contentVersion(personalized: personalized)
+        ) { item in
+            NotificationCopy.make(for: item, digest: digests[item.capsuleID], personalized: personalized)
         }
 
         // Reconcile the far-seal job set with the server in lockstep with the

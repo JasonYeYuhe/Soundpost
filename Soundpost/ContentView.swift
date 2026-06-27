@@ -17,6 +17,10 @@ struct ContentView: View {
     @State private var cloudDeleteFailed = false
     /// Mirrors `DeliveryPreferences.cloudOptedOut` so the control reacts to it.
     @AppStorage(DeliveryPreferences.optedOutKey) private var cloudOptedOut = false
+    /// Mirrors the lock-screen-preview preference (toggled in Settings, §S3/§S7).
+    /// Changing it must force a full notification reconcile so already-scheduled
+    /// requests don't keep a stale personalized/generic body (§S3 P0).
+    @AppStorage(NotificationPreferences.personalizedKey) private var personalizedNotifications = false
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -53,6 +57,11 @@ struct ContentView: View {
             if phase == .active { Task { await refreshAndSync() } }
         }
         .onChange(of: sealSignature) { _, _ in
+            Task { await notifications.sync(capsules: capsules) }
+        }
+        .onChange(of: personalizedNotifications) { _, _ in
+            // Re-issue owned requests with fresh copy when the preference flips,
+            // so no stale personalized/generic body lingers on the lock screen.
             Task { await notifications.sync(capsules: capsules) }
         }
         .onChange(of: notifications.pendingDeepLinkCapsuleID) { _, id in

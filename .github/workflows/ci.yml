@@ -36,12 +36,18 @@ jobs:
       - name: Build & test (iOS Simulator)
         run: |
           set -o pipefail
+          # Ad-hoc local signing ("-"): needs no Apple identity or provisioning
+          # profile (so it works on a runner with no signing creds) yet still
+          # signs the embedded Sentry framework enough to load on the simulator —
+          # CODE_SIGNING_ALLOWED=NO would leave it unsigned and the host app would
+          # SIGTRAP before the test bundle can attach.
           xcodebuild test \
             -project Soundpost.xcodeproj \
             -scheme Soundpost \
             -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest' \
             -resultBundlePath build/ci.xcresult \
-            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY="-" \
+            PROVISIONING_PROFILE_SPECIFIER="" DEVELOPMENT_TEAM="" \
             | tee build/xcodebuild.log
 
       - name: Warning gate (warning-free project build)
