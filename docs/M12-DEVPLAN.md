@@ -440,3 +440,38 @@ nutrition-label change.
   WidgetKit target to a committed deliverable post-M12 if it earns its keep.
 - **Engineering hardening (ongoing):** flip Swift 6 once the trial quantifies it; grow
   the test net; keep warning-free + i18n 100% + zero new deps as standing bars.
+
+---
+
+## 12. Completion record (2026-06-27)
+
+**M12 SHIPPED to the codebase** — S1–S8 implemented, each step compiled + tested +
+committed in order. Standing bars held throughout: **200 tests pass** (150 → 200,
++50), **0 warnings**, **i18n EN/JA/ZH-Hans 100%** (gate enforced), **zero new
+third-party deps**. The in-review 1.3.0, the M10 delivery backend, and the M11 Pro
+gating were untouched. Commits (on `master`):
+
+| Step | Commit | What landed |
+|---|---|---|
+| S1 | `05f2f86` | dSYM upload script + CI workflow + warning/i18n gates; InfoPlist i18n fix |
+| S2 | `1362c22` | seal-hour 09:00 normalization (one helper, all write paths) + `serverJobSyncedAt` re-arm (P0) + one-shot migration |
+| S3 | `8ba5dec` | personalized notification copy (default off) + content-version toggle reconcile (P0); CI signing fix |
+| S4 | `6e8a5a8` | `ResurfaceView` reveal + single `CapsuleOpenRoute` for every tap/deep-link |
+| S5 | `48c0aa6` | `RequestReviewAction` after a genuine resurface, capped per version |
+| S6 | `a05d8d3` | gallery search + mood/sealed filter + date sections; visibility-aware (P1), metadata-only |
+| S8 strip | `72fa494` | in-app "Coming up" upcoming strip (metadata-only) |
+| S7 | `379ac6e` | calm Settings hub + streaming bulk export-your-data (P1) + restore outcome |
+| S8 harden | `56bf3e1` | AudioRecorder observer-leak fix + finalize-decision tests; deinit pass; reinstall test; error surfacing; os.Logger; `.storekit` prices; a11y |
+| S8 trial | `f81c737` | documented Swift 6 strict-concurrency trial (`docs/SWIFT6-TRIAL.md`) — BUILD SUCCEEDED, 7 minor gaps, not flipped |
+
+**Deferred (as planned):** the home-screen **WidgetKit** widget (the in-app strip
+is M12's committed version); the Swift 6 **flip** (trial documented only); the
+in-app language override.
+
+**Human-gated follow-ups (cannot be done from code):**
+- **`SENTRY_AUTH_TOKEN`** (+ confirm `SENTRY_ORG`/`SENTRY_PROJECT` slugs — defaulted
+  `jason-yeyuhe`/`soundpost`) in `~/.zshrc` to activate dSYM upload, then
+  `./scripts/upload-dsyms.sh --backfill` to symbolicate already-shipped builds.
+- The **CI workflow** is validated only on its first PR run (test-only, no secrets).
+- Unchanged from before: the **M11 IAP review screenshot + 1.4.0 submission** remain
+  separate go-live tasks gated on 1.3.0 clearing review — **not** part of M12.
