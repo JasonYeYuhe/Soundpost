@@ -110,9 +110,19 @@ final class CaptureViewModel {
         phase = .review
     }
 
+    /// Seed `echoAt` with a random date if it is unset (idempotent). The echo
+    /// picker binds to this, so it must be a *stable* value — re-rolling a fresh
+    /// random date on every SwiftUI body evaluation made the picker jitter (the
+    /// §S2 picker-getter purity fix). Call before presenting the picker.
+    func seedEchoIfNeeded() {
+        if echoAt == nil { echoAt = Self.randomEchoDate() }
+    }
+
     /// Pick the surprise echo date: a uniformly random day 7–30 days out,
     /// keeping the recording's own time of day (poetic: "exactly N days later").
-    static func randomEchoDate(
+    /// `nonisolated` — a pure function over its arguments, so the view can seed the
+    /// picker's stable fallback (`@State` default) without an actor hop.
+    nonisolated static func randomEchoDate(
         from reference: Date = .now,
         in range: ClosedRange<Int> = 7...30
     ) -> Date {
@@ -173,7 +183,10 @@ final class CaptureViewModel {
         let trimmed = note.trimmingCharacters(in: .whitespacesAndNewlines)
         capsule.note = trimmed.isEmpty ? nil : trimmed
         capsule.place = includePlace ? place : nil
-        capsule.echoAt = echoEnabled ? echoAt : nil
+        // Normalize the echo day to a humane hour (09:00 device-local) on save —
+        // `echoAt` carries the recording's raw time-of-day, which would otherwise
+        // ring back at, say, 2:47 AM (M12 §S2).
+        capsule.echoAt = echoEnabled ? echoAt.map { SealClock.normalize($0) } : nil
         try store.save()
         reset(deleteFile: false)
         return capsule

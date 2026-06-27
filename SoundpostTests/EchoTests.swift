@@ -77,13 +77,26 @@ struct EchoTests {
         keep.finishRecordingForTesting(fileName: "k.m4a", duration: 5)
         let chosen = keep.echoAt
         let kept = try keep.save(using: store)
-        #expect(kept?.echoAt == chosen)
+        // The stored echo is the chosen day pinned to a humane 09:00 local (§S2).
+        #expect(kept?.echoAt == chosen.map { SealClock.normalize($0) })
 
         let off = CaptureViewModel()
         off.finishRecordingForTesting(fileName: "o.m4a", duration: 5)
         off.echoEnabled = false
         let removed = try off.save(using: store)
         #expect(removed?.echoAt == nil)
+    }
+
+    @Test func seedEchoIfNeededIsIdempotentAndStable() {
+        // The picker-getter purity fix (§S2): seeding must not re-roll a fresh
+        // random date on every call, or the date picker jitters across body evals.
+        let vm = CaptureViewModel()
+        #expect(vm.echoAt == nil)
+        vm.seedEchoIfNeeded()
+        let first = vm.echoAt
+        #expect(first != nil)
+        vm.seedEchoIfNeeded()
+        #expect(vm.echoAt == first)
     }
 
     @Test func randomEchoDateRespectsCustomRange() {

@@ -197,9 +197,14 @@ struct ContentView: View {
             .joined(separator: ",")
     }
 
-    /// Flip any due seals to `.resurfaced`, then reconcile scheduled notifications.
+    /// Normalize any pre-§S2 antisocial-hour seals/echoes to 09:00 local, flip any
+    /// due seals to `.resurfaced`, then reconcile scheduled notifications. The
+    /// normalization is idempotent (no-op once everything is at 09:00) and clears
+    /// `serverJobSyncedAt` for any seal it shifts, so the M10 reconcile in `sync`
+    /// re-upserts the corrected wall clock (§S2 P0).
     private func refreshAndSync() async {
         let store = CapsuleStore(context: modelContext)
+        _ = try? store.normalizeSealHours()
         _ = try? store.refreshDueSeals()
         try? store.save()
         await notifications.sync(capsules: capsules)

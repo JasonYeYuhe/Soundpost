@@ -10,6 +10,11 @@ struct CaptureView: View {
     @Environment(StoreService.self) private var store
     @State private var viewModel = CaptureViewModel()
     @State private var showingEchoPicker = false
+    /// A stable fallback for the echo-picker binding, seeded once at view init so
+    /// the picker selection never re-rolls across body evaluations (§S2). The
+    /// picker is only ever presented with `echoAt` already seeded, so this is a
+    /// belt-and-suspenders default that keeps the binding getter pure.
+    @State private var echoPickerSeed = CaptureViewModel.randomEchoDate()
     @State private var showingPaywall = false
     @State private var recordPulse = false
     @State private var saveCount = 0
@@ -256,7 +261,7 @@ struct CaptureView: View {
         if viewModel.echoEnabled, let echoAt = viewModel.echoAt {
             VStack(alignment: .leading, spacing: 6) {
                 HStack {
-                    Button { showingEchoPicker = true } label: {
+                    Button { viewModel.seedEchoIfNeeded(); showingEchoPicker = true } label: {
                         Label(
                             "Echoes back \(echoAt.formatted(date: .abbreviated, time: .omitted)) · in \(echoDays(until: echoAt)) days",
                             systemImage: "bell.badge"
@@ -272,7 +277,7 @@ struct CaptureView: View {
             }
         } else {
             Button {
-                if viewModel.echoAt == nil { viewModel.echoAt = CaptureViewModel.randomEchoDate() }
+                viewModel.seedEchoIfNeeded()
                 viewModel.echoEnabled = true
             } label: {
                 Label("Remind me of this later", systemImage: "bell")
@@ -286,8 +291,8 @@ struct CaptureView: View {
                 DatePicker(
                     "Echo date",
                     selection: Binding(
-                        get: { viewModel.echoAt ?? CaptureViewModel.randomEchoDate() },
-                        set: { viewModel.echoAt = $0 }
+                        get: { viewModel.echoAt ?? echoPickerSeed },
+                        set: { viewModel.echoAt = SealClock.normalize($0) }
                     ),
                     in: Calendar.current.date(byAdding: .day, value: 1, to: .now)!...,
                     displayedComponents: [.date]

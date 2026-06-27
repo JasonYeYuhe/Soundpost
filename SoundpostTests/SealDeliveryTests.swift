@@ -224,6 +224,37 @@ struct SealDeliveryTests {
         #expect(backend.deleteAllCalls == ["K"])
     }
 
+    // MARK: §S2 — humane-hour normalization re-arms a server-owned seal
+
+    @Test func normalizingServerOwnedSealReupsertsTheNewWallClock() async throws {
+        let store = try TestSupport.freshStore()
+        let tokyo = TimeZone(identifier: "Asia/Tokyo")!
+        var cal = Calendar(identifier: .gregorian); cal.timeZone = tokyo
+        // A far seal the server already owns, firing at an antisocial 02:47 JST.
+        let antisocial = cal.date(from: DateComponents(year: 2031, month: 6, day: 20, hour: 2, minute: 47))!
+        let c = Capsule(createdAt: now.addingTimeInterval(-day))
+        try c.transition(to: .recording); try c.transition(to: .captured)
+        c.sealUntil = antisocial
+        c.sealTimeZoneID = "Asia/Tokyo"
+        try c.transition(to: .sealed)
+        c.serverJobSyncedAt = now      // server owns the 02:47 job
+        store.context.insert(c); try store.save()
+
+        // Normalize → clears serverJobSyncedAt so reconcile re-upserts.
+        _ = try store.normalizeSealHours(now: now)
+        #expect(c.serverJobSyncedAt == nil)
+
+        let backend = SpyDeliveryBackend(configured: true)
+        let service = SealDeliveryService(backend: backend, identity: StubDeliveryIdentity(key: "K"))
+        await service.reconcile(capsules: try store.all(), now: now)
+
+        #expect(backend.upsertedJobs.count == 1)
+        // The server now holds 09:00 JST on the same day — not the old 02:47.
+        #expect(SupabaseDeliveryBackend.wallClockString(
+            backend.upsertedJobs[0].job.fireDate, timeZoneID: "Asia/Tokyo") == "2031-06-20T09:00:00")
+        #expect(c.serverJobSyncedAt != nil)
+    }
+
     // MARK: Delivery-time dedup (pure helpers)
 
     @Test func parsesCapsuleIDFromPushUserInfo() {

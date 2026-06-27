@@ -79,19 +79,30 @@ final class CapsuleStore {
     }
 
     /// Seal a captured capsule until `date`, stamping the time zone for correct
-    /// far-future delivery (docs/PROJECT.md §1e.5). Sealing supersedes any
-    /// pending echo — a sealed capsule hides its content, so a "remember this
-    /// day" echo would contradict it.
+    /// far-future delivery (docs/PROJECT.md §1e.5). The chosen day is normalized to
+    /// a humane local hour (09:00 in `timeZone`) via `SealClock` so the capsule
+    /// resurfaces at a civil time, not whenever it happened to be captured (M12
+    /// §S2). Sealing supersedes any pending echo — a sealed capsule hides its
+    /// content, so a "remember this day" echo would contradict it.
+    ///
+    /// Clears `serverJobSyncedAt`: the wall clock just changed, so the M10
+    /// reconcile must re-upsert the job (and the local planner re-arm its
+    /// backstop). A removal (unseal/delete) deliberately does NOT clear it — that
+    /// path relies on the reconcile *cancel* branch to tell the server to drop the
+    /// job (§S2 P0).
     func seal(_ capsule: Capsule, until date: Date, timeZone: TimeZone = .current) throws {
-        capsule.sealUntil = date
+        capsule.sealUntil = SealClock.normalize(date, in: timeZone)
         capsule.sealTimeZoneID = timeZone.identifier
         capsule.echoAt = nil
+        capsule.serverJobSyncedAt = nil
         try capsule.transition(to: .sealed)
     }
 
-    /// Set or clear a capsule's gentle echo reminder.
+    /// Set or clear a capsule's gentle echo reminder. A non-nil date is normalized
+    /// to 09:00 device-local (echoes are near-term wall-clock events — see
+    /// `NotificationPlanner`) so the reminder lands at a humane hour (M12 §S2).
     func setEcho(_ capsule: Capsule, at date: Date?) {
-        capsule.echoAt = date
+        capsule.echoAt = date.map { SealClock.normalize($0) }
     }
 
     /// Cancel a seal before its date, returning the capsule to `.captured`.
@@ -116,5 +127,43 @@ final class CapsuleStore {
         let due = try sealedCapsules().filter { $0.isDueToResurface(now: now) }
         for capsule in due { try capsule.transition(to: .resurfaced) }
         return due
+    }
+
+    /// One-shot humane-hour normalization for capsules sealed/echoed before §S2
+    /// (or at an antisocial hour). Rewrites each *future* seal/echo fire instant to
+    /// 09:00 local in its intended zone and — crucially for a seal the server
+    /// already owns — clears `serverJobSyncedAt` so the M10 reconcile re-upserts the
+    /// new wall clock and the local planner re-arms (§S2 P0); without that the
+    /// Supabase job keeps firing at the old 02:47.
+    ///
+    /// Idempotent (an instant already at 09:00 is left untouched), so it is safe to
+    /// run on every launch with no backend churn. Never moves a fire instant into
+    /// the past: a seal whose 09:00 would already have passed keeps its stored
+    /// instant (it resurfaces in-app on its date regardless). Returns the capsules
+    /// it changed.
+    @discardableResult
+    func normalizeSealHours(now: Date = .now) throws -> [Capsule] {
+        var changed: [Capsule] = []
+        for capsule in try all() {
+            switch capsule.state {
+            case .sealed:
+                guard let due = capsule.sealUntil, due > now else { continue }
+                let zone = capsule.sealTimeZoneID.flatMap(TimeZone.init(identifier:)) ?? .current
+                let normalized = SealClock.normalize(due, in: zone)
+                guard normalized != due, normalized > now else { continue }
+                capsule.sealUntil = normalized
+                capsule.serverJobSyncedAt = nil   // re-arm: wall clock changed (§S2 P0)
+                changed.append(capsule)
+            case .captured:
+                guard let echo = capsule.echoAt, echo > now else { continue }
+                let normalized = SealClock.normalize(echo)
+                guard normalized != echo, normalized > now else { continue }
+                capsule.echoAt = normalized
+                changed.append(capsule)
+            default:
+                continue
+            }
+        }
+        return changed
     }
 }
