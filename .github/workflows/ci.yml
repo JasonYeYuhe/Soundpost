@@ -1,0 +1,57 @@
+name: CI
+
+# Test-only CI (M12 §S1): runs the unit suite on a simulator, asserts the build
+# is warning-free in our sources, and enforces String Catalog 100% translation.
+# Deliberately needs NO signing and NO secrets — it never archives or uploads, so
+# nothing here can leak the ASC / Sentry creds (dSYM upload stays in the local
+# build-upload pipeline, gated on SENTRY_AUTH_TOKEN).
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Build, test & guard standing bars
+    runs-on: macos-15
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show toolchain
+        run: |
+          xcodebuild -version
+          swift --version
+
+      - name: Localization gate (xcstrings 100% translated)
+        run: ./scripts/check-localization.sh
+
+      - name: Build & test (iOS Simulator)
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -project Soundpost.xcodeproj \
+            -scheme Soundpost \
+            -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest' \
+            -resultBundlePath build/ci.xcresult \
+            CODE_SIGNING_ALLOWED=NO \
+            | tee build/xcodebuild.log
+
+      - name: Warning gate (warning-free project build)
+        run: ./scripts/check-warnings.sh build/xcodebuild.log
+
+      - name: Upload result bundle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcresult
+          path: build/ci.xcresult
+          retention-days: 7
+          if-no-files-found: ignore

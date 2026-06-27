@@ -58,6 +58,14 @@ xcodebuild archive \
 [ -d "$ARCHIVE_PATH" ] || { echo "ERROR: archive failed"; exit 1; }
 echo "Archive OK -> $ARCHIVE_PATH"
 
+# Upload this build's dSYMs to Sentry so its Release crashes symbolicate (M12 §S1).
+# Non-fatal: a no-op-with-warning when SENTRY_AUTH_TOKEN / sentry-cli is absent, so
+# the archive→upload pipeline never breaks just because Sentry creds aren't present.
+echo ""
+echo "=== Step 1.5/2: dSYM upload to Sentry ==="
+"$PROJECT_DIR/scripts/upload-dsyms.sh" "$ARCHIVE_PATH" || \
+  echo "WARN: dSYM upload step returned non-zero; continuing with export."
+
 echo ""
 echo "=== Step 2/2: exportArchive ($MODE) via ASC API key ==="
 xcodebuild -exportArchive \

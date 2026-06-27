@@ -1819,7 +1819,9 @@
         }
       }
     },
-    "Soundpost": {},
+    "Soundpost": {
+      "shouldTranslate": false
+    },
     "Soundpost Pro": {
       "localizations": {
         "ja": {
