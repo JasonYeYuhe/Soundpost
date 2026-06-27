@@ -44,15 +44,20 @@ upload() {
 MODE="${1:-}"
 
 if [ "$MODE" = "--backfill" ]; then
-  ARCHIVES_DIR="$HOME/Library/Developer/Xcode/Archives"
-  echo "Backfilling dSYMs from shipped Soundpost archives under: $ARCHIVES_DIR"
+  PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+  # Soundpost archives are written to the repo's build/ by build-upload-asc.sh
+  # (overwritten each build), so scan there as well as the Xcode Organizer.
+  SEARCH_DIRS=("$HOME/Library/Developer/Xcode/Archives" "$PROJECT_DIR/build")
+  echo "Backfilling Soundpost*.xcarchive dSYMs from: ${SEARCH_DIRS[*]}"
   found=0
-  # Match Soundpost*.xcarchive across the date-bucketed archive folders.
-  while IFS= read -r -d '' archive; do
-    found=1
-    upload "$archive"
-  done < <(find "$ARCHIVES_DIR" -type d -name "Soundpost*.xcarchive" -print0 2>/dev/null)
-  [ "$found" -eq 1 ] || echo "No Soundpost*.xcarchive found under $ARCHIVES_DIR — nothing to backfill."
+  for dir in "${SEARCH_DIRS[@]}"; do
+    [ -d "$dir" ] || continue
+    while IFS= read -r -d '' archive; do
+      found=1
+      upload "$archive"
+    done < <(find "$dir" -type d -name "Soundpost*.xcarchive" -print0 2>/dev/null)
+  done
+  [ "$found" -eq 1 ] || echo "No Soundpost*.xcarchive found — nothing to backfill."
   exit 0
 fi
 
