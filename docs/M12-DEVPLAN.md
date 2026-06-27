@@ -468,10 +468,14 @@ gating were untouched. Commits (on `master`):
 is M12's committed version); the Swift 6 **flip** (trial documented only); the
 in-app language override.
 
-**Human-gated follow-ups (cannot be done from code):**
-- **`SENTRY_AUTH_TOKEN`** (+ confirm `SENTRY_ORG`/`SENTRY_PROJECT` slugs — defaulted
-  `jason-yeyuhe`/`soundpost`) in `~/.zshrc` to activate dSYM upload, then
-  `./scripts/upload-dsyms.sh --backfill` to symbolicate already-shipped builds.
+**Human-gated follow-ups:**
+- ✅ **dSYM upload — DONE (2026-06-27).** Created a Sentry org auth token (scope
+  `org:ci`, covers debug-file upload); `SENTRY_AUTH_TOKEN` + `SENTRY_ORG=jason-yeyuhe`
+  + `SENTRY_PROJECT=soundpost` now live in `~/.zshrc`. Backfilled the two archives
+  present in `build/` — 1.4.0 (build 8) + 1.2.0 (build 6) — and verified both
+  `Soundpost.app` debug companions registered server-side. (1.1.0 and 1.3.0/build 7
+  archives were already overwritten in `build/`; future archives auto-upload via
+  `build-upload-asc.sh`.) `--backfill` was fixed to scan the repo `build/` dir.
 - The **CI workflow** is validated only on its first PR run (test-only, no secrets).
-- Unchanged from before: the **M11 IAP review screenshot + 1.4.0 submission** remain
-  separate go-live tasks gated on 1.3.0 clearing review — **not** part of M12.
+- Unchanged: the **M11 IAP review screenshot + 1.4.0 submission** remain separate
+  go-live tasks gated on 1.3.0 clearing review — **not** part of M12.
