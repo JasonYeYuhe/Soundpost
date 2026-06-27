@@ -488,6 +488,22 @@
         }
       }
     },
+    "Coming up": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "もうすぐ"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "即将到来"
+          }
+        }
+      }
+    },
     "Continue": {
       "localizations": {
         "ja": {
@@ -1530,6 +1546,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "开启日期"
+          }
+        }
+      }
+    },
+    "Opens": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開封予定"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "即将开启"
           }
         }
       }

@@ -94,15 +94,24 @@ struct ContentView: View {
 
     /// Filtered + searched capsules (metadata-only, visibility-aware — §S6).
     private var displayed: [Capsule] {
-        GalleryFilter.apply(
-            capsules,
-            GalleryFilter.Criteria(searchText: searchText, moods: filterMoods, sealedOnly: sealedOnly)
-        )
+        GalleryFilter.apply(capsules, filterCriteria)
+    }
+
+    private var filterCriteria: GalleryFilter.Criteria {
+        GalleryFilter.Criteria(searchText: searchText, moods: filterMoods, sealedOnly: sealedOnly)
+    }
+
+    /// The nearest upcoming resurfaces/echoes for the anticipation strip (§S8).
+    private var upcoming: [PlannedNotification] {
+        UpcomingResurfaces.nearest(capsules)
     }
 
     private var gallery: some View {
         ScrollView {
             LazyVStack(spacing: 16, pinnedViews: [.sectionHeaders]) {
+                // "Coming up" anticipation strip — only on the unfiltered home view,
+                // so it stays a calm header, not chrome layered over a search.
+                if !filterCriteria.isActive && !upcoming.isEmpty { upcomingStrip }
                 filterBar
                 if displayed.isEmpty {
                     noMatches
@@ -146,9 +155,51 @@ struct ContentView: View {
 
     /// A collapsed-by-default filter: mood chips + a "Sealed only" toggle. Calm,
     /// secondary chrome — no counters, no engagement loops (§4D).
+    // MARK: Upcoming strip (§S8)
+
+    private var upcomingStrip: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Coming up")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.secondary)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 10) {
+                    ForEach(upcoming, id: \.capsuleID) { upcomingCard($0) }
+                }
+                .padding(.vertical, 2)
+            }
+        }
+    }
+
+    private func upcomingCard(_ item: PlannedNotification) -> some View {
+        let isSeal = item.kind == .seal
+        return VStack(alignment: .leading, spacing: 6) {
+            Image(systemName: isSeal ? "lock.fill" : "bell.badge")
+                .foregroundStyle(.secondary)
+            Text(relativeCountdown(item.fireDate))
+                .font(.subheadline.weight(.medium))
+                .lineLimit(1)
+            Text(isSeal ? "Opens" : "Echo")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+        .padding(12)
+        .frame(width: 130, alignment: .leading)
+        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 14))
+        .accessibilityElement(children: .combine)
+    }
+
+    /// A localized, content-free countdown ("in 23 days"). Never reveals which
+    /// capsule or its hidden words — anticipation only (§4F).
+    private func relativeCountdown(_ date: Date) -> String {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .full
+        return formatter.localizedString(for: date, relativeTo: .now)
+    }
+
     @ViewBuilder
     private var filterBar: some View {
-        let criteria = GalleryFilter.Criteria(searchText: searchText, moods: filterMoods, sealedOnly: sealedOnly)
+        let criteria = filterCriteria
         VStack(alignment: .leading, spacing: 10) {
             Button { withAnimation(.easeInOut(duration: 0.2)) { showingFilters.toggle() } } label: {
                 HStack(spacing: 6) {
