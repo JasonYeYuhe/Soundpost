@@ -53,6 +53,7 @@ jobs:
           # signs the embedded Sentry framework enough to load on the simulator —
           # CODE_SIGNING_ALLOWED=NO would leave it unsigned and the host app would
           # SIGTRAP before the test bundle can attach.
+          mkdir -p build   # tee + -resultBundlePath need the dir (gitignored, absent on a fresh checkout)
           set +e
           xcodebuild test \
             -project Soundpost.xcodeproj \
