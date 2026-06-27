@@ -5,6 +5,11 @@ name: CI
 # Deliberately needs NO signing and NO secrets — it never archives or uploads, so
 # nothing here can leak the ASC / Sentry creds (dSYM upload stays in the local
 # build-upload pipeline, gated on SENTRY_AUTH_TOKEN).
+#
+# Runs on macos-26 to match the local toolchain (Xcode 26 / iOS 26 SDK): the app
+# uses iOS-26-SDK symbols (e.g. AVAudioSession's renamed `.allowBluetoothHFP`), so
+# an older runner (macos-15 / Xcode 16) can't compile it. Deployment target stays
+# iOS 17 — only the build SDK must match.
 
 on:
   push:
@@ -19,7 +24,7 @@ concurrency:
 jobs:
   test:
     name: Build, test & guard standing bars
-    runs-on: macos-15
+    runs-on: macos-26
     timeout-minutes: 30
 
     steps:
@@ -33,6 +38,17 @@ jobs:
       - name: Localization gate (xcstrings 100% translated)
         run: ./scripts/check-localization.sh
 
+      - name: Select an available iPhone simulator
+        id: sim
+        run: |
+          DEVICE_ID=$(xcrun simctl list devices available -j \
+            | python3 -c "import json,sys; d=json.load(sys.stdin)['devices']; \
+ids=[dev['udid'] for rt in sorted(d) for dev in d[rt] if dev.get('isAvailable') and dev['name'].startswith('iPhone')]; \
+print(ids[0] if ids else '')")
+          if [ -z "$DEVICE_ID" ]; then echo "No iPhone simulator available" >&2; exit 1; fi
+          echo "Using simulator: $DEVICE_ID"
+          echo "device_id=$DEVICE_ID" >> "$GITHUB_OUTPUT"
+
       - name: Build & test (iOS Simulator)
         run: |
           set -o pipefail
@@ -44,7 +60,7 @@ jobs:
           xcodebuild test \
             -project Soundpost.xcodeproj \
             -scheme Soundpost \
-            -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest' \
+            -destination "platform=iOS Simulator,id=${{ steps.sim.outputs.device_id }}" \
             -resultBundlePath build/ci.xcresult \
             CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY="-" \
             PROVISIONING_PROFILE_SPECIFIER="" DEVELOPMENT_TEAM="" \
