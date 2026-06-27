@@ -2,6 +2,54 @@
   "sourceLanguage": "en",
   "strings": {
     "": {},
+    "Clear filters": {
+      "localizations": {
+        "ja": { "stringUnit": { "state": "translated", "value": "フィルタをクリア" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "清除筛选" } }
+      }
+    },
+    "Earlier this year": {
+      "comment": "Gallery date section header",
+      "localizations": {
+        "ja": { "stringUnit": { "state": "translated", "value": "今年のそれ以前" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "今年早些时候" } }
+      }
+    },
+    "Filter": {
+      "comment": "Gallery filter disclosure label",
+      "localizations": {
+        "ja": { "stringUnit": { "state": "translated", "value": "フィルタ" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "筛选" } }
+      }
+    },
+    "Older": {
+      "comment": "Gallery date section header",
+      "localizations": {
+        "ja": { "stringUnit": { "state": "translated", "value": "それ以前" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "更早" } }
+      }
+    },
+    "Search your sounds": {
+      "comment": "Gallery search field prompt",
+      "localizations": {
+        "ja": { "stringUnit": { "state": "translated", "value": "サウンドを検索" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "搜索你的声音" } }
+      }
+    },
+    "Sealed only": {
+      "comment": "Gallery filter toggle: show only sealed/resurfaced capsules",
+      "localizations": {
+        "ja": { "stringUnit": { "state": "translated", "value": "封印済みのみ" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "仅已封存" } }
+      }
+    },
+    "This month": {
+      "comment": "Gallery date section header",
+      "localizations": {
+        "ja": { "stringUnit": { "state": "translated", "value": "今月" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "本月" } }
+      }
+    },
     "A sound resurfaces": {
       "comment": "Title of the resurface reveal",
       "localizations": {

@@ -22,6 +22,11 @@ struct ContentView: View {
     @State private var reviewAfterReveal = false
     @State private var confirmingCloudDelete = false
     @State private var cloudDeleteFailed = false
+    // Calm gallery browsability (§S6): search + a collapsible mood/sealed filter.
+    @State private var searchText = ""
+    @State private var filterMoods: Set<Mood> = []
+    @State private var sealedOnly = false
+    @State private var showingFilters = false
     /// Mirrors `DeliveryPreferences.cloudOptedOut` so the control reacts to it.
     @AppStorage(DeliveryPreferences.optedOutKey) private var cloudOptedOut = false
     /// Mirrors the lock-screen-preview preference (toggled in Settings, §S3/§S7).
@@ -38,6 +43,7 @@ struct ContentView: View {
                     gallery
                 }
             }
+            .searchable(text: $searchText, prompt: Text("Search your sounds"))
             .navigationTitle("Soundpost")
             .navigationDestination(for: Capsule.self) { CapsuleDetailView(capsule: $0) }
             .toolbar {
@@ -90,21 +96,114 @@ struct ContentView: View {
         }
     }
 
+    /// Filtered + searched capsules (metadata-only, visibility-aware — §S6).
+    private var displayed: [Capsule] {
+        GalleryFilter.apply(
+            capsules,
+            GalleryFilter.Criteria(searchText: searchText, moods: filterMoods, sealedOnly: sealedOnly)
+        )
+    }
+
     private var gallery: some View {
         ScrollView {
-            LazyVStack(spacing: 16) {
-                ForEach(capsules) { capsule in
-                    Button { openCapsule(capsule) } label: {
-                        CapsuleCard(capsule: capsule)
+            LazyVStack(spacing: 16, pinnedViews: [.sectionHeaders]) {
+                filterBar
+                if displayed.isEmpty {
+                    noMatches
+                } else {
+                    ForEach(GallerySection.grouped(displayed), id: \.section.id) { group in
+                        Section {
+                            ForEach(group.capsules) { capsule in
+                                Button { openCapsule(capsule) } label: {
+                                    CapsuleCard(capsule: capsule)
+                                }
+                                .buttonStyle(.plain)
+                                .transition(.scale(scale: 0.96).combined(with: .opacity))
+                            }
+                        } header: {
+                            sectionHeader(group.section.title)
+                        }
                     }
-                    .buttonStyle(.plain)
-                    .transition(.scale(scale: 0.96).combined(with: .opacity))
                 }
                 storageFooter
             }
             .padding()
-            .animation(.spring(duration: 0.35), value: capsules.count)
+            .animation(.spring(duration: 0.35), value: displayed.count)
         }
+    }
+
+    private func sectionHeader(_ title: LocalizedStringKey) -> some View {
+        HStack {
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.secondary)
+            Spacer()
+        }
+        .padding(.vertical, 4)
+        .background(.background.opacity(0.95))
+    }
+
+    private var noMatches: some View {
+        ContentUnavailableView.search(text: searchText)
+            .padding(.top, 40)
+    }
+
+    /// A collapsed-by-default filter: mood chips + a "Sealed only" toggle. Calm,
+    /// secondary chrome — no counters, no engagement loops (§4D).
+    @ViewBuilder
+    private var filterBar: some View {
+        let criteria = GalleryFilter.Criteria(searchText: searchText, moods: filterMoods, sealedOnly: sealedOnly)
+        VStack(alignment: .leading, spacing: 10) {
+            Button { withAnimation(.easeInOut(duration: 0.2)) { showingFilters.toggle() } } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "line.3.horizontal.decrease.circle")
+                    Text("Filter")
+                    Spacer()
+                    Image(systemName: showingFilters ? "chevron.up" : "chevron.down").font(.caption)
+                }
+                .font(.subheadline)
+                .foregroundStyle(criteria.isActive ? Color.accentColor : .secondary)
+            }
+            .buttonStyle(.plain)
+
+            if showingFilters {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(Mood.allCases) { moodFilterChip($0) }
+                    }
+                    .padding(.vertical, 2)
+                }
+                Toggle("Sealed only", isOn: $sealedOnly)
+                    .font(.subheadline)
+                    .tint(.accentColor)
+                if criteria.isActive {
+                    Button("Clear filters") {
+                        withAnimation { filterMoods = []; sealedOnly = false; searchText = "" }
+                    }
+                    .font(.caption)
+                }
+            }
+        }
+    }
+
+    private func moodFilterChip(_ mood: Mood) -> some View {
+        let selected = filterMoods.contains(mood)
+        return Button {
+            if selected { filterMoods.remove(mood) } else { filterMoods.insert(mood) }
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: mood.symbolName)
+                Text(mood.label)
+            }
+            .font(.subheadline)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 7)
+            .background(selected ? mood.tint.opacity(0.22) : Color(.secondarySystemBackground), in: SwiftUI.Capsule())
+            .overlay(SwiftUI.Capsule().stroke(selected ? mood.tint : .clear, lineWidth: 1.5))
+            .foregroundStyle(selected ? mood.tint : .primary)
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
     private var storageFooter: some View {
