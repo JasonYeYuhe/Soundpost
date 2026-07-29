@@ -1,5 +1,37 @@
 # Soundpost M13 — The shareable waveform video (Pro creation richness)
 
+> ## Status: **S0–S4 IMPLEMENTED** (2026-07-30)
+>
+> The committed core is complete. **246 tests / 0 warnings / i18n EN·JA·ZH-Hans 100%**,
+> zero new third-party deps (AVFoundation + AVKit are first-party), deployment target
+> still **iOS 17.0**. M10's backend and M11's Pro gating untouched; no ASC product
+> work and no submission (video rides the existing Pro entitlement).
+>
+> | Step | Commit | Tests |
+> |---|---|---|
+> | S0 — render proof (spike, since deleted) | `5474c02` | 201 |
+> | S1 — composition core + still card | `53b8aeb` | 227 |
+> | S2 — the playback-position reveal | `4dd805c` | 228 |
+> | S3 — gate before the menu + Photos string | `8620604` | 242 |
+> | S4 — progress, cancel, preflight, hardening | `2e30883` | 246 |
+> | follow-up — no-partial-file gap, privacy record | `67d8a53` | 246 |
+>
+> Findings from each step are recorded in the boxes inside §5. Two bugs were found
+> and fixed along the way that predate M13: an M12 test that deleted the app's whole
+> temporary directory, and `ShareCardView` rendering near-black at the bottom (which
+> made "Made with Soundpost" unreadable in **M11's image share** too).
+>
+> **Still human-gated** (neither blocks the code, both want a person):
+> 1. the **S2 device smoke test** — `-runVideoSelfTest` on a real device, to judge
+>    visual sync/legibility and to get the device's render time + file size (which
+>    closes §8's duration-cap item);
+> 2. the **Pro-side UI walkthrough** (menu → video → progress → cancel → share sheet)
+>    — needs an entitlement, so run it with **Edit Scheme → Options → StoreKit
+>    Configuration → `Soundpost.storekit`**. The free side, the sealed-not-due locked
+>    view, and the Pro *menu rendering* were all verified live on the simulator.
+>
+> ---
+>
 > Development plan for the phase after M12. Status feeding in (2026-06-28):
 > **M12 SHIPPED** (S1–S8). Standing bars: **200 tests / 0 warnings / i18n
 > EN·JA·ZH-Hans 100% / zero new third-party deps** (beyond Sentry). **CI live &
