@@ -18,8 +18,15 @@ struct CapsuleDetailView: View {
     @State private var showingPaywall = false
     @State private var sharePayload: SharePayload?
     @State private var exportFailed = false
-    /// A video render in flight. Blocks a second tap and shows the button working.
+    /// A video render in flight. Replaces the export control with progress + Cancel.
     @State private var isExportingVideo = false
+    /// Frames written / total, 0…1 — determinate, because "how long will this take"
+    /// deserves a real answer rather than a spinner.
+    @State private var videoProgress: Double = 0
+    /// Held so Cancel can actually stop the work.
+    @State private var videoTask: Task<Void, Never>?
+    /// A long clip: confirm the size before spending the time (§4G).
+    @State private var confirmingLargeVideo = false
     /// The temp directory holding the rendered `.mp4`. Retained until the share sheet
     /// reports it is finished with the file, then cleaned (M13 §4G).
     @State private var videoWorkspace: VideoExportWorkspace?
@@ -76,8 +83,23 @@ struct CapsuleDetailView: View {
         } message: {
             Text("Please try again.")
         }
+        // Arithmetic-only size preflight (§4G): estimated from the clip's duration and
+        // a measured per-second constant — never from a free-disk-space query, which
+        // is a Required-Reason API we deliberately don't use.
+        .alert("Prepare this video?", isPresented: $confirmingLargeVideo) {
+            Button("Cancel", role: .cancel) { }
+            Button("Continue") { startVideoExport() }
+        } message: {
+            Text("This one is about \(estimatedVideoSize), so it will take a moment to make.")
+        }
         .onAppear(perform: markOpenedIfResurfaced)
-        .onDisappear { player.stop() }
+        .onDisappear {
+            player.stop()
+            // Nobody is waiting for this render any more — stop it and let the
+            // cancellation path clean the temp dir, rather than burning CPU on a
+            // video that has nowhere to go.
+            videoTask?.cancel()
+        }
     }
 
     private var openView: some View {
@@ -138,8 +160,6 @@ struct CapsuleDetailView: View {
             // (the locked view has no export affordance, so a sealed-not-due
             // capsule structurally can't be exported — M11 §4G).
             exportControl
-                .buttonStyle(.bordered)
-                .tint(tint)
                 .padding(.top, capsule.state == .captured ? 0 : 8)
         }
     }
@@ -149,7 +169,9 @@ struct CapsuleDetailView: View {
     /// can't tease a feature they don't have. Only a Pro user is offered the choice.
     @ViewBuilder
     private var exportControl: some View {
-        if store.gate.canExport {
+        if isExportingVideo {
+            videoProgressRow
+        } else if store.gate.canExport {
             Menu {
                 Button(action: exportImageTapped) {
                     Label("Share as image", systemImage: "photo")
@@ -160,25 +182,48 @@ struct CapsuleDetailView: View {
             } label: {
                 exportLabel
             }
-            .disabled(isExportingVideo)
+            .buttonStyle(.bordered)
+            .tint(tint)
         } else {
             Button(action: { showingPaywall = true }) { exportLabel }
+                .buttonStyle(.bordered)
+                .tint(tint)
         }
     }
 
     private var exportLabel: some View {
-        Label {
-            Text("Export & share")
-        } icon: {
-            // While a render is running the icon becomes a spinner, so the button
-            // reports its own state without new copy. S4 adds determinate progress
-            // and a Cancel.
-            if isExportingVideo {
-                ProgressView()
-            } else {
-                Image(systemName: "square.and.arrow.up")
+        Label("Export & share", systemImage: "square.and.arrow.up")
+    }
+
+    /// Determinate progress plus a real Cancel. Stacked rather than in one row so it
+    /// stays readable at accessibility text sizes, and exposed to VoiceOver as one
+    /// element whose value is the percentage.
+    private var videoProgressRow: some View {
+        VStack(spacing: 10) {
+            ProgressView(value: videoProgress)
+                .progressViewStyle(.linear)
+                .tint(tint)
+                .accessibilityLabel(Text("Preparing your video…"))
+
+            HStack(alignment: .firstTextBaseline) {
+                Text("Preparing your video…")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 12)
+                Button("Cancel", action: cancelVideoExport)
+                    .font(.footnote.weight(.medium))
             }
         }
+        .frame(maxWidth: 360)
+        .padding(.horizontal)
+    }
+
+    /// The size estimate shown in the preflight prompt, localized by
+    /// `ByteCountFormatStyle`.
+    private var estimatedVideoSize: String {
+        let bytes = VideoExportConfiguration.vertical1080x1920
+            .estimatedByteCount(forDuration: capsule.durationSeconds)
+        return bytes.formatted(.byteCount(style: .file))
     }
 
     /// The M11 path, unchanged: the card image plus the capsule's audio.
@@ -201,12 +246,18 @@ struct CapsuleDetailView: View {
         case .nothingToExport:
             exportFailed = true
         case .allowed:
-            startVideoExport()
+            // Warn first only for a genuinely long clip; short ones just go.
+            if VideoExportConfiguration.vertical1080x1920
+                .needsSizeWarning(forDuration: capsule.durationSeconds) {
+                confirmingLargeVideo = true
+            } else {
+                startVideoExport()
+            }
         }
     }
 
     /// Renders off the main actor and hands the finished file to the share sheet.
-    /// Every failure path cleans the workspace, so no stale `.mp4` is left behind.
+    /// Every exit — success, failure, cancel — leaves no stale `.mp4` behind.
     private func startVideoExport() {
         let workspace: VideoExportWorkspace
         let input: VideoExportInput
@@ -219,11 +270,20 @@ struct CapsuleDetailView: View {
             return
         }
         videoWorkspace = workspace
+        videoProgress = 0
         isExportingVideo = true
-        Task {
+        videoTask = Task {
             do {
-                let result = try await VideoExporter.export(input)
+                let result = try await VideoExporter.export(input) { fraction in
+                    // Already throttled to whole percents inside the exporter, so
+                    // this is ~100 hops for a whole render, not one per frame.
+                    Task { @MainActor in videoProgress = fraction }
+                }
                 sharePayload = SharePayload(items: [result.url])
+            } catch is CancellationError {
+                // The user asked to stop. Not a failure — say nothing, leave nothing.
+                workspace.clean()
+                videoWorkspace = nil
             } catch {
                 workspace.clean()
                 videoWorkspace = nil
@@ -231,7 +291,13 @@ struct CapsuleDetailView: View {
                 exportFailed = true
             }
             isExportingVideo = false
+            videoProgress = 0
+            videoTask = nil
         }
+    }
+
+    private func cancelVideoExport() {
+        videoTask?.cancel()
     }
 
     private var lockedView: some View {

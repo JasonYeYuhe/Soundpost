@@ -12,6 +12,33 @@ import UIKit
 /// module the model wins by scope; from the test module it has to be named.
 private typealias Capsule = Soundpost.Capsule
 
+/// Collects progress callbacks from the render, which arrive on the render's own
+/// thread rather than the test's. Lock-guarded so the test can poll `latest` while
+/// the export is still running — that is what lets the cancel test fire off observed
+/// state instead of a hopeful sleep.
+private final class ProgressRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var recorded: [Double] = []
+
+    func record(_ value: Double) {
+        lock.lock()
+        recorded.append(value)
+        lock.unlock()
+    }
+
+    var values: [Double] {
+        lock.lock()
+        defer { lock.unlock() }
+        return recorded
+    }
+
+    var latest: Double {
+        lock.lock()
+        defer { lock.unlock() }
+        return recorded.last ?? 0
+    }
+}
+
 /// The headless video render path (M13 §5 S1). CI-safe: everything here runs on a
 /// simulator, and the assertions are structural **plus** pixel content — S0 proved
 /// a structure-only test goes green on a black export.
@@ -322,6 +349,93 @@ struct VideoExporterTests {
         // same math, bigger units, so the video reads like the card (§4C).
         #expect(layout.waveformGeometry.barSpacing == 6)
         #expect(layout.waveformGeometry.minBarHeight == 9)
+    }
+
+    // MARK: - Preflight (§4G) — arithmetic only
+
+    /// The estimate is a **pure function of duration**: no file is read, no volume is
+    /// queried. That is the point — `FileManager`'s free-space keys are a
+    /// Required-Reason API (`NSPrivacyAccessedAPICategoryDiskSpace`), so warning the
+    /// user is done with arithmetic instead of buying a privacy declaration.
+    @Test func theSizePreflightIsPureArithmetic() {
+        let configuration = VideoExportConfiguration.vertical1080x1920
+
+        // Deterministic and repeatable — nothing about it depends on the device.
+        #expect(configuration.estimatedByteCount(forDuration: 30)
+                == configuration.estimatedByteCount(forDuration: 30))
+        // Linear in duration.
+        #expect(configuration.estimatedByteCount(forDuration: 60)
+                == configuration.estimatedByteCount(forDuration: 30) * 2)
+        // Answers for a duration with no file behind it at all.
+        #expect(configuration.estimatedByteCount(forDuration: 300) > 0)
+        // Degenerate durations don't produce negative sizes.
+        #expect(configuration.estimatedByteCount(forDuration: 0) == 0)
+        #expect(configuration.estimatedByteCount(forDuration: -5) == 0)
+    }
+
+    /// Only genuinely long clips get a prompt. A ten-second capsule — the app's
+    /// whole premise — must never be nagged.
+    @Test func theSizeWarningFiresOnlyForLongClips() {
+        let configuration = VideoExportConfiguration.vertical1080x1920
+        #expect(!configuration.needsSizeWarning(forDuration: 10))
+        #expect(!configuration.needsSizeWarning(forDuration: 60))
+        // The free cap (60 s) never warns; the Pro maximum (5 min) does.
+        #expect(configuration.needsSizeWarning(forDuration: 300))
+
+        // And the threshold is where the constants say it is.
+        let boundary = Double(configuration.warnAboveByteCount) / Double(configuration.measuredBytesPerSecond)
+        #expect(!configuration.needsSizeWarning(forDuration: boundary - 1))
+        #expect(configuration.needsSizeWarning(forDuration: boundary + 1))
+    }
+
+    // MARK: - Progress + cancel (§4G)
+
+    @Test func progressIsDeterminateAndFinishesAtOne() async throws {
+        let fixture = try makeFixture(seconds: 1.0)
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+
+        let input = try VideoExporter.input(for: fixture.capsule, in: fixture.workspace)
+        let observed = ProgressRecorder()
+        _ = try await VideoExporter.export(input) { observed.record($0) }
+
+        let values = observed.values
+        #expect(!values.isEmpty, "no progress was reported")
+        // Determinate and forward-only, ending at 1.0 — not a spinner.
+        for (earlier, later) in zip(values, values.dropFirst()) {
+            #expect(later >= earlier, "progress went backwards: \(values)")
+        }
+        #expect(values.allSatisfy { $0 >= 0 && $0 <= 1 })
+        #expect(abs((values.last ?? 0) - 1.0) < 0.0001)
+        // Throttled to whole percents, so a long render can't flood the main actor.
+        #expect(values.count <= 101, "progress was reported \(values.count) times")
+    }
+
+    /// Cancel has to actually stop the work and leave nothing behind. Timed off
+    /// observed *progress* rather than a sleep, so it is genuinely mid-render.
+    @Test func cancellingMidRenderStopsAndLeavesNoFile() async throws {
+        let fixture = try makeFixture(seconds: 3.0)
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+
+        let input = try VideoExporter.input(for: fixture.capsule, in: fixture.workspace)
+        let observed = ProgressRecorder()
+        let task = Task { try await VideoExporter.export(input) { observed.record($0) } }
+
+        // Wait until frames are genuinely being written (90 frames total, so 5% is
+        // very early and leaves the great majority of the render still to do).
+        var waited = 0
+        while observed.latest < 0.05 && waited < 500 {
+            try await Task.sleep(for: .milliseconds(10))
+            waited += 1
+        }
+        #expect(observed.latest > 0, "the render never started, so this proves nothing")
+
+        task.cancel()
+        await #expect(throws: CancellationError.self) { _ = try await task.value }
+
+        // It stopped early…
+        #expect(observed.latest < 1.0)
+        // …and left no partial .mp4 for a share sheet to pick up.
+        #expect(!FileManager.default.fileExists(atPath: input.outputURL.path))
     }
 
     // MARK: - Temp lifecycle (§4G)

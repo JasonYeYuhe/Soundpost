@@ -345,6 +345,51 @@ preflight-warn, error) localized EN·JA·ZH-Hans in the same commit** (workflow 
 *Verify:* cancel mid-export leaves no temp files, no crash; induced failure surfaces
 honestly; warning-free; **CI green**.
 
+> ### S3–S4 findings (2026-07-30)
+>
+> **Gate placement, verified in the real UI.** Driven on the simulator as a free
+> user: the export control renders as a *plain button*, one tap goes straight to the
+> paywall, and **no image/video menu ever appears** — the no-tease rule is structural
+> (two different controls) rather than a branch inside one control. The
+> **sealed-not-due** capsule's locked view was also checked live: Sealed / opens-date
+> / honest-limits note / Unseal, and **no export affordance at all**. The new
+> "Share a video" paywall line renders correctly.
+>
+> **Deviation from §3's table (deliberate):** no separate video paywall `context:`
+> string was added. Because the gate sits *before* the menu, a free user only ever
+> meets the generic "Export & share is a Pro feature." gate, so a video-specific
+> context would be dead copy in three languages. The feature line was added as
+> specified.
+>
+> **Preflight constant, from measurement:** `measuredBytesPerSecond = 230_000`
+> (S2 measured ≈219 KB/s *with* the reveal; rounded up), warning above **40 MB** ≈
+> 2:54 of audio. So the free 60-second cap never warns and only long Pro clips do.
+> The estimate is a **pure function of duration** — asserted as such in tests —
+> because `FileManager`'s free-space keys are a Required-Reason API
+> (`NSPrivacyAccessedAPICategoryDiskSpace`) we deliberately do not adopt (§1.4/§6).
+> **No PrivacyInfo change; no nutrition-label change.**
+>
+> **Cancel is real, and tested off observed state.** The cancel test waits until the
+> render *reports* ≥5% progress before cancelling, so it is genuinely mid-render
+> rather than hoping a sleep was long enough; it then asserts `CancellationError` and
+> that **no partial `.mp4` survives**. Stable over three consecutive runs. Progress is
+> throttled to whole percents inside the exporter (≤101 callbacks for any clip
+> length), so a 9 000-frame render cannot flood the main actor with one hop per frame.
+> The view also cancels on `onDisappear` — a render nobody is waiting for should not
+> keep burning CPU.
+>
+> **Memory bound made structural:** frames are vended through
+> `CVPixelBufferPoolCreatePixelBufferWithAuxAttributes` with an allocation threshold
+> of 6. At the ceiling it returns `nil` (not an error) and the loop waits, so the
+> render slows under back pressure instead of growing.
+>
+> **Still human-gated:** the Pro-side UI walkthrough (menu → video → progress →
+> cancel → share sheet). `simctl` has no StoreKit support and the products load real
+> ASC metadata, so granting Pro on the simulator would mean making a purchase — not
+> something to do unattended. Jason can cover it with **Edit Scheme → Options →
+> StoreKit Configuration → `Soundpost.storekit`**, which makes purchases local and
+> free, alongside the S2 device run.
+
 > Drop order if tight: downgrade **S2**'s per-bar reveal to a single sweeping
 > **playhead line** over the still card (the minimal animation). **Never drop:** S0
 > (the render proof), S1 (pipeline correctness + temp lifecycle), S3 (the gate — never

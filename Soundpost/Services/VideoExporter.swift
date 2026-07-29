@@ -25,10 +25,41 @@ struct VideoExportConfiguration: Equatable, Sendable {
     /// measured constant.
     var averageBitRate: Int = 4_000_000
 
+    /// **Measured** output bytes per second of audio for this preset, *with* the
+    /// reveal drawing (M13 S2 measured ≈219 KB/s on the simulator's software
+    /// encoder — about 3× the still-card figure, because the moving bars cost real
+    /// bitrate; rounded up here). Per-preset so a future format carries its own
+    /// number instead of inheriting this one.
+    var measuredBytesPerSecond: Int64 = 230_000
+
+    /// Above this estimate, ask before starting (§4G). ≈2:54 of audio at the
+    /// measured rate, so only genuinely long clips ever see the prompt — a
+    /// ten-second capsule is never nagged.
+    var warnAboveByteCount: Int64 = 40_000_000
+
     static let vertical1080x1920 = VideoExportConfiguration()
 
     var pixelSize: CGSize { CGSize(width: width, height: height) }
     var frameDuration: CMTime { CMTime(value: 1, timescale: frameRate) }
+
+    /// Estimated output size — **arithmetic only** (§1.4 / §4G / §6).
+    ///
+    /// Soundpost deliberately never asks how much free disk space there is:
+    /// `FileManager`'s volume-capacity keys are a **Required-Reason API**
+    /// (`NSPrivacyAccessedAPICategoryDiskSpace`) that would have to be declared in
+    /// `PrivacyInfo.xcprivacy`. That is a real privacy cost for a warning we can
+    /// give from duration × a measured constant, so we do it with arithmetic.
+    ///
+    /// Note this takes the capsule's *stored* duration on purpose: the point is to
+    /// warn **before** doing any work. The render itself is always keyed to the
+    /// loaded audio-track duration (§4B) and never to this number.
+    func estimatedByteCount(forDuration seconds: Double) -> Int64 {
+        Int64(max(0, seconds) * Double(measuredBytesPerSecond))
+    }
+
+    func needsSizeWarning(forDuration seconds: Double) -> Bool {
+        estimatedByteCount(forDuration: seconds) > warnAboveByteCount
+    }
 }
 
 // MARK: - Tint
@@ -270,6 +301,11 @@ struct VideoExportResult: Equatable, Sendable {
 enum VideoExporter {
     static let logger = Logger(subsystem: "com.soundpost.Soundpost", category: "videoexport")
 
+    /// Cap on live pixel buffers. The loop appends and releases one frame at a time,
+    /// so this is never reached in practice — it is a ceiling that makes "peak
+    /// memory is a handful of frames" a property of the code rather than a hope.
+    private static let poolAllocationThreshold = 6
+
     // MARK: Main-actor preparation
 
     /// Freeze `capsule` into a render input inside `workspace`. Main-actor because
@@ -445,10 +481,20 @@ enum VideoExporter {
             }
         } catch {
             // Cancel first so the writer releases the file, then remove the partial
-            // output: a half-written .mp4 must never reach the share sheet.
+            // output: a half-written .mp4 must never reach the share sheet. This is
+            // the cancellation path too — a user cancel arrives here as
+            // `CancellationError`, and leaves nothing behind either.
             if writer.status == .writing { writer.cancelWriting() }
             reader.cancelReading()
             try? FileManager.default.removeItem(at: input.outputURL)
+            if error is CancellationError {
+                logger.info("video export cancelled")
+            } else {
+                // Log the shape of the failure, never a raw error string: those can
+                // carry file URLs. `VideoExportError`'s descriptions are static.
+                let reason = (error as? VideoExportError)?.description ?? "\(type(of: error))"
+                logger.error("video export failed: \(reason, privacy: .public)")
+            }
             throw error
         }
 
@@ -486,38 +532,51 @@ enum VideoExporter {
         var frame = 0
         var videoDone = false
         var audioDone = false
+        var reportedPercent = -1
 
         while !videoDone || !audioDone {
+            // The single cancellation point. A user's Cancel lands here between
+            // frames, so it takes effect within one frame's work rather than at the
+            // end of the render.
             try Task.checkCancellation()
             var progressed = false
 
             if !videoDone, videoInput.isReadyForMoreMediaData {
                 if frame < frameCount {
                     let index = frame
-                    try autoreleasepool {
-                        var vended: CVPixelBuffer?
-                        guard CVPixelBufferPoolCreatePixelBuffer(nil, pool, &vended) == kCVReturnSuccess,
-                              let buffer = vended else {
-                            throw VideoExportError.pixelBufferUnavailable
+                    // `nil` means the pool is momentarily at its allocation ceiling —
+                    // not an error. Fall through without advancing so the loop waits
+                    // and retries, which is what keeps memory bounded under back
+                    // pressure instead of failing the export.
+                    if let buffer = try vendPixelBuffer(from: pool) {
+                        try autoreleasepool {
+                            // The reveal's position is `t / audioTrackDuration` — the
+                            // loaded track's duration, so the sweep lands on the sound
+                            // rather than on a stored approximation of it (§4B).
+                            let seconds = Double(index) / Double(frameRate)
+                            let fraction = totalSeconds > 0 ? min(1, seconds / totalSeconds) : 1
+                            try composer.render(into: buffer, playbackFraction: fraction)
+                            let time = CMTime(value: CMTimeValue(index), timescale: frameRate)
+                            guard adaptor.append(buffer, withPresentationTime: time) else {
+                                throw VideoExportError.writerFailed("video frame \(index)")
+                            }
                         }
-                        // The reveal's position is `t / audioTrackDuration` — the
-                        // loaded track's duration, so the sweep lands on the sound
-                        // rather than on a stored approximation of it (§4B).
-                        let seconds = Double(index) / Double(frameRate)
-                        let fraction = totalSeconds > 0 ? min(1, seconds / totalSeconds) : 1
-                        try composer.render(into: buffer, playbackFraction: fraction)
-                        let time = CMTime(value: CMTimeValue(index), timescale: frameRate)
-                        guard adaptor.append(buffer, withPresentationTime: time) else {
-                            throw VideoExportError.writerFailed("video frame \(index)")
+                        frame += 1
+                        // Report at most once per whole percent: a 5-minute clip is
+                        // ~9 000 frames, and one main-actor hop per frame would cost
+                        // more than the encoding.
+                        let percent = frame * 100 / frameCount
+                        if percent != reportedPercent {
+                            reportedPercent = percent
+                            progress?(Double(frame) / Double(frameCount))
                         }
+                        progressed = true
                     }
-                    frame += 1
-                    progress?(Double(frame) / Double(frameCount))
                 } else {
                     videoInput.markAsFinished()
                     videoDone = true
+                    progressed = true
                 }
-                progressed = true
             }
 
             if !audioDone, audioInput.isReadyForMoreMediaData {
@@ -534,6 +593,25 @@ enum VideoExporter {
 
             if !progressed { try await Task.sleep(for: .milliseconds(2)) }
         }
+    }
+
+    /// Take a frame buffer from the writer's pool, bounded by
+    /// `poolAllocationThreshold`.
+    ///
+    /// Returns `nil` — not an error — when the pool is at its ceiling, so the caller
+    /// can wait instead of failing. That is what makes the memory bound real: the
+    /// render slows down under pressure rather than growing.
+    private static func vendPixelBuffer(from pool: CVPixelBufferPool) throws -> CVPixelBuffer? {
+        var vended: CVPixelBuffer?
+        let auxiliary = [
+            kCVPixelBufferPoolAllocationThresholdKey as String: poolAllocationThreshold
+        ] as CFDictionary
+        let status = CVPixelBufferPoolCreatePixelBufferWithAuxAttributes(nil, pool, auxiliary, &vended)
+        if status == kCVReturnWouldExceedAllocationThreshold { return nil }
+        guard status == kCVReturnSuccess, let buffer = vended else {
+            throw VideoExportError.pixelBufferUnavailable
+        }
+        return buffer
     }
 }
 

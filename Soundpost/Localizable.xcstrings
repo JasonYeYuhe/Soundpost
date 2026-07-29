@@ -1678,6 +1678,38 @@
         }
       }
     },
+    "Prepare this video?": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "この動画を作成しますか？"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "要制作这段视频吗？"
+          }
+        }
+      }
+    },
+    "Preparing your video…": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "動画を準備しています…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在准备你的视频…"
+          }
+        }
+      }
+    },
     "Privacy Policy": {
       "localizations": {
         "ja": {
@@ -2546,6 +2578,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "本月"
+          }
+        }
+      }
+    },
+    "This one is about %@, so it will take a moment to make.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "この動画は約 %@ です。作成に少し時間がかかります。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这段视频大约 %@，制作需要一点时间。"
           }
         }
       }
