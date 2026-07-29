@@ -455,11 +455,14 @@ enum VideoExporter {
         guard reader.startReading() else { throw VideoExportError.writerFailed("reader start") }
         guard writer.startWriting() else { throw VideoExportError.writerFailed("writer start") }
         writer.startSession(atSourceTime: .zero)
-        guard let pool = adaptor.pixelBufferPool else { throw VideoExportError.pixelBufferUnavailable }
-
         logger.info("video export started: \(frameCount, privacy: .public) frames")
 
         do {
+            // Inside the `do` on purpose: the pool only exists once the writer has
+            // started, which is also the moment the output file starts existing. A
+            // throw from here has to go through the cleanup path like any other, or
+            // it would leave a zero-byte .mp4 behind.
+            guard let pool = adaptor.pixelBufferPool else { throw VideoExportError.pixelBufferUnavailable }
             let composer = try FrameComposer(input: input)
             try await pump(
                 videoInput: videoInput,

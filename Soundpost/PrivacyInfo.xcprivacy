@@ -90,6 +90,21 @@
 	     in the App Privacy sense. No new Required-Reason API either: the card
 	     theme uses the app's own UserDefaults (CA92.1, below) and export
 	     writes a temp file (C617.1, below). ASC nutrition label unchanged. -->
+	<!-- M13 video export: evaluated and adds NOTHING here. The video is rendered
+	     on-device with AVFoundation into a temp directory inside the app
+	     container and leaves only by the user's explicit share; no new data is
+	     collected and no new IAP exists (video rides the existing Pro
+	     entitlement). Two Required-Reason API points, both already covered by
+	     C617.1 below ("timestamps, size, or other metadata of files inside the
+	     app container"): the launch scavenge reads .contentModificationDateKey on
+	     our own export directories, and the finished .mp4's size is read to
+	     report it. NSPrivacyAccessedAPICategoryDiskSpace is deliberately NOT
+	     declared, and must not become necessary: the size preflight estimates
+	     from clip duration x a measured constant and never queries free space
+	     (docs/M13-DEVPLAN.md §1.4/§4G/§6). Photos "Save Video" from the share
+	     sheet is a runtime *permission*, not a Required-Reason API — its purpose
+	     string is NSPhotoLibraryAddUsageDescription, and it is not a collection
+	     declaration. ASC nutrition label unchanged. -->
 	<key>NSPrivacyAccessedAPITypes</key>
 	<array>
 		<dict>
