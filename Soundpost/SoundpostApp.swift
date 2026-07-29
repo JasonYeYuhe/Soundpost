@@ -132,6 +132,11 @@ private struct RootView: View {
                     accountChanges.start(container: store.container, notifications: notifications, registrar: registrar)
                     // Watch CloudKit sync health for honest, calm in-app copy (S5/S6).
                     syncMonitor.start(rung: store.rung)
+                    // Reclaim video-export temp dirs a previous launch left behind
+                    // (a crash, a kill, or a share sheet that never called back —
+                    // M13 §4G). Nothing is in flight at launch, and it only ever
+                    // removes children of our own export container.
+                    VideoExportWorkspace.scavenge()
                 }
         } else {
             Color.clear // unreachable in practice; never crash if the store is missing

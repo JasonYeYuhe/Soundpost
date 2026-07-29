@@ -20,22 +20,20 @@ struct WaveformView: View {
         Canvas { context, size in
             guard !samples.isEmpty else { return }
             let count = samples.count
-            let totalSpacing = barSpacing * CGFloat(count - 1)
-            let barWidth = max(1, (size.width - totalSpacing) / CGFloat(count))
-            let midY = size.height / 2
+            // The bar math lives in `WaveformGeometry` so this view and the video
+            // renderer draw the same waveform (M13 §4B) — identical arithmetic,
+            // one place to change it.
+            let geometry = WaveformGeometry(barSpacing: barSpacing, minBarHeight: minBarHeight)
 
-            for (index, sample) in samples.enumerated() {
-                let height = max(minBarHeight, CGFloat(sample) * size.height)
-                let x = CGFloat(index) * (barWidth + barSpacing)
-                let rect = CGRect(x: x, y: midY - height / 2, width: barWidth, height: height)
+            for (index, bar) in geometry.bars(for: samples, in: size).enumerated() {
                 let fillColor: Color
                 if let progress {
-                    let played = Double(index) / Double(count) <= progress
+                    let played = WaveformGeometry.isPlayed(index: index, count: count, progress: progress)
                     fillColor = played ? color : color.opacity(0.25)
                 } else {
                     fillColor = color
                 }
-                context.fill(Path(roundedRect: rect, cornerRadius: barWidth / 2), with: .color(fillColor))
+                context.fill(Path(roundedRect: bar.rect, cornerRadius: bar.cornerRadius), with: .color(fillColor))
             }
         }
         .animation(reduceMotion ? nil : .linear(duration: 0.08), value: samples)

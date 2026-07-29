@@ -12,6 +12,16 @@ import SwiftUI
 struct ShareCardView: View {
     let capsule: Capsule
 
+    /// The static image share keeps its decorative waveform. The **video** card
+    /// hides it (`false`) because the video draws one *animated* waveform in its
+    /// own region — otherwise the frame would show two waveforms (M13 §4C).
+    var showsWaveform: Bool = true
+
+    /// Cap the note's height so a long or heavily-localized line can't grow the
+    /// card past the fixed video canvas (M13 §4C). `nil` keeps M11's unbounded
+    /// behaviour for the image share, whose canvas grows with the content.
+    var noteLineLimit: Int? = nil
+
     private var tint: Color { capsule.mood?.tint ?? .accentColor }
     // Fixed inks (scheme-independent) over a near-white card.
     private let ink = Color(white: 0.12)
@@ -35,13 +45,16 @@ struct ShareCardView: View {
                 Spacer(minLength: 0)
             }
 
-            WaveformView(samples: capsule.waveformSamples, color: tint, isDecorative: true)
-                .frame(height: 72)
+            if showsWaveform {
+                WaveformView(samples: capsule.waveformSamples, color: tint, isDecorative: true)
+                    .frame(height: 72)
+            }
 
             if let note = capsule.note, !note.isEmpty {
                 Text(note)
                     .font(.title3.weight(.medium))
                     .foregroundStyle(ink)
+                    .lineLimit(noteLineLimit)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
