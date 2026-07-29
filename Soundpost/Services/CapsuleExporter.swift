@@ -66,8 +66,19 @@ struct SharePayload: Identifiable {
 struct ShareSheet: UIViewControllerRepresentable {
     let items: [Any]
 
+    /// Called when the sheet finishes — shared, saved, or cancelled alike.
+    ///
+    /// A shared **video** lives in a temp workspace that must outlive the sheet: the
+    /// activity reads the file lazily, so deleting it at presentation time would hand
+    /// the user a broken share. This is the signal that the file is finally free to
+    /// clean up (M13 §4G / Codex #9).
+    var onFinish: (() -> Void)? = nil
+
     func makeUIViewController(context: Context) -> UIActivityViewController {
-        UIActivityViewController(activityItems: items, applicationActivities: nil)
+        let controller = UIActivityViewController(activityItems: items, applicationActivities: nil)
+        let onFinish = self.onFinish
+        controller.completionWithItemsHandler = { _, _, _, _ in onFinish?() }
+        return controller
     }
 
     func updateUIViewController(_ controller: UIActivityViewController, context: Context) {}

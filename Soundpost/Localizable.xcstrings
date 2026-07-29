@@ -2113,6 +2113,54 @@
         }
       }
     },
+    "Share a video": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "動画にして共有"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "制作可分享的视频"
+          }
+        }
+      }
+    },
+    "Share as image": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "画像として共有"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "分享为图片"
+          }
+        }
+      }
+    },
+    "Share as video": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "動画として共有"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "分享为视频"
+          }
+        }
+      }
+    },
     "Show your words on the lock screen": {
       "localizations": {
         "ja": {
@@ -2562,6 +2610,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "重试"
+          }
+        }
+      }
+    },
+    "Turn a capsule into a short video whose waveform lights up in time with the sound.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "カプセルを短い動画に。波形が音に合わせて左から順に光ります。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "把胶囊变成一段短视频，波形会随声音从左到右逐段亮起。"
           }
         }
       }

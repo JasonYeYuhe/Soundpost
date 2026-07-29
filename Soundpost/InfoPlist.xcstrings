@@ -61,6 +61,30 @@
           }
         }
       }
+    },
+    "NSPhotoLibraryAddUsageDescription" : {
+      "comment" : "Why Soundpost asks to add to the photo library",
+      "extractionState" : "extracted_with_value",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Soundpost saves a card or video you export to your photo library."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "書き出したカードや動画を写真ライブラリに保存します。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Soundpost 会把你导出的卡片或视频保存到你的照片图库。"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

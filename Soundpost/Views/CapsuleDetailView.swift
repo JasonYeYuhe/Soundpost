@@ -18,6 +18,11 @@ struct CapsuleDetailView: View {
     @State private var showingPaywall = false
     @State private var sharePayload: SharePayload?
     @State private var exportFailed = false
+    /// A video render in flight. Blocks a second tap and shows the button working.
+    @State private var isExportingVideo = false
+    /// The temp directory holding the rendered `.mp4`. Retained until the share sheet
+    /// reports it is finished with the file, then cleaned (M13 §4G).
+    @State private var videoWorkspace: VideoExportWorkspace?
 
     private var tint: Color { capsule.mood?.tint ?? .accentColor }
     private var isLocked: Bool { capsule.state == .sealed && !capsule.isContentVisible() }
@@ -54,7 +59,15 @@ struct CapsuleDetailView: View {
         } message: {
             Text("This capsule is sealed and will reappear here on its date. To be reminded on the day, turn on notifications for Soundpost in Settings.")
         }
-        .sheet(item: $sharePayload) { ShareSheet(items: $0.items) }
+        .sheet(item: $sharePayload) { payload in
+            // Clean the video's temp dir only once the sheet is done with the file —
+            // shared, saved, or cancelled. (No-op for the image share, which owns no
+            // workspace.)
+            ShareSheet(items: payload.items) {
+                videoWorkspace?.clean()
+                videoWorkspace = nil
+            }
+        }
         .sheet(isPresented: $showingPaywall) {
             ProPaywallView(context: "Export & share is a Pro feature.")
         }
@@ -124,22 +137,100 @@ struct CapsuleDetailView: View {
             // Export/share — Pro-gated, offered only here in the *visible* view
             // (the locked view has no export affordance, so a sealed-not-due
             // capsule structurally can't be exported — M11 §4G).
-            Button(action: exportTapped) {
-                Label("Export & share", systemImage: "square.and.arrow.up")
-            }
-            .buttonStyle(.bordered)
-            .tint(tint)
-            .padding(.top, capsule.state == .captured ? 0 : 8)
+            exportControl
+                .buttonStyle(.bordered)
+                .tint(tint)
+                .padding(.top, capsule.state == .captured ? 0 : 8)
         }
     }
 
-    /// Pro users share the card image + audio; free users meet the one paywall.
-    private func exportTapped() {
-        guard store.gate.canExport else { showingPaywall = true; return }
+    /// **The gate sits before the menu** (M13 §4E). A free user taps one button and
+    /// meets one paywall — they never see an image/video menu, so the affordance
+    /// can't tease a feature they don't have. Only a Pro user is offered the choice.
+    @ViewBuilder
+    private var exportControl: some View {
+        if store.gate.canExport {
+            Menu {
+                Button(action: exportImageTapped) {
+                    Label("Share as image", systemImage: "photo")
+                }
+                Button(action: exportVideoTapped) {
+                    Label("Share as video", systemImage: "film")
+                }
+            } label: {
+                exportLabel
+            }
+            .disabled(isExportingVideo)
+        } else {
+            Button(action: { showingPaywall = true }) { exportLabel }
+        }
+    }
+
+    private var exportLabel: some View {
+        Label {
+            Text("Export & share")
+        } icon: {
+            // While a render is running the icon becomes a spinner, so the button
+            // reports its own state without new copy. S4 adds determinate progress
+            // and a Cancel.
+            if isExportingVideo {
+                ProgressView()
+            } else {
+                Image(systemName: "square.and.arrow.up")
+            }
+        }
+    }
+
+    /// The M11 path, unchanged: the card image plus the capsule's audio.
+    private func exportImageTapped() {
         if let payload = CapsuleExporter.payload(for: capsule) {
             sharePayload = payload
         } else {
             exportFailed = true
+        }
+    }
+
+    /// The M13 path: render the branded waveform video, then share it.
+    private func exportVideoTapped() {
+        guard !isExportingVideo else { return }
+        switch VideoExportPolicy.decide(for: capsule, gate: store.gate) {
+        case .needsPro:
+            // Only reachable if the entitlement lapsed between this view rendering
+            // and the tap. Same single paywall, no video-specific sales pitch.
+            showingPaywall = true
+        case .nothingToExport:
+            exportFailed = true
+        case .allowed:
+            startVideoExport()
+        }
+    }
+
+    /// Renders off the main actor and hands the finished file to the share sheet.
+    /// Every failure path cleans the workspace, so no stale `.mp4` is left behind.
+    private func startVideoExport() {
+        let workspace: VideoExportWorkspace
+        let input: VideoExportInput
+        do {
+            workspace = try VideoExportWorkspace.makeUnique()
+            input = try VideoExporter.input(for: capsule, in: workspace)
+        } catch {
+            Diagnostics.notice("Video export could not start")
+            exportFailed = true
+            return
+        }
+        videoWorkspace = workspace
+        isExportingVideo = true
+        Task {
+            do {
+                let result = try await VideoExporter.export(input)
+                sharePayload = SharePayload(items: [result.url])
+            } catch {
+                workspace.clean()
+                videoWorkspace = nil
+                Diagnostics.notice("Video export failed")
+                exportFailed = true
+            }
+            isExportingVideo = false
         }
     }
 

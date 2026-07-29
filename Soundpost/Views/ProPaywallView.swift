@@ -125,6 +125,11 @@ struct ProPaywallView: View {
                 subtitle: "Save a card as an image with its audio, and share it anywhere."
             )
             ProFeatureRow(
+                icon: "film",
+                title: "Share a video",
+                subtitle: "Turn a capsule into a short video whose waveform lights up in time with the sound."
+            )
+            ProFeatureRow(
                 icon: "timer",
                 title: "Record up to 5 minutes",
                 subtitle: "Go beyond the free 60-second clip when a moment needs longer."

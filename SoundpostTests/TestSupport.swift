@@ -13,7 +13,12 @@ enum TestSupport {
     static let container: ModelContainer = {
         try! ModelContainer(
             for: Capsule.self,
-            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+            // `cloudKitDatabase: .none`: the default is `.automatic`, which — because
+            // the app carries the CloudKit entitlement — makes even this in-memory
+            // store spin up a mirroring delegate that then fails with
+            // "CKAccountStatusNoAccount" on a simulator. Harmless but noisy in CI
+            // logs, and a pointless piece of async work inside every test run.
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         )
     }()
 
