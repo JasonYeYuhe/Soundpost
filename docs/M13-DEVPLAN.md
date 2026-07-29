@@ -202,6 +202,73 @@ synthetic-track path, and record why. *Verify:* the spike's structural assertion
 pass in CI; findings written into this doc. **Delete the throwaway before S1** (keep
 only what graduates into `VideoExporter`).
 
+> ### S0 findings (2026-07-29) — **PASSED, `AVAssetWriter` confirmed**
+>
+> `SoundpostTests/S0VideoRenderProofSpikeTests.swift` (throwaway; deleted at S1).
+> 201 tests green / 0 warnings / i18n 100%.
+>
+> **Verdict: keep `AVAssetWriter` as the primary path — no override.** It worked
+> first try on the sim; there is no reason to revisit the CoreAnimationTool
+> synthetic-track alternative (§11 keeps it documented only).
+>
+> **1. The simulator *can* do it.** On macos-26 / Xcode 26.6, iPhone 17 sim:
+> H.264 **High** profile (`AVVideoProfileLevelH264HighAutoLevel`) encodes at
+> **1080×1920 @ 30 fps**, and AAC **passthrough** (`outputSettings: nil` +
+> `sourceFormatHint`) muxes into `.mp4`. No sim-skip / device-only fallback is
+> needed (§7's contingency is unused).
+>
+> **2. The frames are real, not black.** First-frame mean luminance **0.242**
+> (bar: > 0.05); last frame **0.247** > first, so per-frame drawing genuinely
+> changes over time. This is the assertion a purely structural test cannot make.
+>
+> **3. Sync tolerances — two, not one.** The *video* track lands within **one
+> frame (33.3 ms)** of the loaded audio-track duration, as specified. The muxed
+> *audio* track needs its own, looser tolerance (**< 100 ms**): passthrough
+> carries the source's own packet timing, so container priming/rounding puts it a
+> few ms off, and one frame is too tight a bar for it. Both are asserted
+> separately rather than folding audio into the frame-accurate claim.
+>
+> **4. P0 discovered by the spike — the pump must interleave.** Feeding one
+> writer input to exhaustion before the other **deadlocks**:
+> `isReadyForMoreMediaData` goes false on whichever input runs ahead and is only
+> cleared by the *other* input's data. The working shape — a single-threaded loop
+> that services whichever input is ready and sleeps only when neither is — is
+> what graduates into `VideoExporter`, and it is cancellable and memory-bounded
+> by construction. (A two-task/`requestMediaDataWhenReady` design was rejected as
+> more moving parts for no gain.)
+>
+> **5. Orientation idiom confirmed.** An explicit top-left / y-down `CGContext`
+> (`translateBy(y: height)` + `scaleBy(y: -1)`) plus a **local** re-flip around
+> each `CGContext.draw(image:in:)` — the `UIImage.draw(in:)` idiom. Visual
+> upright-ness remains a **device** check (S2), as planned.
+>
+> **6. Measurements** (iPhone 17 sim, *software* encoder, still card — a device's
+> hardware encoder will be materially faster):
+>
+> | Clip | Frames | Render | ×realtime | Output | Bytes/s |
+> |---|---|---|---|---|---|
+> | 1 s | 30 | 1.13 s | 1.13× | 113 KB | 113 KB/s |
+> | 10 s | 300 | 4.25 s | 0.42× | 775 KB | 78 KB/s |
+>
+> Target average bitrate is 4 Mbps; actual at 10 s is **≈ 620 kbps** — near-static
+> content encodes far under target, and per-second cost *falls* with length as the
+> first keyframe amortizes. Extrapolated 5-minute (Pro-max) clip: **≈ 23 MB, ≈ 2
+> min on the sim**. **On this evidence no duration cap is needed** for the 5-min
+> Pro maximum (§8) — confirm against the device measurement at S2 before closing
+> that item. §4G's arithmetic preflight constant is deliberately *not* fixed here:
+> it will be set from the S2-era measurement, once the real per-frame reveal (which
+> raises the bitrate above this still-card figure) is in.
+>
+> **7. Pre-existing bug found and fixed** (`SoundpostTests/CapsuleBulkExporterTests.swift`):
+> two tests cleaned up with `removeItem(at: folder.deletingLastPathComponent())`,
+> but `tempFolder()` returns a *direct child* of the app's temporary directory — so
+> the cleanup recursively deleted the whole of `tmp/`. Latent since M12 and
+> invisible while every test was `@MainActor` + synchronous (nothing else held a
+> temp file at that instant); the S0 spike is the first test to hold temp files
+> across an `await`, and its source `.m4a` was deleted mid-render. Fixed to remove
+> the bundle folder itself. **Lesson carried into S1:** never delete a parent
+> directory, and give the video export its own uniquely-named dir.
+
 **S1 — The composition core + still card (headless, testable).** `VideoExporter`
 (off-main): unique temp `.m4a` (audio) → `AVAssetWriter` video (still video card,
 **no reveal yet**) + audio mux → `.mp4`, using the **loaded audio-track duration**.
@@ -274,13 +341,20 @@ declared in PrivacyInfo + re-verified in the same commit if ever adopted. No new
 
 ## 8. Human-in-the-loop checklist (needs Jason)
 
-- [ ] **Confirm the overridable product decisions:** **vertical 1080×1920** v1 (vs
-  square) [recommended: vertical, matches the Stories/Reels ROI]; **`AVAssetWriter`
-  primary** (S0 may override); keep the "Made with Soundpost" mark (no paid brand-off);
-  a **duration cap** for very long clips is decided **after S0/device measurement**.
-- [ ] **Photos permission (§4H):** confirm on a real iOS-17 device whether "Save
-  Video" needs `NSPhotoLibraryAddUsageDescription`; approve adding + translating it if
-  so.
+- [x] **Confirmed 2026-07-29 (Jason):** **vertical 1080×1920 / 30 fps / H.264 + AAC**
+  for v1 (square is OUT, §11); **`AVAssetWriter` primary** — S0 passed first try and
+  did **not** override it; keep the "Made with Soundpost" mark (no paid brand-off).
+  A **duration cap** is *not* needed on S0's sim measurement (5-min Pro clip ≈ 23 MB;
+  see the S0 findings box in §5) — **re-check against the device measurement at S2**
+  before closing this.
+- [x] **Photos permission (§4H) — decided 2026-07-29 (Jason): add it in S3.**
+  `INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription` + a translated
+  `InfoPlist.xcstrings` entry (EN·JA·ZH-Hans). Grounded in a repo finding, not just
+  the plan's caution: there is **no** photo-library key in the project today, so
+  M11's *existing* image share already fails the share sheet's "Save Image" activity —
+  iOS has required this add-only purpose string for that activity since iOS 11. An
+  unneeded add-only string is harmless; a missing one is a crash. Still worth
+  confirming on-device alongside the S2 smoke test.
 - [ ] **On-device smoke test (S2)** is human-gated (the sim can't fully judge visual
   sync/legibility) — a real capsule exported + played back with synced animation.
 - [ ] **No ASC product work** (video is the existing Pro entitlement — no new IAP).

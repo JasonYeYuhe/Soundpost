@@ -29,7 +29,12 @@ struct CapsuleBulkExporterTests {
         let a = try seed(store, note: "rain", mood: .calm, blobByte: 0xA1, bytes: 4000)
         let b = try seed(store, note: "birds", mood: .joyful, blobByte: 0xB2, bytes: 5000)
         let folder = tempFolder()
-        defer { try? FileManager.default.removeItem(at: folder.deletingLastPathComponent()) }
+        // Remove the bundle folder itself — NOT its parent. `tempFolder()` is a
+        // direct child of the app's temporary directory, so deleting the parent
+        // recursively wipes `tmp/` out from under every other test that has a
+        // file there (found by M13 S0, the first test to hold temp files across
+        // an `await`: its source `.m4a` vanished mid-render).
+        defer { try? FileManager.default.removeItem(at: folder) }
 
         try CapsuleBulkExporter.writeBundle(in: store.context, container: TestSupport.container, to: folder)
 
@@ -59,7 +64,12 @@ struct CapsuleBulkExporterTests {
         try store.markCaptured(c, audioFileName: "missing.m4a", audioData: nil, durationSeconds: 3, waveformSamples: [])
         try store.save()
         let folder = tempFolder()
-        defer { try? FileManager.default.removeItem(at: folder.deletingLastPathComponent()) }
+        // Remove the bundle folder itself — NOT its parent. `tempFolder()` is a
+        // direct child of the app's temporary directory, so deleting the parent
+        // recursively wipes `tmp/` out from under every other test that has a
+        // file there (found by M13 S0, the first test to hold temp files across
+        // an `await`: its source `.m4a` vanished mid-render).
+        defer { try? FileManager.default.removeItem(at: folder) }
 
         try CapsuleBulkExporter.writeBundle(in: store.context, container: TestSupport.container, to: folder)
 
