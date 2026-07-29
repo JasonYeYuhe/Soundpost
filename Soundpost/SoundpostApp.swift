@@ -107,6 +107,8 @@ private struct RootView: View {
             #if DEBUG
             if AppEnvironment.isAudioSelfTest {
                 Color.clear.task { await AudioSelfTest.run() }   // headless audio-pipeline check
+            } else if AppEnvironment.isVideoSelfTest {
+                VideoSelfTestView()                              // M13 §5 S2 device smoke test
             } else if AppEnvironment.isDemoSeed {
                 ContentView().modelContainer(DemoData.container) // screenshots skip onboarding
             } else {
@@ -172,7 +174,7 @@ enum AppEnvironment {
     /// container — i.e. not under tests, the demo seed, or the audio self-test
     /// (each of which uses its own store).
     static var usesProductionContainer: Bool {
-        !isRunningUnderTests && !isDemoSeed && !isAudioSelfTest
+        !isRunningUnderTests && !isDemoSeed && !isAudioSelfTest && !isVideoSelfTest
     }
 
     /// Debug screenshot/demo mode: in-memory store pre-seeded with sample capsules.
@@ -183,5 +185,11 @@ enum AppEnvironment {
     /// Debug-only: run the headless audio-pipeline self-test instead of the UI.
     static var isAudioSelfTest: Bool {
         CommandLine.arguments.contains("-runAudioSelfTest")
+    }
+
+    /// Debug-only: render a capsule to video and play it back for the human-gated
+    /// device smoke test the simulator can't stand in for (M13 §5 S2).
+    static var isVideoSelfTest: Bool {
+        CommandLine.arguments.contains("-runVideoSelfTest")
     }
 }

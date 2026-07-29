@@ -158,34 +158,51 @@ struct VideoExporterTests {
                 "the card/waveform gap should be bare dark background, measured \(gapBrightness) — flipped?")
     }
 
-    /// S1 renders a **still** card: every frame is the same blit, so brightness must
-    /// not drift across the clip. S2 replaces this with the opposite assertion — a
-    /// reveal that measurably grows — which is what makes that step's change visible.
-    @Test func s1FramesAreStillAcrossTheClip() async throws {
-        let fixture = try makeFixture()
+    /// The reveal, asserted over the **exported file** rather than the composition
+    /// that produced it (§5 S2). Frames are decoded with zero time tolerance at
+    /// t = 0, three points through the clip, and `duration − frameDuration`; the lit
+    /// share of the waveform region must grow at every step, while the card stays
+    /// put. That is what "the waveform lights up in time with the audio" means in a
+    /// form a machine can check — the *look* of it stays the device smoke test.
+    @Test func theRevealSweepsLeftToRightAndOnlyEverGrows() async throws {
+        let fixture = try makeFixture(seconds: 2.0)
         defer { try? FileManager.default.removeItem(at: fixture.root) }
 
         let input = try VideoExporter.input(for: fixture.capsule, in: fixture.workspace)
         let result = try await VideoExporter.export(input)
-        let frameDuration = input.configuration.frameDuration
 
-        let first = try await VideoFrameProbe.image(from: result.url, at: .zero)
-        let middle = try await VideoFrameProbe.image(
-            from: result.url,
-            at: CMTimeMultiplyByFloat64(result.duration, multiplier: 0.5)
-        )
-        let last = try await VideoFrameProbe.image(
-            from: result.url,
-            at: CMTimeSubtract(result.duration, frameDuration)
-        )
+        let times: [CMTime] = [.zero]
+            + [0.25, 0.5, 0.75].map { CMTimeMultiplyByFloat64(result.duration, multiplier: $0) }
+            + [CMTimeSubtract(result.duration, input.configuration.frameDuration)]
 
-        let brightnesses = try [first, middle, last].map {
-            try VideoFrameProbe.meanBrightness(of: $0, in: input.layout.waveform)
+        var coverage: [Double] = []
+        var cardBrightness: [Double] = []
+        for time in times {
+            let frame = try await VideoFrameProbe.image(from: result.url, at: time)
+            // Every sampled frame is a real, non-black frame.
+            #expect(try VideoFrameProbe.meanBrightness(of: frame) > 0.05)
+            coverage.append(try VideoFrameProbe.brightCoverage(of: frame, in: input.layout.waveform))
+            cardBrightness.append(try VideoFrameProbe.meanBrightness(of: frame, in: input.layout.card))
         }
-        for value in brightnesses.dropFirst() {
-            // Tolerance covers lossy H.264 round-tripping of identical frames.
-            #expect(abs(value - brightnesses[0]) < 0.02,
-                    "S1 frames should be identical; saw \(brightnesses)")
+
+        // Thresholds sit well inside the measured behaviour (coverage runs
+        // ≈0.02 → 0.14 → 0.31 → 0.45 → 0.62, card brightness holds to ±0.001), so
+        // they assert the real property without going flaky on encoder jitter.
+
+        // 1. Monotonically increasing reveal — never a step backwards.
+        for (earlier, later) in zip(coverage, coverage.dropFirst()) {
+            #expect(later > earlier, "reveal coverage went backwards: \(coverage)")
+        }
+        // 2. It is a genuine sweep, not a flicker: almost nothing lit at the start,
+        //    most of the waveform lit at the end.
+        #expect(coverage[0] < 0.08, "too much already lit at t=0: \(coverage)")
+        #expect(coverage.last ?? 0 > 0.4, "the waveform never fills in: \(coverage)")
+
+        // 3. The card ROI is stable — the reveal happens in its own region and must
+        //    not disturb the branded card behind it.
+        for value in cardBrightness.dropFirst() {
+            #expect(abs(value - cardBrightness[0]) < 0.01,
+                    "the card region shifted during the reveal: \(cardBrightness)")
         }
     }
 
@@ -239,6 +256,34 @@ struct VideoExporterTests {
                                                 noteLineLimit: 4)).uiImage
         )
         #expect(capped.size.height < uncapped.size.height)
+    }
+
+    /// The card must be light **top to bottom**, because every ink on it is a fixed
+    /// dark grey chosen for a near-white ground (`ink` 0.12 / `inkSecondary` 0.42).
+    ///
+    /// Regression guard: the card's gradient ends in a *translucent* tint, so it needs
+    /// an opaque base under it. Without one, `ImageRenderer`'s opaque backing shows
+    /// through and the bottom of the card renders near-black (measured luminance
+    /// 0.13), hiding the duration, the place, and the "Made with Soundpost" mark. The
+    /// simulator's structural tests were all green while that was true — it took
+    /// looking at an exported frame to see it (M13 S2).
+    @Test func theShareCardIsLightTopToBottomSoItsInkStaysLegible() throws {
+        let fixture = try makeFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+
+        for mood in Mood.allCases {
+            fixture.capsule.mood = mood
+            let card = try #require(VideoExporter.cardImage(for: fixture.capsule, targetWidth: 907)?.cgImage)
+            let width = CGFloat(card.width)
+            let height = CGFloat(card.height)
+            let top = CGRect(x: 0, y: 0, width: width, height: height / 8)
+            let bottom = CGRect(x: 0, y: height * 7 / 8, width: width, height: height / 8)
+
+            let topLuma = try VideoFrameProbe.meanBrightness(of: card, in: top)
+            let bottomLuma = try VideoFrameProbe.meanBrightness(of: card, in: bottom)
+            #expect(topLuma > 0.7, "\(mood.rawValue): card top is dark (\(topLuma))")
+            #expect(bottomLuma > 0.7, "\(mood.rawValue): card bottom is dark (\(bottomLuma)) — its grey ink is unreadable there")
+        }
     }
 
     // MARK: - Layout

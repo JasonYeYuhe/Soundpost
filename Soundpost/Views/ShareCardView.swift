@@ -81,6 +81,13 @@ struct ShareCardView: View {
         .padding(24)
         .frame(width: 360, alignment: .leading)
         .background {
+            // The gradient's lower stop is a *translucent* tint, so it needs an
+            // opaque base beneath it. Without one, `ImageRenderer`'s opaque backing
+            // (black) shows through and the bottom of this "near-white card" renders
+            // near-black — which makes `inkSecondary` (the duration, the place, the
+            // "Made with Soundpost" mark) unreadable. Found by inspecting real
+            // exported video frames in M13 S2; it affected M11's image share too.
+            Color.white
             LinearGradient(colors: [Color.white, tint.opacity(0.12)],
                            startPoint: .top, endPoint: .bottom)
         }

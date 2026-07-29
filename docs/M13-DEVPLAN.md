@@ -290,6 +290,44 @@ frames **non-black**, the card ROI **stable**, and bright-waveform coverage
 **monotonically increases** (Codex #7, workflow #10). Reword acceptance so "the video
 integration test" = these structural/content assertions, not a brittle 2-frame diff.
 
+> ### S2 findings (2026-07-30)
+>
+> **The reveal is verifiably in sync.** The CI test decodes the exported `.mp4` at
+> t=0 / 25% / 50% / 75% / duration−frameDuration with zero tolerance; lit coverage
+> of the waveform region runs **0.02 → 0.14 → 0.31 → 0.45 → 0.62** (monotonic, wide
+> margins) while the card ROI holds to **±0.001**. Thresholds were set from those
+> measurements, not guessed, so the test asserts the real property without going
+> flaky on encoder jitter.
+>
+> **The device harness exists and was validated on the simulator first**
+> (`Soundpost/VideoSelfTest.swift`, DEBUG-only, `-runVideoSelfTest`). It renders a
+> clip built to make sync **falsifiable by eye** — four rising beeps at 0.4 / 1.9 /
+> 3.4 / 5.1 s of a 6 s clip, so the waveform shows four separated peaks and the
+> playhead must cross each one exactly as it sounds — then plays the result back and
+> writes an `AudioSelfTest`-shaped JSON verdict. Sim run: **PASS, drift 0.0000 s**,
+> H.264 1080×1920, 180 frames.
+>
+> **Frames were inspected, not just measured.** Rendering on the sim and looking at
+> decoded frames confirmed: card upright (glyph/date top, mark bottom), note legible,
+> sweep left→right, and — at t=3.0 s — the playhead exactly at 50% with the 0.4 s and
+> 1.9 s peaks lit and the 3.4 s / 5.1 s peaks still dim. That is playback-position
+> sync demonstrated, not asserted.
+>
+> **Bug found by looking (and fixed):** `ShareCardView`'s background gradient ends in
+> a *translucent* tint (`tint.opacity(0.12)`) with no opaque base, so
+> `ImageRenderer`'s opaque backing showed through and the bottom of the "near-white
+> card" rendered **near-black** (measured luminance **0.13** vs 0.94 at the top). Its
+> inks are fixed dark greys chosen for a light ground, so the duration, the place and
+> the **"Made with Soundpost" mark were unreadable**. This affected **M11's image
+> share too** — and every structural test was green while it was true. Fixed by
+> layering the gradient over an opaque `Color.white`, with a regression test asserting
+> the card is light top *and* bottom **for all seven moods**.
+>
+> **Measured with the real reveal** (sim, software encoder): **≈ 219 KB/s**, ≈ 3×
+> the still-card figure — the moving bars and playhead cost real bitrate. Projected
+> 5-minute clip **≈ 66 MB**, ≈ 70 s to render on the sim. This is the constant §4G's
+> arithmetic preflight is built from (S4); the device run replaces it if it differs.
+
 **S3 — Gate + share UI.** Free export tap → paywall directly (unchanged); Pro → a
 menu ("Share as image" / "Share as video"); the testable action policy (§4E); a
 "Share a video" paywall feature line. **Add regression tests** that reveal/playback/

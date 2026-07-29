@@ -433,6 +433,7 @@ enum VideoExporter {
                 readerOutput: readerOutput,
                 frameCount: frameCount,
                 frameRate: configuration.frameRate,
+                duration: duration,
                 composer: composer,
                 progress: progress
             )
@@ -477,9 +478,11 @@ enum VideoExporter {
         readerOutput: AVAssetReaderTrackOutput,
         frameCount: Int,
         frameRate: Int32,
+        duration: CMTime,
         composer: FrameComposer,
         progress: (@Sendable (Double) -> Void)?
     ) async throws {
+        let totalSeconds = duration.seconds
         var frame = 0
         var videoDone = false
         var audioDone = false
@@ -497,7 +500,12 @@ enum VideoExporter {
                               let buffer = vended else {
                             throw VideoExportError.pixelBufferUnavailable
                         }
-                        try composer.render(into: buffer)
+                        // The reveal's position is `t / audioTrackDuration` — the
+                        // loaded track's duration, so the sweep lands on the sound
+                        // rather than on a stored approximation of it (§4B).
+                        let seconds = Double(index) / Double(frameRate)
+                        let fraction = totalSeconds > 0 ? min(1, seconds / totalSeconds) : 1
+                        try composer.render(into: buffer, playbackFraction: fraction)
                         let time = CMTime(value: CMTimeValue(index), timescale: frameRate)
                         guard adaptor.append(buffer, withPresentationTime: time) else {
                             throw VideoExportError.writerFailed("video frame \(index)")
@@ -533,11 +541,17 @@ enum VideoExporter {
 
 /// Composes video frames.
 ///
-/// The still parts — the tinted ground, the branded card, the waveform — are drawn
-/// **once** into a cached image; each frame is then a blit of that image. So a
-/// 5-minute clip's ~9 000 frames cost a memcpy and an encode each, not 9 000 full
-/// re-renders (§4A). S2 layers the per-frame reveal on top of the same cache.
+/// The still parts — the tinted ground, the branded card, and the waveform in its
+/// **unplayed** state — are drawn **once** into a cached image. Each frame is then
+/// that image blitted in, plus only the bars the playhead has already passed
+/// repainted at full tint. So a 5-minute clip's ~9 000 frames cost a memcpy, a few
+/// dozen small rounded rects, and an encode each — not 9 000 full re-renders (§4A).
 final class FrameComposer {
+    private let layout: VideoFrameLayout
+    private let tint: VideoTint
+    /// Bar rectangles, computed once: they are identical in every frame, and only
+    /// each bar's *colour* depends on the playhead.
+    private let bars: [WaveformGeometry.Bar]
     private let still: CGImage
 
     /// 32-bit BGRA with the alpha byte ignored — the pixel format the writer's
@@ -546,11 +560,15 @@ final class FrameComposer {
         CGImageAlphaInfo.noneSkipFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
 
     init(input: VideoExportInput) throws {
-        self.still = try Self.makeStill(input: input, layout: input.layout)
+        let layout = input.layout
+        self.layout = layout
+        self.tint = input.tint
+        self.bars = layout.waveformGeometry.bars(for: input.samples, in: layout.waveform.size)
+        self.still = try Self.makeStill(input: input, layout: layout, bars: bars)
     }
 
-    /// Draw the current frame into `buffer`.
-    func render(into buffer: CVPixelBuffer) throws {
+    /// Draw the frame for `playbackFraction` (0…1) into `buffer`.
+    func render(into buffer: CVPixelBuffer, playbackFraction: Double) throws {
         CVPixelBufferLockBaseAddress(buffer, [])
         defer { CVPixelBufferUnlockBaseAddress(buffer, []) }
 
@@ -570,11 +588,49 @@ final class FrameComposer {
         }
         Self.makeTopLeft(context, height: CGFloat(height))
         Self.drawTopLeft(still, in: CGRect(x: 0, y: 0, width: CGFloat(width), height: CGFloat(height)), into: context)
+        drawReveal(playbackFraction: playbackFraction, into: context)
+    }
+
+    // MARK: Reveal
+
+    /// Repaint the bars behind the playhead at full tint, and mark the playhead
+    /// itself with one thin line.
+    ///
+    /// A gentle left→right position sweep, nothing more (§1.3): no pulsing, no
+    /// bouncing, no reaction to the audio's content — the bar lights up because the
+    /// playhead reached it.
+    private func drawReveal(playbackFraction: Double, into context: CGContext) {
+        guard !bars.isEmpty else { return }
+        let fraction = min(max(playbackFraction, 0), 1)
+
+        context.saveGState()
+        context.translateBy(x: layout.waveform.minX, y: layout.waveform.minY)
+
+        // One path for every played bar, one fill. `isPlayed` is monotonic in the
+        // index, so the first unplayed bar ends the run.
+        context.setFillColor(tint.cgColor())
+        for (index, bar) in bars.enumerated() {
+            guard WaveformGeometry.isPlayed(index: index, count: bars.count, progress: fraction) else { break }
+            let radius = WaveformGeometry.clampedCornerRadius(bar)
+            context.addPath(CGPath(roundedRect: bar.rect, cornerWidth: radius, cornerHeight: radius, transform: nil))
+        }
+        context.fillPath()
+
+        let playheadWidth = max(2, (layout.size.width / 360).rounded())
+        let x = min(max(0, layout.waveform.width * CGFloat(fraction)), layout.waveform.width - playheadWidth)
+        context.setFillColor(CGColor(red: 1, green: 1, blue: 1, alpha: 0.5))
+        context.fill(CGRect(x: x, y: 0, width: playheadWidth, height: layout.waveform.height))
+
+        context.restoreGState()
     }
 
     // MARK: Still
 
-    private static func makeStill(input: VideoExportInput, layout: VideoFrameLayout) throws -> CGImage {
+    private static func makeStill(
+        input: VideoExportInput,
+        layout: VideoFrameLayout,
+        bars: [WaveformGeometry.Bar]
+    ) throws -> CGImage {
         guard let context = CGContext(
             data: nil,
             width: Int(layout.size.width),
@@ -591,13 +647,7 @@ final class FrameComposer {
 
         drawBackground(tint: input.tint, size: layout.size, into: context)
         drawTopLeft(input.card, in: layout.card, into: context)
-        drawWaveform(
-            samples: input.samples,
-            tint: input.tint,
-            geometry: layout.waveformGeometry,
-            in: layout.waveform,
-            into: context
-        )
+        drawUnplayedWaveform(bars: bars, tint: input.tint, in: layout.waveform, into: context)
 
         guard let image = context.makeImage() else { throw VideoExportError.pixelBufferUnavailable }
         return image
@@ -622,29 +672,22 @@ final class FrameComposer {
         )
     }
 
-    /// The waveform. `progress` nil draws every bar at full tint (S1's still
-    /// baseline); a fraction dims the bars ahead of the playhead (S2's reveal).
-    private static func drawWaveform(
-        samples: [Float],
+    /// The waveform in its **unplayed** state — every bar dimmed. This is baked into
+    /// the cached still; each frame then repaints only the bars behind the playhead
+    /// at full tint. The dim/bright pair is the same 1.0 / 0.25-ish contrast the
+    /// on-screen `WaveformView` uses for playback progress, so the video reads like
+    /// the app rather than like a different product.
+    private static func drawUnplayedWaveform(
+        bars: [WaveformGeometry.Bar],
         tint: VideoTint,
-        geometry: WaveformGeometry,
-        progress: Double? = nil,
         in rect: CGRect,
         into context: CGContext
     ) {
-        guard !samples.isEmpty else { return }
-        let bars = geometry.bars(for: samples, in: rect.size)
-        let count = samples.count
-        let played = tint.cgColor()
-        let unplayed = tint.cgColor(alpha: 0.28)
-
+        guard !bars.isEmpty else { return }
         context.saveGState()
         context.translateBy(x: rect.minX, y: rect.minY)
-        for (index, bar) in bars.enumerated() {
-            let isPlayed = progress.map {
-                WaveformGeometry.isPlayed(index: index, count: count, progress: $0)
-            } ?? true
-            context.setFillColor(isPlayed ? played : unplayed)
+        context.setFillColor(tint.cgColor(alpha: 0.28))
+        for bar in bars {
             let radius = WaveformGeometry.clampedCornerRadius(bar)
             context.addPath(CGPath(
                 roundedRect: bar.rect,
@@ -652,8 +695,8 @@ final class FrameComposer {
                 cornerHeight: radius,
                 transform: nil
             ))
-            context.fillPath()
         }
+        context.fillPath()
         context.restoreGState()
     }
 
