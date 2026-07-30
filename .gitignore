@@ -21,3 +21,7 @@ Packages/
 
 # Generators (we ship a plain .xcodeproj; keep these out if ever used locally)
 project.yml
+
+# Python bytecode (scripts/asc.py imported as a module)
+__pycache__/
+*.pyc
