@@ -3,6 +3,7 @@ import AVFoundation
 import AVKit
 import CoreMedia
 import Foundation
+import Photos
 import SwiftUI
 import os
 
@@ -40,6 +41,12 @@ struct VideoSelfTestView: View {
     /// Held for the view's lifetime so the rendered file outlives the render — the
     /// same retain-until-done rule the share sheet follows (§4G).
     @State private var workspace: VideoExportWorkspace?
+    @State private var videoURL: URL?
+    /// Result of the opt-in Photos check, once run.
+    @State private var photosResult: String?
+    @State private var photosChecking = false
+    @State private var showingShareSheet = false
+    @State private var shareFinished = false
 
     var body: some View {
         NavigationStack {
@@ -61,6 +68,8 @@ struct VideoSelfTestView: View {
                             }
                         }
                         .buttonStyle(.borderedProminent)
+                        shareCheck
+                        photosCheck
                     }
                     whatToLookFor
                     if !report.isEmpty {
@@ -110,6 +119,102 @@ struct VideoSelfTestView: View {
             .font(.footnote)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// The last mile: hand the rendered `.mp4` to the **same `ShareSheet` component
+    /// and the same payload shape** the real Pro path uses, so the one remaining
+    /// piece of UIKit plumbing is exercised without needing an entitlement.
+    @ViewBuilder
+    private var shareCheck: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Button {
+                showingShareSheet = true
+            } label: {
+                Label {
+                    Text(verbatim: "Test the share sheet")
+                } icon: {
+                    Image(systemName: "square.and.arrow.up")
+                }
+            }
+            .buttonStyle(.bordered)
+            .disabled(videoURL == nil)
+
+            if shareFinished {
+                Text(verbatim: "share ✓ sheet presented and dismissed cleanly")
+                    .font(.footnote.monospaced())
+            }
+        }
+        .sheet(isPresented: $showingShareSheet) {
+            if let videoURL {
+                ShareSheet(items: [videoURL]) { shareFinished = true }
+            }
+        }
+    }
+
+    /// The "Save Video" check — **opt-in, because it really does add a video to the
+    /// photo library**, and a debug tool should not quietly write to your camera roll.
+    ///
+    /// This is the one failure mode with a *crash* as its consequence: iOS kills the
+    /// app if `NSPhotoLibraryAddUsageDescription` is missing when add-only access is
+    /// requested, and that is exactly what the share sheet's "Save Video" activity
+    /// does. Tapping this exercises the same API, so the purpose string is proven
+    /// rather than assumed (§4H).
+    @ViewBuilder
+    private var photosCheck: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Button {
+                Task { await runPhotosCheck() }
+            } label: {
+                Label {
+                    Text(verbatim: photosChecking ? "Saving…" : "Test “Save Video” to Photos")
+                } icon: {
+                    Image(systemName: "square.and.arrow.down")
+                }
+            }
+            .buttonStyle(.bordered)
+            .disabled(photosChecking || videoURL == nil)
+
+            if let photosResult {
+                Text(verbatim: photosResult).font(.footnote.monospaced())
+            } else {
+                Text(verbatim: "Adds one video to your photo library. Skip it if you'd rather not.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func runPhotosCheck() async {
+        guard let videoURL else { return }
+        photosChecking = true
+        defer { photosChecking = false }
+
+        // If the purpose string were missing, the process would die on this call.
+        let status = await withCheckedContinuation { continuation in
+            PHPhotoLibrary.requestAuthorization(for: .addOnly) { continuation.resume(returning: $0) }
+        }
+        guard status == .authorized || status == .limited else {
+            photosResult = "photos ✗ not authorized (status \(status.rawValue))"
+            return
+        }
+        do {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                PHPhotoLibrary.shared().performChanges {
+                    _ = PHAssetChangeRequest.creationRequestForAssetFromVideo(atFileURL: videoURL)
+                } completionHandler: { success, error in
+                    if success {
+                        continuation.resume()
+                    } else {
+                        continuation.resume(throwing: error ?? SelfTestError.photosSaveFailed)
+                    }
+                }
+            }
+            photosResult = "photos ✓ saved — purpose string OK, Photos accepted the .mp4"
+        } catch {
+            photosResult = "photos ✗ \(error)"
+        }
+        Logger(subsystem: "com.soundpost.Soundpost", category: "selftest")
+            .notice("VIDEO_SELFTEST_PHOTOS \(photosResult ?? "", privacy: .public)")
     }
 
     private func replay(_ player: AVPlayer) {
@@ -223,6 +328,7 @@ struct VideoSelfTestView: View {
                 "saved copy     \(saved.lastPathComponent) (app Documents)",
             ]
 
+            videoURL = result.url
             player = AVPlayer(url: result.url)
             player?.play()
             status = machineChecksPassed
@@ -252,7 +358,14 @@ struct VideoSelfTestView: View {
 
     enum SelfTestError: Error, CustomStringConvertible {
         case couldNotAllocateBuffer
-        var description: String { "could not allocate the PCM buffer for the self-test clip" }
+        case photosSaveFailed
+
+        var description: String {
+            switch self {
+            case .couldNotAllocateBuffer: "could not allocate the PCM buffer for the self-test clip"
+            case .photosSaveFailed: "Photos reported the save as unsuccessful with no error"
+            }
+        }
     }
 
     /// Write `seconds` of silence with a short rising beep starting at each of
