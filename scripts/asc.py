@@ -4,9 +4,14 @@
 
 Usage (run with the venv that has pyjwt+requests):
   /tmp/asc-venv/bin/python3 scripts/asc.py status
+  /tmp/asc-venv/bin/python3 scripts/asc.py create-version 1.4.0     # new version record
+  /tmp/asc-venv/bin/python3 scripts/asc.py notes                    # metadata/*/release_notes.txt -> whatsNew
   /tmp/asc-venv/bin/python3 scripts/asc.py attach <build-version>   # e.g. 5
   /tmp/asc-venv/bin/python3 scripts/asc.py submit
   /tmp/asc-venv/bin/python3 scripts/asc.py resubmit <build-version> # attach + submit
+
+Rebuilding the venv:
+  python3 -m venv /tmp/asc-venv && /tmp/asc-venv/bin/python3 -m pip install "pyjwt[crypto]" requests
 """
 import sys, time, json, os
 import jwt, requests
@@ -64,16 +69,23 @@ def review_submissions():
                **{'filter[platform]': 'IOS', 'limit': 20}).get('data', [])
 
 
+EDITABLE_STATES = ('PREPARE_FOR_SUBMISSION', 'REJECTED', 'DEVELOPER_REJECTED',
+                   'METADATA_REJECTED', 'INVALID_BINARY', 'WAITING_FOR_REVIEW',
+                   'IN_REVIEW')
+
+
 def editable_version():
-    """The version we (re)submit: prefer one not in a terminal live state."""
-    vs = ios_versions()
-    for v in vs:
-        st = v['attributes']['appStoreState']
-        if st in ('PREPARE_FOR_SUBMISSION', 'REJECTED', 'DEVELOPER_REJECTED',
-                  'METADATA_REJECTED', 'INVALID_BINARY', 'WAITING_FOR_REVIEW',
-                  'IN_REVIEW'):
+    """The version we (re)submit, or None when there isn't one.
+
+    It must NEVER fall back to "whatever version is first". Once every version is
+    live (READY_FOR_SALE) that fallback resolved to the *shipped* version, so
+    `attach` and `submit` would have aimed at the public listing. Callers handle
+    None by telling you to create a version first (`create-version`).
+    """
+    for v in ios_versions():
+        if v['attributes']['appStoreState'] in EDITABLE_STATES:
             return v
-    return vs[0] if vs else None
+    return None
 
 
 def find_build(version_str):
@@ -100,10 +112,71 @@ def cmd_status():
         print(f"  state={a.get('state'):22} submitted={a.get('submittedDate')}  id={s['id']}")
 
 
+PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def cmd_create_version(version_string):
+    """Create a new (PREPARE_FOR_SUBMISSION) App Store version record.
+
+    Idempotent: if the version already exists it is returned untouched. Creating a
+    version cannot affect an already-live one, and a PREPARE_FOR_SUBMISSION version
+    can be deleted in ASC, so this is reversible.
+    """
+    for v in ios_versions():
+        if v['attributes']['versionString'] == version_string:
+            print(f"Version {version_string} already exists "
+                  f"(state={v['attributes']['appStoreState']}, id={v['id']}) — leaving it alone.")
+            return v
+    v = post('/v1/appStoreVersions',
+             {'data': {'type': 'appStoreVersions',
+                       'attributes': {'platform': 'IOS', 'versionString': version_string},
+                       'relationships': {'app': {'data': {'type': 'apps', 'id': APP_ID}}}}})['data']
+    print(f"Created version {version_string} "
+          f"(state={v['attributes']['appStoreState']}, id={v['id']})")
+    return v
+
+
+def cmd_notes():
+    """Push metadata/<locale>/release_notes.txt into the editable version's whatsNew.
+
+    Only ever writes to the editable version — never to a live one.
+    """
+    v = editable_version()
+    if not v:
+        sys.exit('No editable App Store version found — run `create-version <x.y.z>` first.')
+    print(f"Setting release notes on v{v['attributes']['versionString']} "
+          f"({v['attributes']['appStoreState']})")
+
+    existing = {loc['attributes']['locale']: loc
+                for loc in get(f"/v1/appStoreVersions/{v['id']}/appStoreVersionLocalizations").get('data', [])}
+
+    metadata_root = os.path.join(PROJECT_DIR, 'metadata')
+    for locale in sorted(os.listdir(metadata_root)):
+        path = os.path.join(metadata_root, locale, 'release_notes.txt')
+        if not os.path.isfile(path):
+            continue
+        with open(path, encoding='utf-8') as f:
+            text = f.read().strip()
+        if locale in existing:
+            patch(f"/v1/appStoreVersionLocalizations/{existing[locale]['id']}",
+                  {'data': {'type': 'appStoreVersionLocalizations',
+                            'id': existing[locale]['id'],
+                            'attributes': {'whatsNew': text}}})
+            print(f"  {locale}: set whatsNew ({len(text)} chars)")
+        else:
+            post('/v1/appStoreVersionLocalizations',
+                 {'data': {'type': 'appStoreVersionLocalizations',
+                           'attributes': {'locale': locale, 'whatsNew': text},
+                           'relationships': {'appStoreVersion': {
+                               'data': {'type': 'appStoreVersions', 'id': v['id']}}}}})
+            print(f"  {locale}: created localization + whatsNew ({len(text)} chars)")
+    return v
+
+
 def cmd_attach(build_version):
     v = editable_version()
     if not v:
-        sys.exit('No editable App Store version found.')
+        sys.exit('No editable App Store version found — run `create-version <x.y.z>` first.')
     b = find_build(build_version)
     if not b:
         sys.exit(f'Build {build_version} not found among recent builds (still processing?).')
@@ -199,6 +272,10 @@ def main():
     cmd = sys.argv[1] if len(sys.argv) > 1 else 'status'
     if cmd == 'status':
         cmd_status()
+    elif cmd == 'create-version':
+        cmd_create_version(sys.argv[2])
+    elif cmd == 'notes':
+        cmd_notes()
     elif cmd == 'attach':
         cmd_attach(sys.argv[2])
     elif cmd == 'submit':
