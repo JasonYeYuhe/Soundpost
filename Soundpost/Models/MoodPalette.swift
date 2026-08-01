@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// A concrete sRGB colour a user picked for a mood (M14 §4C).
 ///
@@ -37,6 +38,19 @@ struct MoodColor: Equatable, Hashable, Sendable {
     }
 
     var color: Color { Color(red: red, green: green, blue: blue) }
+
+    /// Flatten a picked `Color` to concrete sRGB. Resolved against a **fixed light**
+    /// trait so what the user picks is what an exported card or video shows,
+    /// whatever appearance the device happened to be in.
+    init(_ color: Color) {
+        let resolved = UIColor(color).resolvedColor(with: UITraitCollection(userInterfaceStyle: .light))
+        var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
+        guard resolved.getRed(&red, green: &green, blue: &blue, alpha: &alpha) else {
+            self.init(red: 0, green: 0, blue: 0)
+            return
+        }
+        self.init(red: Double(red), green: Double(green), blue: Double(blue))
+    }
 
     /// Relative luminance (WCAG coefficients).
     var luminance: Double { 0.2126 * red + 0.7152 * green + 0.0722 * blue }

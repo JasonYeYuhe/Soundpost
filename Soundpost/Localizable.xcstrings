@@ -5,6 +5,22 @@
     "%lld": {
       "shouldTranslate": false
     },
+    "%lld days": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 日"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 天"
+          }
+        }
+      }
+    },
     "%lld days ago, you captured this sound. Listen back.": {
       "localizations": {
         "ja": {
@@ -85,6 +101,22 @@
         }
       }
     },
+    "A colour applies to every capsule of that mood, old ones included — it is a palette, not a per-capsule setting. Soundpost keeps your choice readable on cards and in videos.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "色は同じムードのすべてのカプセルに適用されます（過去のものも含む）。カプセルごとの設定ではなく、パレットです。カードや動画で読みやすいように調整されます。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "颜色会应用到该心情的所有胶囊，包括以前的——这是一套调色板，而非逐条设置。Soundpost 会让你选的颜色在卡片和视频里保持清晰。"
+          }
+        }
+      }
+    },
     "A copy of every capsule's audio and a manifest of your notes, moods, places and dates. Your own data — nothing new leaves your device.": {
       "localizations": {
         "ja": {
@@ -129,6 +161,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "温柔的封印：Soundpost 会将其隐藏到那一天，但这只是设备上基于自觉的锁定，并非加密。"
+          }
+        }
+      }
+    },
+    "A new recording draws its surprise echo somewhere in this range. Unlike your colours, this only seeds new recordings — without Pro they go back to 7–30 days, and echoes already set keep their dates.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新しい録音のエコーはこの範囲から選ばれます。色とは違い、これは新しい録音にだけ効きます。Pro がないと 7〜30 日に戻り、すでに決まったエコーの日付はそのままです。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新录音的回声会从这个范围内抽取。与配色不同，它只影响新录音——没有 Pro 时会回到 7–30 天，已设定的回声日期保持不变。"
           }
         }
       }
@@ -440,6 +488,38 @@
         }
       }
     },
+    "Choose what each mood looks like, and how soon a surprise echo comes back.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ムードごとの色と、エコーが返ってくるまでの日数を選べます。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自选每种心情的颜色，以及回声多久后返回。"
+          }
+        }
+      }
+    },
+    "Choosing colours and your echo window is a Pro feature.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "色とエコーの期間を選べるのは Pro の機能です。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自选配色与回声时段是 Pro 功能。"
+          }
+        }
+      }
+    },
     "Classic": {
       "localizations": {
         "ja": {
@@ -484,6 +564,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "关闭"
+          }
+        }
+      }
+    },
+    "Colours you have already chosen keep showing — a lapse never changes how your capsules look. Only picking new ones needs Pro.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "すでに選んだ色はそのまま表示され続けます。Pro が切れてもカプセルの見た目は変わりません。Pro が必要なのは新しく選ぶときだけです。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你已经选好的颜色会一直显示——即使 Pro 到期，胶囊的样子也不会改变。只有重新挑选时才需要 Pro。"
           }
         }
       }
@@ -761,6 +857,22 @@
         }
       }
     },
+    "Earliest": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最短"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最早"
+          }
+        }
+      }
+    },
     "Echo": {
       "localizations": {
         "ja": {
@@ -805,6 +917,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "已设回响"
+          }
+        }
+      }
+    },
+    "Echo window": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "エコーの期間"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "回声时段"
           }
         }
       }
@@ -1181,6 +1309,22 @@
         }
       }
     },
+    "Latest": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最長"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "最晚"
+          }
+        }
+      }
+    },
     "Loading plans…": {
       "localizations": {
         "ja": {
@@ -1225,6 +1369,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "由 Soundpost 制作"
+          }
+        }
+      }
+    },
+    "Make it yours": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自分らしく"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打造你的样子"
           }
         }
       }
@@ -1289,6 +1449,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "心情"
+          }
+        }
+      }
+    },
+    "Mood colours": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ムードの色"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "心情配色"
           }
         }
       }
@@ -2771,6 +2947,54 @@
           "stringUnit": {
             "state": "translated",
             "value": "最长一分钟的真实声音——雨声、咖啡馆、某个声音——化作一张随心情上色的精美卡片。"
+          }
+        }
+      }
+    },
+    "Use the default colour for %@": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ を既定の色に戻す"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "将%@恢复为默认颜色"
+          }
+        }
+      }
+    },
+    "Use the default colours": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "既定の色に戻す"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "恢复默认配色"
+          }
+        }
+      }
+    },
+    "Use the default window": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "既定の期間に戻す"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "恢复默认时段"
           }
         }
       }

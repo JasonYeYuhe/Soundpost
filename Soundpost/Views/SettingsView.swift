@@ -139,6 +139,13 @@ struct SettingsView: View {
                     Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
                 }
             }
+            // Reachable for everyone, not just Pro: undoing a colour is never gated
+            // (M14 §4F), so a lapsed user can always get back to the defaults.
+            NavigationLink {
+                PersonalisationSettingsView()
+            } label: {
+                Label("Make it yours", systemImage: "paintpalette")
+            }
             Button("Restore Purchases") { restore() }
         } header: {
             Text("Soundpost Pro")

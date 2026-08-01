@@ -139,6 +139,11 @@ struct ProPaywallView: View {
                 title: "A card theme pack",
                 subtitle: "Alternate looks for your waveform cards, layered over each mood."
             )
+            ProFeatureRow(
+                icon: "eyedropper",
+                title: "Make it yours",
+                subtitle: "Choose what each mood looks like, and how soon a surprise echo comes back."
+            )
         }
         .padding()
         .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 16))
