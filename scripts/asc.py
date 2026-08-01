@@ -114,6 +114,21 @@ def cmd_status():
 
 PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+# Apple is actively looking at these. `editable_version()` still returns them (you
+# may legitimately want to cancel and re-attach), but silently mutating one from a
+# script would disturb a live submission — so the mutating commands stop first.
+IN_APPLES_HANDS = ('WAITING_FOR_REVIEW', 'IN_REVIEW')
+
+
+def guard_not_in_review(version, action):
+    state = version['attributes']['appStoreState']
+    if state in IN_APPLES_HANDS:
+        sys.exit(
+            f"Refusing to {action} v{version['attributes']['versionString']}: it is {state}.\n"
+            f"  That version is in Apple's review queue — changing it now would disturb the\n"
+            f"  live submission. Wait for it to clear, or cancel it deliberately in ASC first."
+        )
+
 
 def cmd_create_version(version_string):
     """Create a new (PREPARE_FOR_SUBMISSION) App Store version record.
@@ -144,6 +159,7 @@ def cmd_notes():
     v = editable_version()
     if not v:
         sys.exit('No editable App Store version found — run `create-version <x.y.z>` first.')
+    guard_not_in_review(v, 'rewrite the release notes of')
     print(f"Setting release notes on v{v['attributes']['versionString']} "
           f"({v['attributes']['appStoreState']})")
 
@@ -177,6 +193,7 @@ def cmd_attach(build_version):
     v = editable_version()
     if not v:
         sys.exit('No editable App Store version found — run `create-version <x.y.z>` first.')
+    guard_not_in_review(v, 'attach a build to')
     b = find_build(build_version)
     if not b:
         sys.exit(f'Build {build_version} not found among recent builds (still processing?).')
