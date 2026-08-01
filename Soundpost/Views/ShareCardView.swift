@@ -22,7 +22,13 @@ struct ShareCardView: View {
     /// behaviour for the image share, whose canvas grows with the content.
     var noteLineLimit: Int? = nil
 
-    private var tint: Color { capsule.mood?.tint ?? .accentColor }
+
+    /// The user's custom mood colours (M14). Observed so a change in Settings
+    /// repaints immediately, exactly like `cardTheme`. Resolving never reads
+    /// `isPro` — that is what keeps a chosen colour rendering after a lapse.
+    @AppStorage(MoodPalette.storageKey) private var moodPaletteRaw = ""
+    private var palette: MoodPalette { MoodPalette(stored: moodPaletteRaw) }
+    private var tint: Color { palette.tint(for: capsule.mood) }
     // Fixed inks (scheme-independent) over a near-white card.
     private let ink = Color(white: 0.12)
     private let inkSecondary = Color(white: 0.42)

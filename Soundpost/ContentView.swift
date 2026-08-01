@@ -29,6 +29,12 @@ struct ContentView: View {
     /// requests don't keep a stale personalized/generic body (§S3 P0).
     @AppStorage(NotificationPreferences.personalizedKey) private var personalizedNotifications = false
 
+    /// The user's custom mood colours (M14). Observed so a change in Settings
+    /// repaints immediately, exactly like `cardTheme`. Resolving never reads
+    /// `isPro` — that is what keeps a chosen colour rendering after a lapse.
+    @AppStorage(MoodPalette.storageKey) private var moodPaletteRaw = ""
+    private var palette: MoodPalette { MoodPalette(stored: moodPaletteRaw) }
+
     var body: some View {
         NavigationStack(path: $path) {
             Group {
@@ -245,9 +251,9 @@ struct ContentView: View {
             .font(.subheadline)
             .padding(.horizontal, 12)
             .padding(.vertical, 7)
-            .background(selected ? mood.tint.opacity(0.22) : Color(.secondarySystemBackground), in: SwiftUI.Capsule())
-            .overlay(SwiftUI.Capsule().stroke(selected ? mood.tint : .clear, lineWidth: 1.5))
-            .foregroundStyle(selected ? mood.tint : .primary)
+            .background(selected ? palette.tint(for: mood).opacity(0.22) : Color(.secondarySystemBackground), in: SwiftUI.Capsule())
+            .overlay(SwiftUI.Capsule().stroke(selected ? palette.tint(for: mood) : .clear, lineWidth: 1.5))
+            .foregroundStyle(selected ? palette.tint(for: mood) : .primary)
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(selected ? .isSelected : [])

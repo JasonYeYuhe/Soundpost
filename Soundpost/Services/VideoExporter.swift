@@ -76,8 +76,19 @@ struct VideoTint: Equatable, Sendable {
     /// System blue — the app's untinted fallback when a mood has no resolvable color.
     static let fallback = VideoTint(red: 0.0, green: 0.478, blue: 1.0)
 
-    static func resolved(from mood: Mood?) -> VideoTint {
-        let color = UIColor(mood?.tint ?? Color.accentColor)
+    /// Resolve the colour this capsule's video should be drawn in.
+    ///
+    /// A user's custom colour (M14) is already concrete sRGB, so it is used as-is.
+    /// Otherwise the mood's *semantic* default is flattened against a fixed light
+    /// trait. Either way this reads the **stored palette, never `isPro`** — which is
+    /// what keeps a video exported after a lapse looking like the one exported
+    /// before it (M13 §11 / M14 §4D).
+    static func resolved(from mood: Mood?, palette: MoodPalette) -> VideoTint {
+        if let mood, let override = palette.overrides[mood] {
+            let legible = override.legible
+            return VideoTint(red: legible.red, green: legible.green, blue: legible.blue)
+        }
+        let color = UIColor(mood?.defaultTint ?? Color.accentColor)
             .resolvedColor(with: UITraitCollection(userInterfaceStyle: .light))
         var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
         guard color.getRed(&red, green: &green, blue: &blue, alpha: &alpha) else { return .fallback }
@@ -332,7 +343,7 @@ enum VideoExporter {
             outputURL: workspace.url(named: outputFileName(for: capsule)),
             card: card,
             samples: capsule.waveformSamples,
-            tint: VideoTint.resolved(from: capsule.mood),
+            tint: VideoTint.resolved(from: capsule.mood, palette: .current),
             configuration: configuration
         )
     }

@@ -105,7 +105,7 @@ final class CaptureViewModel {
             from: audioStore.url(for: fileName),
             buckets: waveformBuckets
         )) ?? []
-        echoAt = Self.randomEchoDate()
+        echoAt = Self.randomEchoDate(in: echoWindow)
         echoEnabled = true
         phase = .review
     }
@@ -115,16 +115,22 @@ final class CaptureViewModel {
     /// random date on every SwiftUI body evaluation made the picker jitter (the
     /// §S2 picker-getter purity fix). Call before presenting the picker.
     func seedEchoIfNeeded() {
-        if echoAt == nil { echoAt = Self.randomEchoDate() }
+        if echoAt == nil { echoAt = Self.randomEchoDate(in: echoWindow) }
     }
 
-    /// Pick the surprise echo date: a uniformly random day 7–30 days out,
-    /// keeping the recording's own time of day (poetic: "exactly N days later").
+    /// The window this capture draws its echo from, decided **at capture-start**
+    /// from the entitlement (M14 §4D) — exactly like `maxRecordingDuration`. The
+    /// view sets it before recording; the default keeps every existing call site
+    /// (and every test) on the free 7–30 window.
+    var echoWindow: ClosedRange<Int> = ProGate.defaultEchoWindow
+
+    /// Pick the surprise echo date: a uniformly random day inside `range`, keeping
+    /// the recording's own time of day (poetic: "exactly N days later").
     /// `nonisolated` — a pure function over its arguments, so the view can seed the
     /// picker's stable fallback (`@State` default) without an actor hop.
     nonisolated static func randomEchoDate(
         from reference: Date = .now,
-        in range: ClosedRange<Int> = 7...30
+        in range: ClosedRange<Int> = ProGate.defaultEchoWindow
     ) -> Date {
         let days = Int.random(in: range)
         return Calendar.current.date(byAdding: .day, value: days, to: reference)

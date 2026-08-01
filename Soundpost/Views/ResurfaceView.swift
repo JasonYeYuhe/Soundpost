@@ -19,7 +19,13 @@ struct ResurfaceView: View {
     @State private var player = AudioPlayer()
     @State private var revealed = false
 
-    private var tint: Color { capsule.mood?.tint ?? .accentColor }
+
+    /// The user's custom mood colours (M14). Observed so a change in Settings
+    /// repaints immediately, exactly like `cardTheme`. Resolving never reads
+    /// `isPro` — that is what keeps a chosen colour rendering after a lapse.
+    @AppStorage(MoodPalette.storageKey) private var moodPaletteRaw = ""
+    private var palette: MoodPalette { MoodPalette(stored: moodPaletteRaw) }
+    private var tint: Color { palette.tint(for: capsule.mood) }
 
     var body: some View {
         ZStack(alignment: .topTrailing) {

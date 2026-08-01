@@ -15,6 +15,12 @@ struct CaptureView: View {
     /// picker is only ever presented with `echoAt` already seeded, so this is a
     /// belt-and-suspenders default that keeps the binding getter pure.
     @State private var echoPickerSeed = CaptureViewModel.randomEchoDate()
+
+    /// The user's custom mood colours (M14). Observed so a change in Settings
+    /// repaints immediately, exactly like `cardTheme`. Resolving never reads
+    /// `isPro` — that is what keeps a chosen colour rendering after a lapse.
+    @AppStorage(MoodPalette.storageKey) private var moodPaletteRaw = ""
+    private var palette: MoodPalette { MoodPalette(stored: moodPaletteRaw) }
     @State private var showingPaywall = false
     @State private var recordPulse = false
     @State private var saveCount = 0
@@ -80,7 +86,13 @@ struct CaptureView: View {
             }
             Spacer()
             Button {
-                Task { await viewModel.startRecording(maxDuration: store.gate.maxRecordingDuration) }
+                Task {
+                    // Both caps are read HERE, at capture-start (M11 §4D / M14 §4D):
+                    // the clip length and the echo window this recording will use.
+                    // A later lapse can never reach back and change either.
+                    viewModel.echoWindow = EchoPreferences.effectiveWindow(gate: store.gate)
+                    await viewModel.startRecording(maxDuration: store.gate.maxRecordingDuration)
+                }
             } label: {
                 ZStack {
                     Circle()
@@ -156,7 +168,7 @@ struct CaptureView: View {
                 VStack(spacing: 12) {
                     WaveformView(
                         samples: viewModel.waveform,
-                        color: viewModel.mood?.tint ?? .accentColor,
+                        color: palette.tint(for: viewModel.mood),
                         progress: viewModel.player.state == .idle ? nil : viewModel.player.progress
                     )
                     .frame(height: 110)
@@ -243,9 +255,9 @@ struct CaptureView: View {
             .font(.subheadline)
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
-            .background(selected ? mood.tint.opacity(0.22) : Color(.secondarySystemBackground), in: SwiftUI.Capsule())
-            .overlay(SwiftUI.Capsule().stroke(selected ? mood.tint : .clear, lineWidth: 1.5))
-            .foregroundStyle(selected ? mood.tint : .primary)
+            .background(selected ? palette.tint(for: mood).opacity(0.22) : Color(.secondarySystemBackground), in: SwiftUI.Capsule())
+            .overlay(SwiftUI.Capsule().stroke(selected ? palette.tint(for: mood) : .clear, lineWidth: 1.5))
+            .foregroundStyle(selected ? palette.tint(for: mood) : .primary)
             .scaleEffect(selected && !reduceMotion ? 1.06 : 1.0)
             .animation(.spring(duration: 0.3, bounce: 0.4), value: selected)
         }

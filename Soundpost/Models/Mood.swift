@@ -45,8 +45,16 @@ extension Mood {
         }
     }
 
-    /// Accent color used to tint the waveform card.
-    var tint: Color {
+    /// The **built-in** accent colour for this mood.
+    ///
+    /// Deliberately a *semantic* SwiftUI colour: it adapts to light/dark and to
+    /// increased-contrast exactly as it always has. A user's custom colour (M14) is
+    /// a fixed sRGB value layered over this by `MoodPalette` — so overriding a mood
+    /// is opt-in, and everything else keeps adapting.
+    ///
+    /// Renamed from `tint` in M14 so the compiler surfaces every read site: drawing
+    /// code must go through `MoodPalette.tint(for:)`, never straight to the default.
+    var defaultTint: Color {
         switch self {
         case .calm: .teal
         // A deeper amber rather than system yellow: stays sunny as a waveform fill
