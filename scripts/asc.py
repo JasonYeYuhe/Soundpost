@@ -8,6 +8,7 @@ Usage (run with the venv that has pyjwt+requests):
   /tmp/asc-venv/bin/python3 scripts/asc.py notes                    # metadata/*/release_notes.txt -> whatsNew
   /tmp/asc-venv/bin/python3 scripts/asc.py attach <build-version>   # e.g. 5
   /tmp/asc-venv/bin/python3 scripts/asc.py submit
+  /tmp/asc-venv/bin/python3 scripts/asc.py release             # APPROVED -> live (manual release)
   /tmp/asc-venv/bin/python3 scripts/asc.py resubmit <build-version> # attach + submit
 
 Rebuilding the venv:
@@ -128,6 +129,32 @@ def guard_not_in_review(version, action):
             f"  That version is in Apple's review queue — changing it now would disturb the\n"
             f"  live submission. Wait for it to clear, or cancel it deliberately in ASC first."
         )
+
+
+def cmd_release():
+    """Release an APPROVED version to the public (`releaseType: MANUAL`).
+
+    This is the one genuinely public, irreversible action in this script: it puts
+    the build in front of users. So it only ever acts on a version Apple has
+    already approved and is holding for you — it will not submit, attach, or
+    otherwise nudge anything that is still in the queue.
+    """
+    pending = [v for v in ios_versions()
+               if v['attributes']['appStoreState'] == 'PENDING_DEVELOPER_RELEASE']
+    if not pending:
+        states = ', '.join(f"v{v['attributes']['versionString']}={v['attributes']['appStoreState']}"
+                           for v in ios_versions()) or '(no versions)'
+        sys.exit('Nothing is approved and waiting for release.\n'
+                 f'  Current: {states}\n'
+                 '  A version is releasable only in PENDING_DEVELOPER_RELEASE.')
+    v = pending[0]
+    version = v['attributes']['versionString']
+    post('/v1/appStoreVersionReleaseRequests',
+         {'data': {'type': 'appStoreVersionReleaseRequests',
+                   'relationships': {'appStoreVersion': {
+                       'data': {'type': 'appStoreVersions', 'id': v['id']}}}}})
+    print(f'RELEASED v{version} — it is going live on the App Store now.')
+    return v
 
 
 def cmd_create_version(version_string):
@@ -289,6 +316,8 @@ def main():
     cmd = sys.argv[1] if len(sys.argv) > 1 else 'status'
     if cmd == 'status':
         cmd_status()
+    elif cmd == 'release':
+        cmd_release()
     elif cmd == 'create-version':
         cmd_create_version(sys.argv[2])
     elif cmd == 'notes':
