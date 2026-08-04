@@ -139,6 +139,10 @@ private struct RootView: View {
                     // M13 §4G). Nothing is in flight at launch, and it only ever
                     // removes children of our own export container.
                     VideoExportWorkspace.scavenge()
+                    // Give pre-M15 capsules their soundprints, a bounded batch per
+                    // launch so a long-time user's back catalogue fills in over a few
+                    // sessions instead of stalling one (M15 §4H).
+                    await SoundprintBackfill(modelContainer: store.container).backfill()
                 }
         } else {
             Color.clear // unreachable in practice; never crash if the store is missing

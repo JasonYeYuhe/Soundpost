@@ -45,19 +45,19 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Soundpost records short sounds to make your memory capsules."
+            "value" : "Soundpost records short sounds to make your memory capsules, and can recognise everyday sounds on your device so you can find them later."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "思い出のカプセルを作るために短い音を録音します。"
+            "value" : "思い出のカプセルを作るために短い音を録音します。あとで探しやすいよう、日常の音をこの端末内で認識することもあります。"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Soundpost 会录制简短的声音来制作你的记忆胶囊。"
+            "value" : "Soundpost 会录制简短的声音来制作你的记忆胶囊，并可在本机识别日常声音，方便你以后查找。"
           }
         }
       }

@@ -419,6 +419,9 @@ struct SoundPhraseMatchingTests {
 
 // MARK: - Consent + the resurface moment (M15 §4I / S5)
 
+/// `.serialized` because these mutate one shared `UserDefaults` key: run in
+/// parallel, one test's save/restore races another's read.
+@Suite(.serialized)
 struct SoundConsentTests {
 
     private func withListening(_ enabled: Bool, _ body: () throws -> Void) rethrows {
@@ -512,5 +515,83 @@ struct SoundNotificationCopyTests {
 
         let optedIn = NotificationCopy.make(for: item, digest: withSound, personalized: true)
         #expect(optedIn.body.contains(phrase))
+    }
+}
+
+// MARK: - Backfill (M15 §4H / S7)
+
+@MainActor
+struct SoundprintBackfillTests {
+
+    private func seed(_ store: CapsuleStore, audio: Data?, duration: Double = 6) throws -> Capsule {
+        let capsule = store.create()
+        try store.markRecording(capsule)
+        try store.markCaptured(capsule, audioFileName: "clip.m4a", audioData: audio,
+                               durationSeconds: duration, waveformSamples: [0.5])
+        return capsule
+    }
+
+    private func realClip() throws -> (store: AudioStore, data: Data, directory: URL) {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: "BackfillTest-\(UUID().uuidString)", directoryHint: .isDirectory)
+        let audioStore = AudioStore(directory: directory)
+        let name = try TestSupport.writeSineClip(into: audioStore, seconds: 2.0)
+        return (audioStore, try Data(contentsOf: audioStore.url(for: name)), directory)
+    }
+
+    @Test func itLabelsCapsulesRecordedBeforeM15() async throws {
+        let clip = try realClip()
+        defer { try? FileManager.default.removeItem(at: clip.directory) }
+        let store = try TestSupport.freshStore()
+        let capsule = try seed(store, audio: clip.data)
+        try store.save()
+        #expect(capsule.soundprintRaw == nil)
+
+        let stub = StubClassifier(identifier: "version1",
+                                  labels: [Soundprint.Label(identifier: "rain", confidence: 0.9)])
+        let written = await SoundprintBackfill.backfill(in: store.context, limit: 10, classifier: stub)
+        #expect(written == 1)
+        #expect(Soundprint(stored: capsule.soundprintRaw)?.contains("rain") == true)
+    }
+
+    /// The idempotence guarantee: a clip that legitimately yields nothing gets an
+    /// analysed-but-empty marker, so the next launch does not examine it again.
+    @Test func aTerminalNoResultIsRecordedSoItIsNeverRetried() async throws {
+        let clip = try realClip()
+        defer { try? FileManager.default.removeItem(at: clip.directory) }
+        let store = try TestSupport.freshStore()
+        // Duration under one classifier window → terminally unclassifiable.
+        _ = try seed(store, audio: clip.data, duration: 0.4)
+        try store.save()
+
+        let stub = StubClassifier(identifier: "version1", labels: [])
+        let first = await SoundprintBackfill.backfill(in: store.context, limit: 10, classifier: stub)
+        #expect(first == 1, "the too-short verdict should be recorded, not skipped")
+        let second = await SoundprintBackfill.backfill(in: store.context, limit: 10, classifier: stub)
+        #expect(second == 0, "a recorded verdict must never be re-examined")
+    }
+
+    /// A user who turned listening off must not have their back catalogue quietly
+    /// analysed instead — consent is checked in the backfill too, not only capture.
+    @Test func itRespectsWithdrawnConsent() async throws {
+        let clip = try realClip()
+        defer { try? FileManager.default.removeItem(at: clip.directory) }
+        let store = try TestSupport.freshStore()
+        _ = try seed(store, audio: clip.data)
+        try store.save()
+
+        let stub = StubClassifier(identifier: "version1",
+                                  labels: [Soundprint.Label(identifier: "rain", confidence: 0.9)])
+        let written = await SoundprintBackfill.backfill(in: store.context, limit: 10,
+                                                       classifier: stub, isEnabled: false)
+        #expect(written == 0)
+        #expect(stub.calls.count == 0)
+    }
+
+    @Test func anEmptyLibraryIsANoOp() async throws {
+        let store = try TestSupport.freshStore()
+        let stub = StubClassifier(identifier: "version1", labels: [])
+        let written = await SoundprintBackfill.backfill(in: store.context, limit: 10, classifier: stub)
+        #expect(written == 0)
     }
 }

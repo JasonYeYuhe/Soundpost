@@ -286,7 +286,7 @@
 				INFOPLIST_FILE = "Soundpost-Info.plist";
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Soundpost can tag a capsule with where you recorded it.";
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Soundpost records short sounds to make your memory capsules.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Soundpost records short sounds to make your memory capsules, and can recognise everyday sounds on your device so you can find them later.";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Soundpost saves a card or video you export to your photo library.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -321,7 +321,7 @@
 				INFOPLIST_FILE = "Soundpost-Info.plist";
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Soundpost can tag a capsule with where you recorded it.";
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Soundpost records short sounds to make your memory capsules.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Soundpost records short sounds to make your memory capsules, and can recognise everyday sounds on your device so you can find them later.";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Soundpost saves a card or video you export to your photo library.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;

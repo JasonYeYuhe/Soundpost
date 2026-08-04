@@ -105,6 +105,21 @@
 	     sheet is a runtime *permission*, not a Required-Reason API — its purpose
 	     string is NSPhotoLibraryAddUsageDescription, and it is not a collection
 	     declaration. ASC nutrition label unchanged. -->
+	<!-- M15 on-device sound understanding: evaluated and adds NOTHING here.
+	     Recordings are classified by Apple's SoundAnalysis framework entirely on
+	     this device — it opens no network connection and there is no inference
+	     server, so no audio is uploaded for analysis. SoundAnalysis is NOT on
+	     Apple's Required-Reason API list, and reading our own clip to analyse it
+	     is already covered by C617.1 below. The resulting labels are stored on the
+	     Capsule and therefore sync to the user's OWN private CloudKit database
+	     alongside their note and waveform — that is user content, not collection,
+	     so the nutrition label is unchanged; note the honest claim is "inference is
+	     on-device", NOT "the labels never leave the device". Sentry cannot receive
+	     a label: sendDefaultPii is off, screenshots/view-hierarchy are off,
+	     beforeSend strips the request, and the only message path takes static,
+	     non-PII strings by contract. The microphone purpose string was updated to
+	     describe the analysis, since it is a material use of the recording.
+	     ASC nutrition label unchanged. -->
 	<key>NSPrivacyAccessedAPITypes</key>
 	<array>
 		<dict>
