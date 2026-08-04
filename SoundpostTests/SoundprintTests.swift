@@ -624,3 +624,90 @@ struct SoundprintBackfillTests {
         #expect(capsule.soundprintRaw == existing, "an analysed capsule must not be re-analysed")
     }
 }
+
+// MARK: - The Apple Intelligence sentence (M15 §4G / S6)
+
+/// The generation itself cannot be unit-tested — it needs iOS 26, eligible hardware
+/// and Apple Intelligence switched on, and its output is nondeterministic by design.
+/// What IS testable is everything guarding it: when we refuse to ask, and what we
+/// refuse to show. That is where the risk lives.
+struct SoundSummaryWriterTests {
+
+    private func facts(sounds: [String] = ["rain"], note: String? = nil) -> SoundSummaryWriter.Facts {
+        SoundSummaryWriter.Facts(soundPhrases: sounds, note: note,
+                                 placeName: "Home", elapsedPhrase: "8 months ago")
+    }
+
+    /// Withdrawing consent to listen also withdraws consent to write about what was
+    /// heard — otherwise the switch would stop the ears and leave the mouth running.
+    @Test func itDoesNotWriteWhenListeningIsOff() async {
+        #expect(await SoundSummaryWriter.summary(for: facts(), isListeningEnabled: false) == nil)
+    }
+
+    @Test func itDoesNotWriteWhenThereIsNothingToSay() async {
+        let empty = SoundSummaryWriter.Facts(soundPhrases: [], note: nil,
+                                             placeName: "Home", elapsedPhrase: "a year ago")
+        #expect(empty.isEmpty)
+        #expect(await SoundSummaryWriter.summary(for: empty, isListeningEnabled: true) == nil)
+        // A user's own words alone are enough to be worth a sentence.
+        #expect(!facts(sounds: [], note: "the storm broke").isEmpty)
+    }
+
+    /// On any device without Apple Intelligence this returns a reason rather than
+    /// crashing or hanging — and the caller simply shows its own copy.
+    @Test func availabilityIsSafeToAskOnEveryOS() {
+        let reason = SoundSummaryWriter.availability()
+        if let reason {
+            #expect(!reason.rawValue.isEmpty)
+        }
+    }
+
+    // MARK: Output validation — the part that protects the memory
+
+    @Test func itStripsTheQuotesModelsLikeToAdd() {
+        #expect(SoundSummaryWriter.validated("\"Rain on the window.\"") == "Rain on the window.")
+        #expect(SoundSummaryWriter.validated("“Rain on the window.”") == "Rain on the window.")
+    }
+
+    @Test func itRejectsARefusalOrAPreamble() {
+        for raw in ["I can't help with that.", "I'm sorry, but I cannot.",
+                    "Sure, here's a sentence: rain.", "Here is your sentence.",
+                    "As an AI language model, I..."] {
+            #expect(SoundSummaryWriter.validated(raw) == nil, "\(raw.debugDescription) should be rejected")
+        }
+    }
+
+    @Test func itRejectsAnythingThatRanOn() {
+        #expect(SoundSummaryWriter.validated(String(repeating: "a", count: 500)) == nil)
+        #expect(SoundSummaryWriter.validated("First thought.\n\nSecond thought.") == nil)
+        #expect(SoundSummaryWriter.validated("   ") == nil)
+        #expect(SoundSummaryWriter.validated("") == nil)
+    }
+
+    @Test func itAcceptsTheSentenceWeAskedFor() {
+        let good = "A rainy afternoon at home, eight months ago."
+        #expect(SoundSummaryWriter.validated(good) == good)
+    }
+
+    // MARK: The prompt only ever carries what the app already shows
+
+    @Test func thePromptCarriesOnlyFactsWeAlreadyDisplay() {
+        let prompt = SoundSummaryWriter.prompt(for: facts(note: "the storm broke"))
+        #expect(prompt.contains("rain"))
+        #expect(prompt.contains("the storm broke"))
+        #expect(prompt.contains("Home"))
+        #expect(prompt.contains("8 months ago"))
+        // No audio, no identifiers, no hidden fields.
+        #expect(!prompt.lowercased().contains("audio"))
+        #expect(!prompt.contains("soundprint"))
+    }
+
+    /// The model is never asked how the moment felt — inferring emotion from a
+    /// recording is out of scope for this milestone, and a mood is the user's own.
+    @Test func itNeverAsksAboutFeelings() {
+        let prompt = SoundSummaryWriter.prompt(for: facts())
+        for word in ["mood", "feel", "emotion", "happy", "sad"] {
+            #expect(!prompt.lowercased().contains(word), "the prompt mentions \(word)")
+        }
+    }
+}

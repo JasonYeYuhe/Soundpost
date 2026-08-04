@@ -18,6 +18,10 @@ struct ResurfaceView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var player = AudioPlayer()
     @State private var revealed = false
+    /// One generated sentence, when Apple Intelligence is available (M15 §4G).
+    /// Purely additive: `nil` is the normal case on most devices and the screen
+    /// reads exactly as it always has.
+    @State private var summary: String?
 
 
     /// The user's custom mood colours (M14). Observed so a change in Settings
@@ -58,6 +62,7 @@ struct ResurfaceView: View {
             .scaleEffect(revealed ? 1 : 0.97)
         }
         .onAppear(perform: open)
+        .task { await generateSummary() }
         .onDisappear { player.stop() }
     }
 
@@ -83,6 +88,17 @@ struct ResurfaceView: View {
             )
             .frame(height: 120)
             .padding(.top, 4)
+
+            // Additive only — never replaces the user's own words below.
+            if let summary {
+                Text(summary)
+                    .font(.callout)
+                    .italic()
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal)
+                    .transition(.opacity)
+            }
 
             if let note = capsule.note, !note.isEmpty {
                 Text(note)
@@ -130,6 +146,19 @@ struct ResurfaceView: View {
     }
 
     /// Localized elapsed time since capture, e.g. "8 months ago" / "8か月前".
+    /// Ask for a sentence once the screen is up. Fire-and-forget: it either arrives
+    /// and fades in, or it never does and nothing about this screen changes.
+    private func generateSummary() async {
+        let facts = SoundSummaryWriter.Facts(
+            soundPhrases: (Soundprint(stored: capsule.soundprintRaw)?.identifiers ?? [])
+                .compactMap { SoundVocabulary.displayName(for: $0) },
+            note: capsule.note,
+            placeName: capsule.place?.name,
+            elapsedPhrase: elapsedPhrase
+        )
+        summary = await SoundSummaryWriter.summary(for: facts)
+    }
+
     private var elapsedPhrase: String {
         let formatter = RelativeDateTimeFormatter()
         formatter.unitsStyle = .full
