@@ -49,9 +49,59 @@ enum GalleryFilter {
         if capsule.isContentVisible(now: now) {
             if capsule.note?.localizedCaseInsensitiveContains(query) == true { return true }
             if capsule.place?.name?.localizedCaseInsensitiveContains(query) == true { return true }
+            // What the capsule *sounded* like is content too (M15 §S4): a sealed
+            // capsule's sound is as hidden as its note, so this sits INSIDE the
+            // visibility check. Searching "rain" must never reveal that an unopened
+            // capsule is a rainy one.
+            if soundMatches(capsule, query: query) { return true }
         }
         // Non-sensitive, always searchable (mood label shows even on locked cards).
         if capsule.mood?.label.localizedCaseInsensitiveContains(query) == true { return true }
+        return false
+    }
+
+    /// Match a query against a capsule's soundprint.
+    ///
+    /// The query is matched against the **localized phrase** we actually showed the
+    /// user ("birdsong"), not the raw classifier identifier (`bird_chirp_tweet`) —
+    /// searching for what you were told is the only thing that makes sense, and it
+    /// means search works in Japanese and Chinese without a second index.
+    ///
+    /// Identifier comparison is exact-token by construction: we look up each stored
+    /// identifier's phrase rather than substring-matching the stored blob, so a
+    /// search for "rain" can never hit a capsule labelled `train` (M15 §4E).
+    static func soundMatches(_ capsule: Capsule, query: String) -> Bool {
+        guard let soundprint = Soundprint(stored: capsule.soundprintRaw) else { return false }
+        return soundprint.identifiers.contains { identifier in
+            guard let phrase = SoundVocabulary.displayName(for: identifier) else { return false }
+            return matches(phrase: phrase, query: query)
+        }
+    }
+
+    /// Match a query against a shown phrase, requiring the match to **begin a word**.
+    ///
+    /// A plain `contains` reintroduces at the copy level exactly the false positive
+    /// that exact-token identifier matching prevents: the phrase for `train` is
+    /// "a train", which *contains* "rain". Searching for rain would then surface every
+    /// capsule of a passing train — wrong answers about someone's own memories.
+    ///
+    /// Trade-off, stated honestly: this also means a query must start at a word, so in
+    /// Japanese and Chinese — which have no spaces — matching is effectively
+    /// "prefix of the phrase" rather than "anywhere inside it". Typing 车流 finds
+    /// 车流声; typing 流声 does not. Predictable, and far better than confidently
+    /// showing the wrong memory.
+    static func matches(phrase: String, query: String) -> Bool {
+        guard !query.isEmpty else { return false }
+        var searchRange = phrase.startIndex..<phrase.endIndex
+        while let found = phrase.range(of: query,
+                                       options: [.caseInsensitive, .diacriticInsensitive],
+                                       range: searchRange) {
+            if found.lowerBound == phrase.startIndex { return true }
+            let preceding = phrase[phrase.index(before: found.lowerBound)]
+            if !preceding.isLetter && !preceding.isNumber { return true }
+            guard found.lowerBound < phrase.endIndex else { break }
+            searchRange = phrase.index(after: found.lowerBound)..<phrase.endIndex
+        }
         return false
     }
 }

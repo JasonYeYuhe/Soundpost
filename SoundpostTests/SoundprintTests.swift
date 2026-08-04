@@ -315,3 +315,104 @@ struct SoundSuggestionTests {
         #expect(Soundprint(stored: nil) == nil)
     }
 }
+
+// MARK: - Search by sound (M15 §S4)
+
+/// Sound is content. The rule that matters is not "does search work" but "does it
+/// leak" — a sealed-not-due capsule's sound must be as hidden as its note.
+@MainActor
+struct SoundSearchTests {
+
+    private func captured(soundLabels: [String], note: String? = nil) throws -> Capsule {
+        let capsule = Capsule()
+        try capsule.transition(to: .recording)
+        try capsule.transition(to: .captured)
+        capsule.note = note
+        capsule.soundprintRaw = Soundprint(
+            classifier: "version1",
+            labels: soundLabels.enumerated().map {
+                Soundprint.Label(identifier: $1, confidence: 0.9 - Double($0) * 0.1)
+            }
+        ).stored
+        return capsule
+    }
+
+    @Test func searchingForASoundFindsTheCapsule() throws {
+        let rainy = try captured(soundLabels: ["rain"])
+        let noisy = try captured(soundLabels: ["traffic_noise"])
+        let results = GalleryFilter.apply([rainy, noisy], .init(searchText: "rain"))
+        #expect(results.count == 1)
+        #expect(results.first === rainy)
+    }
+
+    /// The trap the classifier's own vocabulary sets: it contains both `rain` and
+    /// `train`. Matching the shown phrase (not the raw blob) keeps them apart.
+    @Test func searchingForRainDoesNotMatchATrain() throws {
+        let train = try captured(soundLabels: ["train"])
+        #expect(GalleryFilter.apply([train], .init(searchText: "rain")).isEmpty)
+        #expect(GalleryFilter.apply([train], .init(searchText: "train")).count == 1)
+    }
+
+    /// The load-bearing one: a sealed-not-due capsule must not be findable by the
+    /// sound it hides, exactly as it is not findable by its note.
+    @Test func aSealedCapsuleNeverLeaksItsSound() throws {
+        let sealed = try captured(soundLabels: ["rain"], note: "the storm")
+        try sealed.transition(to: .sealed)
+        sealed.sealUntil = Date(timeIntervalSinceNow: 60 * 60 * 24 * 365)
+
+        #expect(!sealed.isContentVisible())
+        #expect(GalleryFilter.apply([sealed], .init(searchText: "rain")).isEmpty,
+                "a sealed capsule's sound is as hidden as its note")
+        #expect(GalleryFilter.apply([sealed], .init(searchText: "storm")).isEmpty)
+
+        // Once its day comes, it is findable by both again.
+        sealed.sealUntil = Date(timeIntervalSinceNow: -60)
+        #expect(sealed.isContentVisible())
+        #expect(GalleryFilter.apply([sealed], .init(searchText: "rain")).count == 1)
+    }
+
+    @Test func aCapsuleWithNoSoundprintSimplyDoesNotMatch() throws {
+        let plain = try captured(soundLabels: [])
+        plain.soundprintRaw = nil
+        #expect(GalleryFilter.apply([plain], .init(searchText: "rain")).isEmpty)
+        #expect(!GalleryFilter.soundMatches(plain, query: "rain"))
+    }
+
+    /// A label we refuse to name is not searchable either — there is no phrase to
+    /// match, so it cannot be reached even if it somehow got stored.
+    @Test func anUnnamedLabelIsUnsearchable() throws {
+        let capsule = try captured(soundLabels: [])
+        capsule.soundprintRaw = "1/version1|crying_sobbing=0.99"
+        #expect(!GalleryFilter.soundMatches(capsule, query: "crying"))
+        #expect(GalleryFilter.apply([capsule], .init(searchText: "crying")).isEmpty)
+    }
+}
+
+/// The phrase matcher, pinned directly — the `rain` / "a train" collision is subtle
+/// enough that it deserves its own tests rather than only being caught through the
+/// gallery.
+struct SoundPhraseMatchingTests {
+    @Test func aMatchMustBeginAWord() {
+        #expect(GalleryFilter.matches(phrase: "a train", query: "train"))
+        #expect(GalleryFilter.matches(phrase: "a train", query: "a"))
+        #expect(!GalleryFilter.matches(phrase: "a train", query: "rain"),
+                "'rain' sits inside 'train' — matching it would surface the wrong memory")
+        #expect(GalleryFilter.matches(phrase: "rain", query: "rain"))
+        #expect(GalleryFilter.matches(phrase: "raindrops", query: "rain"))
+    }
+
+    @Test func matchingIsCaseAndDiacriticInsensitiveAndProgressive() {
+        #expect(GalleryFilter.matches(phrase: "birdsong", query: "BIRD"))
+        #expect(GalleryFilter.matches(phrase: "a crackling fire", query: "crack"))
+        #expect(GalleryFilter.matches(phrase: "a crackling fire", query: "fire"))
+        #expect(!GalleryFilter.matches(phrase: "a crackling fire", query: "ire"))
+        #expect(!GalleryFilter.matches(phrase: "birdsong", query: ""))
+    }
+
+    @Test func cjkPhrasesMatchFromTheStart() {
+        // No word boundaries in ja/zh, so matching is prefix-shaped — documented.
+        #expect(GalleryFilter.matches(phrase: "车流声", query: "车流"))
+        #expect(GalleryFilter.matches(phrase: "鳥のさえずり", query: "鳥"))
+        #expect(!GalleryFilter.matches(phrase: "车流声", query: "流声"))
+    }
+}
