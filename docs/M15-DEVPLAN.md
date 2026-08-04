@@ -11,6 +11,30 @@
 
 ---
 
+> ## Status: **S1–S7 IMPLEMENTED** (2026-08-04)
+>
+> **322 tests / 0 warnings / i18n EN·JA·ZH-Hans 100% / 52 sound labels translated /
+> zero new third-party deps**, CI green, deployment target still **iOS 17.0**.
+>
+> | Step | Commit | What it turned out to be about |
+> |---|---|---|
+> | S1 — service + model field | `3662650` | the *gates*, not the model: silence classifies as `music 0.25` |
+> | S2 — vocabulary | `b5b2f14` | 52 labels named, **45 refused**; a new CI gate for the copy |
+> | S3 — capture suggestions | `d59a2b1` | suggest a line, never a mood |
+> | S4 — search by sound | `674394d` | the `rain`/`train` false positive |
+> | S5 — consent + resurface copy | `aeb211c` | two layered switches, not one overloaded one |
+> | S7 — backfill + privacy re-audit | `32174f2`, `0470f03` | idempotence, and a consent bug the tests caught |
+> | S6 — Apple Intelligence line | `d030fd5` | guardrails around a model that could invent |
+>
+> **Deviation from this plan, deliberate:** S3 was specified to include a *suggested
+> mood chip*. It was dropped. Suggesting a note is a claim about the world; suggesting
+> a mood is a claim about the person, which is the emotion-inference §2 already put
+> out of scope. The classifier suggests what it heard; how it felt stays the user's.
+>
+> **Not yet released.** 1.5.0 (M14) is still `WAITING_FOR_REVIEW`, and ASC allows one
+> version in the pipeline — `asc.py` now refuses to touch a version in Apple's hands,
+> so M15's release waits for that to clear.
+
 ## 0. Goal & success statement
 
 Today a capsule is a waveform: beautiful, but **opaque**. You cannot search it, the
