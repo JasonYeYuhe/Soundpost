@@ -123,16 +123,16 @@ struct SoundprintTests {
         #expect(outcome.soundprint?.isEmpty == true, "silence-shaped output must survive as nothing")
     }
 
-    @Test func confidentLabelsSurviveAndAreCapped() async {
+    @Test func confidentLabelsSurviveAndAreCapped() async throws {
         let stub = StubClassifier(identifier: "version1", labels: [
             label("rain", 0.91), label("wind", 0.72), label("bird", 0.55),
             label("traffic", 0.40), label("music", 0.10),
         ])
         let outcome = await SoundprintService.soundprint(
             forClipAt: URL(fileURLWithPath: "/dev/null"), duration: 12, peak: 0.6, classifier: stub)
-        let print = try? #require(outcome.soundprint)
-        #expect(print?.identifiers == ["rain", "wind", "bird"])   // capped at 3, ordered
-        #expect(print?.classifier == "version1")                   // provenance recorded
+        let print = try #require(outcome.soundprint)
+        #expect(print.identifiers == ["rain", "wind", "bird"])    // capped at 3, ordered
+        #expect(print.classifier == "version1")                   // provenance recorded
     }
 
     /// "We could not listen" must never be able to break saving a memory.
