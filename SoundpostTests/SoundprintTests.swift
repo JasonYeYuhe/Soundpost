@@ -520,8 +520,17 @@ struct SoundNotificationCopyTests {
 
 // MARK: - Backfill (M15 §4H / S7)
 
+/// `.serialized`, and every assertion is scoped to the capsule the test created.
+/// The suite shares one in-memory container with every other suite, and these tests
+/// are `async` — so unlike the synchronous `@MainActor` suites they genuinely
+/// interleave, and any assertion about the store *as a whole* is a race.
+@Suite(.serialized)
 @MainActor
 struct SoundprintBackfillTests {
+    // Every call pins `isEnabled` explicitly. The backfill reads
+    // `SoundAnalysisPreferences` by default, and `SoundConsentTests` mutates that
+    // same key — in parallel, that made these tests silently return 0. A test must
+    // not depend on global mutable state it does not own.
 
     private func seed(_ store: CapsuleStore, audio: Data?, duration: Double = 6) throws -> Capsule {
         let capsule = store.create()
@@ -549,8 +558,8 @@ struct SoundprintBackfillTests {
 
         let stub = StubClassifier(identifier: "version1",
                                   labels: [Soundprint.Label(identifier: "rain", confidence: 0.9)])
-        let written = await SoundprintBackfill.backfill(in: store.context, limit: 10, classifier: stub)
-        #expect(written == 1)
+        _ = await SoundprintBackfill.backfill(in: store.context, limit: 10, classifier: stub, isEnabled: true)
+        // Scoped to *this* capsule rather than a global count.
         #expect(Soundprint(stored: capsule.soundprintRaw)?.contains("rain") == true)
     }
 
@@ -561,14 +570,22 @@ struct SoundprintBackfillTests {
         defer { try? FileManager.default.removeItem(at: clip.directory) }
         let store = try TestSupport.freshStore()
         // Duration under one classifier window → terminally unclassifiable.
-        _ = try seed(store, audio: clip.data, duration: 0.4)
+        let capsule = try seed(store, audio: clip.data, duration: 0.4)
         try store.save()
 
         let stub = StubClassifier(identifier: "version1", labels: [])
-        let first = await SoundprintBackfill.backfill(in: store.context, limit: 10, classifier: stub)
-        #expect(first == 1, "the too-short verdict should be recorded, not skipped")
-        let second = await SoundprintBackfill.backfill(in: store.context, limit: 10, classifier: stub)
-        #expect(second == 0, "a recorded verdict must never be re-examined")
+        _ = await SoundprintBackfill.backfill(in: store.context, limit: 10, classifier: stub, isEnabled: true)
+
+        // The verdict is recorded — analysed, with nothing to say — not left nil.
+        let recorded = try #require(Soundprint(stored: capsule.soundprintRaw))
+        #expect(recorded.isEmpty)
+        #expect(recorded.classifier == "version1")
+
+        // And a second pass does not reconsider it: the predicate only ever selects
+        // capsules whose soundprint is still nil.
+        let before = capsule.soundprintRaw
+        _ = await SoundprintBackfill.backfill(in: store.context, limit: 10, classifier: stub, isEnabled: true)
+        #expect(capsule.soundprintRaw == before)
     }
 
     /// A user who turned listening off must not have their back catalogue quietly
@@ -577,7 +594,7 @@ struct SoundprintBackfillTests {
         let clip = try realClip()
         defer { try? FileManager.default.removeItem(at: clip.directory) }
         let store = try TestSupport.freshStore()
-        _ = try seed(store, audio: clip.data)
+        let capsule = try seed(store, audio: clip.data)
         try store.save()
 
         let stub = StubClassifier(identifier: "version1",
@@ -586,12 +603,24 @@ struct SoundprintBackfillTests {
                                                        classifier: stub, isEnabled: false)
         #expect(written == 0)
         #expect(stub.calls.count == 0)
+        #expect(capsule.soundprintRaw == nil, "a withheld consent must leave the capsule untouched")
     }
 
-    @Test func anEmptyLibraryIsANoOp() async throws {
+    /// An already-analysed capsule is never reconsidered, so a settled library
+    /// costs nothing on every launch.
+    @Test func anAlreadyAnalysedCapsuleIsLeftAlone() async throws {
+        let clip = try realClip()
+        defer { try? FileManager.default.removeItem(at: clip.directory) }
         let store = try TestSupport.freshStore()
-        let stub = StubClassifier(identifier: "version1", labels: [])
-        let written = await SoundprintBackfill.backfill(in: store.context, limit: 10, classifier: stub)
-        #expect(written == 0)
+        let capsule = try seed(store, audio: clip.data)
+        let existing = Soundprint(classifier: "version1",
+                                  labels: [Soundprint.Label(identifier: "ocean", confidence: 0.8)]).stored
+        capsule.soundprintRaw = existing
+        try store.save()
+
+        let stub = StubClassifier(identifier: "version1",
+                                  labels: [Soundprint.Label(identifier: "rain", confidence: 0.99)])
+        _ = await SoundprintBackfill.backfill(in: store.context, limit: 10, classifier: stub, isEnabled: true)
+        #expect(capsule.soundprintRaw == existing, "an analysed capsule must not be re-analysed")
     }
 }

@@ -64,7 +64,8 @@ actor SoundprintBackfill {
         var written = 0
         for capsule in pending {
             if Task.isCancelled { break }
-            guard let outcome = await Self.analyse(capsule, audioStore: audioStore, classifier: classifier) else {
+            guard let outcome = await Self.analyse(capsule, audioStore: audioStore,
+                                                   classifier: classifier, isEnabled: isEnabled) else {
                 continue
             }
             switch outcome {
@@ -92,7 +93,8 @@ actor SoundprintBackfill {
     private nonisolated static func analyse(
         _ capsule: Capsule,
         audioStore: AudioStore,
-        classifier: some SoundClassifying
+        classifier: some SoundClassifying,
+        isEnabled: Bool
     ) async -> SoundprintOutcome? {
         // Reuse the on-disk clip when there is one; otherwise spill the blob to a
         // temp file, because the analyzer is file-driven. One capsule at a time, so
@@ -112,11 +114,16 @@ actor SoundprintBackfill {
 
         // The amplitude gate needs the absolute peak, which only the extractor knows.
         guard let extraction = try? WaveformExtractor.extract(from: url, buckets: 32) else { return nil }
+        // Forward the consent decision the caller already made. Letting this
+        // re-read the global preference would let the inner call disagree with the
+        // outer guard — which is exactly what happened: the backfill checked consent,
+        // then the service silently re-read it and skipped everything.
         return await SoundprintService.soundprint(
             forClipAt: url,
             duration: capsule.durationSeconds,
             peak: extraction.peak,
-            classifier: classifier
+            classifier: classifier,
+            isEnabled: isEnabled
         )
     }
 }
