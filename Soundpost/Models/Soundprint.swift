@@ -108,6 +108,9 @@ enum SoundprintOutcome: Equatable, Sendable {
         case tooQuiet
         /// The analyzer itself failed.
         case failed
+        /// The user has turned listening off (M15 §4I). Not an error, and never
+        /// retried — the backfill must respect it too.
+        case notPermitted
     }
 
     var soundprint: Soundprint? {

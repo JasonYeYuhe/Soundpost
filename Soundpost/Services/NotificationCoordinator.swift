@@ -59,7 +59,10 @@ final class NotificationCoordinator: NSObject, UNUserNotificationCenterDelegate 
                     createdAt: $0.createdAt,
                     note: $0.note,
                     placeName: $0.place?.name,
-                    mood: $0.mood
+                    mood: $0.mood,
+                    // Only ever a *fallback* for the lead phrase, and only consulted
+                    // when `personalized` is on (M15 §S5).
+                    soundprint: Soundprint(stored: $0.soundprintRaw)
                 ))
             },
             uniquingKeysWith: { first, _ in first }

@@ -17,6 +17,9 @@ struct SettingsView: View {
 
     @AppStorage(NotificationPreferences.personalizedKey) private var personalizedNotifications = false
     @AppStorage(DeliveryPreferences.optedOutKey) private var cloudOptedOut = false
+    /// Consent for on-device listening (M15 §4I). Default on — see
+    /// `SoundAnalysisPreferences` for why this one is not opt-in.
+    @AppStorage(SoundAnalysisPreferences.enabledKey) private var listeningEnabled = true
 
     @State private var showingPaywall = false
     @State private var confirmingCloudDelete = false
@@ -36,6 +39,7 @@ struct SettingsView: View {
         NavigationStack {
             Form {
                 notificationsSection
+                listeningSection
                 dataSection
                 iCloudSection
                 proSection
@@ -151,6 +155,38 @@ struct SettingsView: View {
             Text("Soundpost Pro")
         } footer: {
             Text("Soundpost is free — capture, seal, resurface, back up, and receive every memory. Pro adds richer ways to make and share them, and never locks a memory.")
+        }
+    }
+
+    // MARK: - Listening (M15)
+
+    private var listeningSection: some View {
+        Section {
+            Toggle("Listen to my recordings on this device", isOn: $listeningEnabled)
+                .onChange(of: listeningEnabled) { _, enabled in
+                    // Turning it off FORGETS rather than hides. A switch that stopped
+                    // future analysis while quietly keeping past results would be the
+                    // dishonest version of this control (M15 §4I).
+                    if !enabled { forgetAllSoundprints() }
+                }
+        } header: {
+            Text("Listening")
+        } footer: {
+            Text("Soundpost can recognise everyday sounds — rain, birdsong, a train — so your capsules are easier to find later. This happens entirely on your device; no audio is ever uploaded. What it hears is stored with the capsule and syncs only to your own iCloud. Turning this off also erases what it has already heard.")
+        }
+    }
+
+    /// Clear every stored soundprint. Deliberately synchronous and immediate: when
+    /// someone withdraws consent, "we'll get to it" is not an acceptable answer.
+    private func forgetAllSoundprints() {
+        do {
+            let capsules = try modelContext.fetch(FetchDescriptor<Capsule>())
+            for capsule in capsules where capsule.soundprintRaw != nil {
+                capsule.soundprintRaw = nil
+            }
+            try modelContext.save()
+        } catch {
+            Diagnostics.notice("Clearing soundprints failed")
         }
     }
 

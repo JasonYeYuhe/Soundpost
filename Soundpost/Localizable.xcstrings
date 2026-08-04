@@ -1341,6 +1341,38 @@
         }
       }
     },
+    "Listen to my recordings on this device": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "この端末で録音を聴き取る"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在本机聆听我的录音"
+          }
+        }
+      }
+    },
+    "Listening": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "聴き取り"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "聆听"
+          }
+        }
+      }
+    },
     "Loading plans…": {
       "localizations": {
         "ja": {
@@ -2496,6 +2528,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Soundpost Pro 已启用 — 谢谢你。"
+          }
+        }
+      }
+    },
+    "Soundpost can recognise everyday sounds — rain, birdsong, a train — so your capsules are easier to find later. This happens entirely on your device; no audio is ever uploaded. What it hears is stored with the capsule and syncs only to your own iCloud. Turning this off also erases what it has already heard.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "雨、鳥のさえずり、電車といった日常の音を認識して、あとからカプセルを探しやすくします。処理はすべてこの端末の中で行われ、音声がアップロードされることはありません。聴き取った内容はカプセルとともに保存され、同期先はあなた自身の iCloud だけです。オフにすると、すでに聴き取った内容も消去されます。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Soundpost 可以识别日常声音——雨声、鸟鸣、火车——让你以后更容易找到胶囊。整个过程完全在你的设备上进行，音频永远不会被上传。识别到的内容与胶囊一起保存，且只同步到你自己的 iCloud。关闭后，也会抹除已经识别到的内容。"
           }
         }
       }

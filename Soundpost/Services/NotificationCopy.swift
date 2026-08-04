@@ -16,15 +16,26 @@ enum NotificationCopy {
         let note: String?
         let placeName: String?
         let mood: Mood?
+        /// What the on-device classifier heard, if anything (M15 §S5).
+        var soundprint: Soundprint?
 
         /// The lead phrase for personalized copy: the user's one-line, else the
-        /// place. Trimmed; nil when both are empty.
+        /// place, else what it sounded like. Trimmed; nil when all are empty.
+        ///
+        /// The soundprint is deliberately **last**. The user's own words always win;
+        /// a guess only ever fills the gap where the copy would otherwise have been
+        /// generic. And because `lead` is consulted only when `personalized` is on,
+        /// a sound label can never reach a lock screen the user opted out of.
         var lead: String? {
             if let note = note?.trimmingCharacters(in: .whitespacesAndNewlines), !note.isEmpty {
                 return note
             }
             if let place = placeName?.trimmingCharacters(in: .whitespacesAndNewlines), !place.isEmpty {
                 return place
+            }
+            if let identifier = soundprint?.identifiers.first,
+               let phrase = SoundVocabulary.displayName(for: identifier) {
+                return phrase
             }
             return nil
         }

@@ -53,8 +53,13 @@ enum SoundprintService {
         forClipAt url: URL,
         duration: TimeInterval,
         peak: Float,
-        classifier: some SoundClassifying = SoundAnalysisClassifier()
+        classifier: some SoundClassifying = SoundAnalysisClassifier(),
+        isEnabled: Bool = SoundAnalysisPreferences.isEnabled
     ) async -> SoundprintOutcome {
+        // Consent first, before anything else is even considered (M15 §4I). A
+        // defaulted parameter rather than a read inside the body: callers cannot
+        // forget it, and tests can drive both sides.
+        guard isEnabled else { return .skipped(.notPermitted) }
         guard duration >= minimumDuration else { return .skipped(.tooShort) }
         guard peak >= minimumPeak else { return .skipped(.tooQuiet) }
 

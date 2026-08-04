@@ -416,3 +416,101 @@ struct SoundPhraseMatchingTests {
         #expect(!GalleryFilter.matches(phrase: "车流声", query: "流声"))
     }
 }
+
+// MARK: - Consent + the resurface moment (M15 §4I / S5)
+
+struct SoundConsentTests {
+
+    private func withListening(_ enabled: Bool, _ body: () throws -> Void) rethrows {
+        let key = SoundAnalysisPreferences.enabledKey
+        let original = UserDefaults.standard.object(forKey: key)
+        defer {
+            if let original { UserDefaults.standard.set(original, forKey: key) }
+            else { UserDefaults.standard.removeObject(forKey: key) }
+        }
+        SoundAnalysisPreferences.isEnabled = enabled
+        try body()
+    }
+
+    /// Listening is on unless the user says otherwise — and that has to be explicit,
+    /// because `bool(forKey:)` returns false for an unset key.
+    @Test func listeningDefaultsToOn() {
+        let key = SoundAnalysisPreferences.enabledKey
+        let original = UserDefaults.standard.object(forKey: key)
+        defer {
+            if let original { UserDefaults.standard.set(original, forKey: key) }
+            else { UserDefaults.standard.removeObject(forKey: key) }
+        }
+        UserDefaults.standard.removeObject(forKey: key)
+        #expect(SoundAnalysisPreferences.isEnabled)
+    }
+
+    @Test func consentRoundTrips() {
+        withListening(false) { #expect(!SoundAnalysisPreferences.isEnabled) }
+        withListening(true) { #expect(SoundAnalysisPreferences.isEnabled) }
+    }
+
+    /// Withdrawing consent must stop the analysis itself, not merely hide its
+    /// output — and it must short-circuit before the classifier is ever reached.
+    @Test func withholdingConsentStopsAnalysisEntirely() async {
+        let stub = StubClassifier(labels: [Soundprint.Label(identifier: "rain", confidence: 0.99)])
+        let outcome = await SoundprintService.soundprint(
+            forClipAt: URL(fileURLWithPath: "/dev/null"),
+            duration: 30, peak: 0.9, classifier: stub, isEnabled: false)
+        #expect(outcome == .skipped(.notPermitted))
+        #expect(stub.calls.count == 0, "consent must be checked before anything else")
+        #expect(outcome.soundprint == nil)
+    }
+}
+
+/// The lock-screen rule: a sound label is the user's private words, so it can only
+/// appear where their note already could.
+struct SoundNotificationCopyTests {
+
+    private func digest(note: String? = nil, place: String? = nil, sound: String?) -> NotificationCopy.Digest {
+        NotificationCopy.Digest(
+            createdAt: Date(timeIntervalSinceNow: -12 * 86_400),
+            note: note,
+            placeName: place,
+            mood: .calm,
+            soundprint: sound.map {
+                Soundprint(classifier: "version1",
+                           labels: [Soundprint.Label(identifier: $0, confidence: 0.9)])
+            }
+        )
+    }
+
+    @Test func aSoundFillsTheGapWhenThereAreNoWords() throws {
+        let lead = try #require(digest(sound: "rain").lead)
+        #expect(lead == SoundVocabulary.displayName(for: "rain"))
+    }
+
+    /// The user's own words always win — a guess never displaces them.
+    @Test func theUsersOwnWordsOutrankTheGuess() {
+        #expect(digest(note: "the storm broke", sound: "rain").lead == "the storm broke")
+        #expect(digest(place: "Home", sound: "rain").lead == "Home")
+    }
+
+    @Test func nothingIsInventedWhenThereIsNoSoundprint() {
+        #expect(digest(sound: nil).lead == nil)
+        // A label we refuse to name yields no lead either.
+        #expect(digest(sound: "crying_sobbing").lead == nil)
+    }
+
+    /// The load-bearing privacy check: with personalized notifications off, no sound
+    /// label can reach a notification body — the generic copy is used instead.
+    @Test func aSoundLabelNeverReachesALockScreenTheUserOptedOutOf() throws {
+        let item = PlannedNotification(capsuleID: UUID(),
+                                       fireDate: Date(timeIntervalSinceNow: 60),
+                                       timeZoneID: nil,
+                                       kind: .echo)
+        let withSound = digest(sound: "rain")
+        let phrase = try #require(SoundVocabulary.displayName(for: "rain"))
+
+        let optedOut = NotificationCopy.make(for: item, digest: withSound, personalized: false)
+        #expect(!optedOut.body.contains(phrase), "opted out, yet the sound leaked into the body")
+
+        let optedIn = NotificationCopy.make(for: item, digest: withSound, personalized: true)
+        #expect(optedIn.body.contains(phrase))
+    }
+}
