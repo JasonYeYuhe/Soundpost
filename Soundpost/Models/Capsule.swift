@@ -44,6 +44,18 @@ final class Capsule {
     /// Populated in M2; empty until then.
     var waveformSamples: [Float] = []
 
+    /// What Soundpost's **on-device** classifier heard here, encoded by `Soundprint`
+    /// (M15 §4B). `nil` = never analysed; an *analysed-but-empty* value is different
+    /// and meaningful — it records that we listened and had nothing confident to say,
+    /// which is what keeps the backfill idempotent instead of retrying forever.
+    ///
+    /// A plain optional `String` like every other property here, so the
+    /// CloudKit-mirrored schema stays purely additive and needs no migration. Note
+    /// this **does** sync to the user's own private database along with the capsule:
+    /// the inference is on-device, the resulting label travels with the memory it
+    /// describes (M15 §1.4 — do not restate this as "never leaves the device").
+    var soundprintRaw: String?
+
     /// Emotional tone chosen by the user. Optional until they pick one.
     var mood: Mood?
 
@@ -89,6 +101,7 @@ final class Capsule {
         self.createdAt = createdAt
         self.audioFileName = nil
         self.audioData = nil
+        self.soundprintRaw = nil
         self.durationSeconds = 0
         self.waveformSamples = []
         self.mood = nil

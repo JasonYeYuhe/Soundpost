@@ -33,6 +33,14 @@ final class CaptureViewModel {
     var echoAt: Date?
     var echoEnabled = true
 
+    /// What the on-device classifier heard, once it finishes (M15 §4K).
+    /// Deliberately **not** awaited before the review screen appears: a 5-minute
+    /// clip takes seconds to classify, and a memory must never wait on a guess.
+    /// If it is not ready by the time the user saves, the capsule simply has no
+    /// soundprint and the backfill picks it up later.
+    private(set) var soundprint: Soundprint?
+    private var classificationTask: Task<Void, Never>?
+
     let recorder: AudioRecorder
     let player: AudioPlayer
     private let audioStore: AudioStore
@@ -101,10 +109,10 @@ final class CaptureViewModel {
         }
         self.fileName = fileName
         self.duration = duration
-        waveform = (try? WaveformExtractor.samples(
-            from: audioStore.url(for: fileName),
-            buckets: waveformBuckets
-        )) ?? []
+        let clipURL = audioStore.url(for: fileName)
+        let extraction = try? WaveformExtractor.extract(from: clipURL, buckets: waveformBuckets)
+        waveform = extraction?.samples ?? []
+        startClassifying(clipAt: clipURL, duration: duration, peak: extraction?.peak ?? 0)
         echoAt = Self.randomEchoDate(in: echoWindow)
         echoEnabled = true
         phase = .review
@@ -135,6 +143,18 @@ final class CaptureViewModel {
         let days = Int.random(in: range)
         return Calendar.current.date(byAdding: .day, value: days, to: reference)
             ?? reference.addingTimeInterval(TimeInterval(days) * 86_400)
+    }
+
+    /// Classify off the critical path (M15 §4K). Never blocks capture, never
+    /// throws into it, and is cancelled if the user discards or re-records.
+    private func startClassifying(clipAt url: URL, duration: TimeInterval, peak: Float) {
+        classificationTask?.cancel()
+        soundprint = nil
+        classificationTask = Task { [weak self] in
+            let outcome = await SoundprintService.soundprint(forClipAt: url, duration: duration, peak: peak)
+            guard !Task.isCancelled else { return }
+            await MainActor.run { self?.soundprint = outcome.soundprint }
+        }
     }
 
     func discard() {
@@ -186,6 +206,7 @@ final class CaptureViewModel {
             waveformSamples: waveform
         )
         capsule.mood = mood
+        capsule.soundprintRaw = soundprint?.stored
         let trimmed = note.trimmingCharacters(in: .whitespacesAndNewlines)
         capsule.note = trimmed.isEmpty ? nil : trimmed
         capsule.place = includePlace ? place : nil
@@ -209,6 +230,9 @@ final class CaptureViewModel {
         place = nil
         includePlace = false
         echoAt = nil
+        classificationTask?.cancel()
+        classificationTask = nil
+        soundprint = nil
         echoEnabled = true
         phase = .idle
     }
