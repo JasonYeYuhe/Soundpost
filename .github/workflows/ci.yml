@@ -38,6 +38,9 @@ jobs:
       - name: Localization gate (xcstrings 100% translated)
         run: ./scripts/check-localization.sh
 
+      - name: Sound-vocabulary gate (M15 labels translated)
+        run: ./scripts/check-sound-vocabulary.sh
+
       - name: Select an available iPhone simulator
         id: sim
         run: |

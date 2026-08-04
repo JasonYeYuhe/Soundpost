@@ -3112,6 +3112,567 @@
         }
       }
     },
+    "a baby laughing": {
+      "comment": "Sound label shown on a capsule (M15)",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "赤ちゃんの笑い声"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "婴儿的笑声"
+          }
+        }
+      }
+    },
+    "a cat": {
+      "comment": "Sound label shown on a capsule (M15)",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "猫"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "猫叫"
+          }
+        }
+      }
+    },
+    "a crackling fire": {
+      "comment": "Sound label shown on a capsule (M15)",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "焚き火"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "噼啪的火"
+          }
+        }
+      }
+    },
+    "a crowd": {
+      "comment": "Sound label shown on a capsule (M15)",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "人だかり"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "人群"
+          }
+        }
+      }
+    },
+    "a dog barking": {
+      "comment": "Sound label shown on a capsule (M15)",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "犬の鳴き声"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "狗叫"
+          }
+        }
+      }
+    },
+    "a guitar": {
+      "comment": "Sound label shown on a capsule (M15)",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ギター"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "吉他"
+          }
+        }
+      }
+    },
+    "a helicopter": {
+      "comment": "Sound label shown on a capsule (M15)",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ヘリコプター"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "直升机"
+          }
+        }
+      }
+    },
+    "a passing car": {
+      "comment": "Sound label shown on a capsule (M15)",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通り過ぎる車"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "驶过的车"
+          }
+        }
+      }
+    },
+    "a piano": {
+      "comment": "Sound label shown on a capsule (M15)",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ピアノ"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "钢琴"
+          }
+        }
+      }
+    },
+    "a plane overhead": {
+      "comment": "Sound label shown on a capsule (M15)",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "頭上を飛ぶ飛行機"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "头顶飞过的飞机"
+          }
+        }
+      }
+    },
+    "a running tap": {
+      "comment": "Sound label shown on a capsule (M15)",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "水道の音"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "水龙头"
+          }
+        }
+      }
+    },
+    "a stream": {
+      "comment": "Sound label shown on a capsule (M15)",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "せせらぎ"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "溪流"
+          }
+        }
+      }
+    },
+    "a thunderstorm": {
+      "comment": "Sound label shown on a capsule (M15)",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "雷雨"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "雷雨"
+          }
+        }
+      }
+    },
+    "a ticking clock": {
+      "comment": "Sound label shown on a capsule (M15)",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "時計の音"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "钟表滴答"
+          }
+        }
+      }
+    },
+    "a train": {
+      "comment": "Sound label shown on a capsule (M15)",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "電車"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "火车"
+          }
+        }
+      }
+    },
+    "a vacuum": {
+      "comment": "Sound label shown on a capsule (M15)",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "掃除機"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "吸尘器"
+          }
+        }
+      }
+    },
+    "a violin": {
+      "comment": "Sound label shown on a capsule (M15)",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "バイオリン"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "小提琴"
+          }
+        }
+      }
+    },
+    "a waterfall": {
+      "comment": "Sound label shown on a capsule (M15)",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "滝"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "瀑布"
+          }
+        }
+      }
+    },
+    "an owl": {
+      "comment": "Sound label shown on a capsule (M15)",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "フクロウ"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "猫头鹰"
+          }
+        }
+      }
+    },
+    "applause": {
+      "comment": "Sound label shown on a capsule (M15)",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "拍手"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "掌声"
+          }
+        }
+      }
+    },
+    "bees": {
+      "comment": "Sound label shown on a capsule (M15)",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "蜂"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "蜜蜂"
+          }
+        }
+      }
+    },
+    "birdsong": {
+      "comment": "Sound label shown on a capsule (M15)",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "鳥のさえずり"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "鸟鸣"
+          }
+        }
+      }
+    },
+    "chatter": {
+      "comment": "Sound label shown on a capsule (M15)",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ざわめき"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "交谈声"
+          }
+        }
+      }
+    },
+    "cheering": {
+      "comment": "Sound label shown on a capsule (M15)",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "歓声"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "欢呼"
+          }
+        }
+      }
+    },
+    "chopping": {
+      "comment": "Sound label shown on a capsule (M15)",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "包丁の音"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "切菜声"
+          }
+        }
+      }
+    },
+    "church bells": {
+      "comment": "Sound label shown on a capsule (M15)",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "教会の鐘"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "教堂钟声"
+          }
+        }
+      }
+    },
+    "crickets": {
+      "comment": "Sound label shown on a capsule (M15)",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "虫の音"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "虫鸣"
+          }
+        }
+      }
+    },
+    "crows": {
+      "comment": "Sound label shown on a capsule (M15)",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "カラス"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "乌鸦"
+          }
+        }
+      }
+    },
+    "cutlery": {
+      "comment": "Sound label shown on a capsule (M15)",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "食器の音"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "餐具声"
+          }
+        }
+      }
+    },
+    "dishes": {
+      "comment": "Sound label shown on a capsule (M15)",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "皿や鍋の音"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "锅碗瓢盆"
+          }
+        }
+      }
+    },
+    "frogs": {
+      "comment": "Sound label shown on a capsule (M15)",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "カエル"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "蛙声"
+          }
+        }
+      }
+    },
+    "giggling": {
+      "comment": "Sound label shown on a capsule (M15)",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "くすくす笑い"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "咯咯笑"
+          }
+        }
+      }
+    },
+    "humming": {
+      "comment": "Sound label shown on a capsule (M15)",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "鼻歌"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "哼唱"
+          }
+        }
+      }
+    },
     "iCloud & delivery": {
       "localizations": {
         "ja": {
@@ -3124,6 +3685,108 @@
           "stringUnit": {
             "state": "translated",
             "value": "iCloud 与投递"
+          }
+        }
+      }
+    },
+    "insects": {
+      "comment": "Sound label shown on a capsule (M15)",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "虫"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "虫子"
+          }
+        }
+      }
+    },
+    "laughter": {
+      "comment": "Sound label shown on a capsule (M15)",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "笑い声"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "笑声"
+          }
+        }
+      }
+    },
+    "leaves in the wind": {
+      "comment": "Sound label shown on a capsule (M15)",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "風に揺れる葉"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "风吹树叶"
+          }
+        }
+      }
+    },
+    "music": {
+      "comment": "Sound label shown on a capsule (M15)",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "音楽"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "音乐"
+          }
+        }
+      }
+    },
+    "pouring": {
+      "comment": "Sound label shown on a capsule (M15)",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "注ぐ音"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "倒水声"
+          }
+        }
+      }
+    },
+    "purring": {
+      "comment": "Sound label shown on a capsule (M15)",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "猫がのどを鳴らす音"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "猫的呼噜声"
           }
         }
       }
@@ -3216,6 +3879,227 @@
           "stringUnit": {
             "state": "translated",
             "value": "一个胶囊重现了"
+          }
+        }
+      }
+    },
+    "rain": {
+      "comment": "Sound label shown on a capsule (M15)",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "雨"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "雨声"
+          }
+        }
+      }
+    },
+    "raindrops": {
+      "comment": "Sound label shown on a capsule (M15)",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "雨だれ"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "雨滴"
+          }
+        }
+      }
+    },
+    "singing": {
+      "comment": "Sound label shown on a capsule (M15)",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "歌声"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "歌声"
+          }
+        }
+      }
+    },
+    "something boiling": {
+      "comment": "Sound label shown on a capsule (M15)",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "沸く音"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "水开的声音"
+          }
+        }
+      }
+    },
+    "something frying": {
+      "comment": "Sound label shown on a capsule (M15)",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "何かを炒める音"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "煎炒声"
+          }
+        }
+      }
+    },
+    "the ocean": {
+      "comment": "Sound label shown on a capsule (M15)",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "海"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "大海"
+          }
+        }
+      }
+    },
+    "the subway": {
+      "comment": "Sound label shown on a capsule (M15)",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "地下鉄"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "地铁"
+          }
+        }
+      }
+    },
+    "traffic": {
+      "comment": "Sound label shown on a capsule (M15)",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "車の行き交う音"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "车流声"
+          }
+        }
+      }
+    },
+    "typing": {
+      "comment": "Sound label shown on a capsule (M15)",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "タイピング"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打字声"
+          }
+        }
+      }
+    },
+    "voices": {
+      "comment": "Sound label shown on a capsule (M15)",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "人の声"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "说话声"
+          }
+        }
+      }
+    },
+    "waves": {
+      "comment": "Sound label shown on a capsule (M15)",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "波"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "海浪"
+          }
+        }
+      }
+    },
+    "whistling": {
+      "comment": "Sound label shown on a capsule (M15)",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "口笛"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "口哨"
+          }
+        }
+      }
+    },
+    "wind": {
+      "comment": "Sound label shown on a capsule (M15)",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "風"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "风声"
           }
         }
       }

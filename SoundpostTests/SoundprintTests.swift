@@ -1,5 +1,6 @@
 import Testing
 import Foundation
+import SoundAnalysis
 @testable import Soundpost
 
 /// A stub classifier so every rule — gates, floor, ordering, provenance — is tested
@@ -125,14 +126,35 @@ struct SoundprintTests {
 
     @Test func confidentLabelsSurviveAndAreCapped() async throws {
         let stub = StubClassifier(identifier: "version1", labels: [
-            label("rain", 0.91), label("wind", 0.72), label("bird", 0.55),
-            label("traffic", 0.40), label("music", 0.10),
+            // `didgeridoo` is a REAL classifier label we deliberately do not name, and
+            // it is the most confident one here — so this also proves the allow-list
+            // outranks confidence rather than merely tie-breaking with it.
+            label("didgeridoo", 0.99),
+            label("rain", 0.91), label("wind", 0.72), label("bird_chirp_tweet", 0.55),
+            label("traffic_noise", 0.40), label("music", 0.10),
         ])
         let outcome = await SoundprintService.soundprint(
             forClipAt: URL(fileURLWithPath: "/dev/null"), duration: 12, peak: 0.6, classifier: stub)
         let print = try #require(outcome.soundprint)
-        #expect(print.identifiers == ["rain", "wind", "bird"])    // capped at 3, ordered
-        #expect(print.classifier == "version1")                   // provenance recorded
+        #expect(print.identifiers == ["rain", "wind", "bird_chirp_tweet"])  // capped at 3, ordered
+        #expect(!print.contains("didgeridoo"), "an unnamed sound must never be stored")
+        #expect(print.classifier == "version1")                             // provenance recorded
+    }
+
+    /// A denied label must not survive even at maximum confidence — and, because the
+    /// filter runs before storage, it never reaches the model or the user's iCloud
+    /// at all (M15 §4D-bis).
+    @Test func aDeniedLabelIsNeverStoredEvenWhenCertain() async throws {
+        let stub = StubClassifier(identifier: "version1", labels: [
+            label("crying_sobbing", 1.0), label("screaming", 0.98), label("rain", 0.44),
+        ])
+        let outcome = await SoundprintService.soundprint(
+            forClipAt: URL(fileURLWithPath: "/dev/null"), duration: 12, peak: 0.6, classifier: stub)
+        let print = try #require(outcome.soundprint)
+        #expect(print.identifiers == ["rain"])
+        for denied in ["crying_sobbing", "screaming"] {
+            #expect(!print.stored.contains(denied), "\(denied) leaked into storage")
+        }
     }
 
     /// "We could not listen" must never be able to break saving a memory.
@@ -177,5 +199,70 @@ struct SoundprintTests {
 
         capsule.soundprintRaw = Soundprint(classifier: "version1", labels: [label("rain", 0.8)]).stored
         #expect(Soundprint(stored: capsule.soundprintRaw)?.contains("rain") == true)
+    }
+}
+
+// MARK: - The vocabulary (M15 §4D / §4D-bis)
+
+struct SoundVocabularyTests {
+
+    /// The curated list is the *whole* answer to "may we show this?", so it must be
+    /// deliberate: big enough to be useful, small enough to stay translated.
+    @Test func theVocabularyIsCuratedNotExhaustive() {
+        let count = SoundVocabulary.displayNames.count
+        #expect(count >= 40 && count <= 60, "\(count) labels — §4D targets a curated 40–60")
+        #expect(SoundVocabulary.allowedIdentifiers.count == count)
+        for (identifier, phrase) in SoundVocabulary.displayNames {
+            #expect(!identifier.isEmpty)
+            #expect(!phrase.isEmpty, "\(identifier) has no display phrase")
+        }
+    }
+
+    /// The one that catches a typo. These identifiers are matched against the
+    /// classifier's output as exact tokens, so a misspelling would not fail loudly —
+    /// it would silently never match anything, forever.
+    @Test func everyAllowedIdentifierReallyExistsInApplesVocabulary() throws {
+        let known = Set(try SNClassifySoundRequest(classifierIdentifier: .version1).knownClassifications)
+        for identifier in SoundVocabulary.allowedIdentifiers {
+            #expect(known.contains(identifier), "\(identifier) is not a real classifier label")
+        }
+    }
+
+    /// Same trap on the other list — a denied label that does not exist protects
+    /// nothing, and would quietly rot as the taxonomy changes.
+    @Test func everyDeniedIdentifierReallyExistsToo() throws {
+        let known = Set(try SNClassifySoundRequest(classifierIdentifier: .version1).knownClassifications)
+        for identifier in SoundVocabulary.denied {
+            #expect(known.contains(identifier), "denied label \(identifier) is not a real classifier label")
+        }
+    }
+
+    /// The guard rail: nobody can ever add "crying_sobbing" to the allow-list without
+    /// this failing. That is the whole point of keeping the deny-list around when the
+    /// allow-list already decides everything.
+    @Test func nothingIsBothAllowedAndDenied() {
+        let overlap = Set(SoundVocabulary.allowedIdentifiers).intersection(SoundVocabulary.denied)
+        #expect(overlap.isEmpty, "these are both allowed and denied: \(overlap.sorted())")
+    }
+
+    @Test func theDenyListCoversTheDistressAndAlarmClasses() {
+        // Spot-check the ones that would be worst on a lock screen.
+        for identifier in ["crying_sobbing", "baby_crying", "screaming", "gunshot_gunfire",
+                           "glass_breaking", "snoring", "whispering", "toilet_flush"] {
+            #expect(SoundVocabulary.denied.contains(identifier), "\(identifier) should be denied")
+            #expect(!SoundVocabulary.isAllowed(identifier), "\(identifier) must not be showable")
+        }
+    }
+
+    @Test func anUnknownLabelHasNoName() {
+        #expect(SoundVocabulary.displayName(for: "not_a_real_label") == nil)
+        #expect(!SoundVocabulary.isAllowed("not_a_real_label"))
+        // A real classifier label we simply chose not to name is equally invisible.
+        #expect(!SoundVocabulary.isAllowed("didgeridoo"))
+    }
+
+    @Test func anAllowedLabelResolvesToRealCopy() throws {
+        let name = try #require(SoundVocabulary.displayName(for: "rain"))
+        #expect(!name.isEmpty)
     }
 }

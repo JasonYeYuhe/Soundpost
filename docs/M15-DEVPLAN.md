@@ -326,7 +326,8 @@ weight than usual because "AI" is exactly where users assume the opposite.**
 
 - [ ] **Confirm the thesis:** sound *understanding* (what the world sounded like), and
   **not** speech transcription — which PROJECT.md cut as a different, crowded product.
-- [ ] **Confirm M15 ships free** (§4F) — Codex F9 pushed back on this: it is the
+- [x] **CONFIRMED 2026-08-04 (Jason): M15 ships entirely free**, paid features come later. Recorded because it is a one-way door — a capability shipped free cannot move behind Pro without backlash, so a future paid tier must be built from *new* value, not by fencing this off.
+- [ ] ~~Confirm M15 ships free~~ (§4F) — Codex F9 pushed back on this: it is the
   hardest-to-copy thing in the app, and a capability shipped free cannot later move
   behind Pro without backlash. Its counter-proposal: classification + capture
   suggestions free (they make the app feel alive), **label-based search and

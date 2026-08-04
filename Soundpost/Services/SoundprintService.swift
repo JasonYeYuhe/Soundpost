@@ -61,6 +61,11 @@ enum SoundprintService {
         do {
             let raw = try await classifier.classify(clipAt: url)
             let kept = raw
+                // Only vocabulary we can actually name gets stored at all (M15 §4D).
+                // Filtering here rather than at display time means a label we refuse
+                // to show never enters storage or iCloud in the first place — which
+                // is a stronger guarantee than "we promise not to render it".
+                .filter { SoundVocabulary.isAllowed($0.identifier) }
                 .filter { $0.confidence >= confidenceFloor }
                 .sorted { $0.confidence > $1.confidence }
                 .prefix(maximumLabels)
