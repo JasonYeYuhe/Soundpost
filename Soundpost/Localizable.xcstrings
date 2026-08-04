@@ -247,6 +247,22 @@
         }
       }
     },
+    "Add %@ to your line": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ を一言に追加"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "把%@加入你的那句话"
+          }
+        }
+      }
+    },
     "Allow Location Access": {
       "extractionState": "stale",
       "localizations": {
@@ -2544,6 +2560,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Soundpost 会隐藏这个胶囊，并在 %@ 通知你。这是设备上温柔、基于自觉的封印，并非加密。"
+          }
+        }
+      }
+    },
+    "Sounds like": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "こんな音がします"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "听起来像"
           }
         }
       }

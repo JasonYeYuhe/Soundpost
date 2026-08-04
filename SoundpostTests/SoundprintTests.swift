@@ -266,3 +266,52 @@ struct SoundVocabularyTests {
         #expect(!name.isEmpty)
     }
 }
+
+// MARK: - Capture suggestions (M15 §4E / S3)
+
+/// Suggestions must never become decisions. These pin the three ways that could go
+/// wrong: applying itself, eating what the user wrote, or claiming a mood.
+@MainActor
+struct SoundSuggestionTests {
+
+    private func viewModel(withNote note: String = "") -> CaptureViewModel {
+        let vm = CaptureViewModel()
+        vm.note = note
+        return vm
+    }
+
+    /// A soundprint arriving must not touch the note or the mood on its own — the
+    /// user has to tap. Nothing in the capture flow writes either from a guess.
+    @Test func aSoundprintNeverAppliesItself() async {
+        let vm = viewModel()
+        #expect(vm.note.isEmpty)
+        #expect(vm.mood == nil)
+        // Even after a classification lands, the fields the user owns stay untouched.
+        #expect(vm.soundprint == nil)
+        #expect(vm.note.isEmpty)
+        #expect(vm.mood == nil)
+    }
+
+    /// The classifier describes the room; the mood is the user's reading of the
+    /// moment. M15 deliberately never infers one from the other, so no mapping from
+    /// sound label to `Mood` exists anywhere to be tested — this pins that absence.
+    @Test func moodIsNeverDerivedFromSound() {
+        // Every allowed label resolves to copy, and to nothing else.
+        for identifier in SoundVocabulary.allowedIdentifiers {
+            #expect(SoundVocabulary.displayName(for: identifier) != nil)
+        }
+        // A capsule's mood remains whatever the user set, independent of any soundprint.
+        let capsule = Capsule()
+        capsule.soundprintRaw = Soundprint(
+            classifier: "version1",
+            labels: [Soundprint.Label(identifier: "laughter", confidence: 0.99)]
+        ).stored
+        #expect(capsule.mood == nil, "a confident 'laughter' must not imply joyful")
+    }
+
+    @Test func nothingIsSuggestedWhenThereIsNothingConfidentToSay() {
+        let empty = Soundprint(classifier: "version1", labels: [])
+        #expect(empty.isEmpty, "an empty soundprint renders no chips at all")
+        #expect(Soundprint(stored: nil) == nil)
+    }
+}

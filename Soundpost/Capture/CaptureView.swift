@@ -211,6 +211,25 @@ struct CaptureView: View {
                     }
                 }
 
+                // What the on-device classifier heard (M15 §4E). A SUGGESTION: it
+                // appears only when there is something confident to say, it is never
+                // applied on its own, and ignoring it forever costs nothing.
+                if let soundprint = viewModel.soundprint, !soundprint.isEmpty {
+                    section("Sounds like") {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 10) {
+                                ForEach(soundprint.identifiers, id: \.self) { identifier in
+                                    if let phrase = SoundVocabulary.displayName(for: identifier) {
+                                        soundSuggestionChip(phrase)
+                                    }
+                                }
+                            }
+                            .padding(.vertical, 2)
+                        }
+                    }
+                    .transition(.opacity)
+                }
+
                 section("One line") {
                     TextField("What is this?", text: $viewModel.note, axis: .vertical)
                         .lineLimit(1...3)
@@ -240,6 +259,37 @@ struct CaptureView: View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title).font(.headline)
             content()
+        }
+    }
+
+    /// A tappable guess. Tapping *adds it to the user's line* — it never becomes the
+    /// line by itself, and it never touches the mood: what the room sounded like is an
+    /// observation, what the moment felt like is the user's alone (M15 §4E).
+    private func soundSuggestionChip(_ phrase: String) -> some View {
+        Button {
+            acceptSuggestion(phrase)
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "plus.circle")
+                Text(phrase)
+            }
+            .font(.subheadline)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(Color(.secondarySystemBackground), in: SwiftUI.Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Text("Add \(phrase) to your line"))
+    }
+
+    /// Append rather than replace: a guess must never eat something the user wrote.
+    private func acceptSuggestion(_ phrase: String) {
+        let existing = viewModel.note.trimmingCharacters(in: .whitespacesAndNewlines)
+        if existing.isEmpty {
+            // Sentence-start capitalisation in languages that have it; a no-op in ja/zh.
+            viewModel.note = phrase.prefix(1).localizedUppercase + phrase.dropFirst()
+        } else {
+            viewModel.note = existing + " " + phrase
         }
     }
 
