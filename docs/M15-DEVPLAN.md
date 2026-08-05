@@ -20,7 +20,7 @@
 > |---|---|---|
 > | S1 — service + model field | `3662650` | the *gates*, not the model: silence classifies as `music 0.25` |
 > | S2 — vocabulary | `b5b2f14` | 52 labels named, **45 refused**; a new CI gate for the copy |
-> | S3 — capture suggestions | `d59a2b1` | suggest a line, never a mood |
+> | S3 — capture suggestions | `38f1412` | suggest a line, never a mood |
 > | S4 — search by sound | `674394d` | the `rain`/`train` false positive |
 > | S5 — consent + resurface copy | `aeb211c` | two layered switches, not one overloaded one |
 > | S7 — backfill + privacy re-audit | `32174f2`, `0470f03` | idempotence, and a consent bug the tests caught |
