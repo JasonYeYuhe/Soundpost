@@ -23,13 +23,25 @@ enum NotificationPreferences {
     }
 
     /// A short token folded into each scheduled request's identity so that
-    /// flipping the preference re-issues every owned request with fresh copy.
+    /// flipping a preference re-issues every owned request with fresh copy.
     /// Already-scheduled requests bake their body at schedule time, and the gallery
     /// resyncs only on the seal/echo *signature*; without a content-version bit a
     /// stale personalized body would linger on the lock screen after opt-out (the
     /// §S3 P0). Changing this string makes the old identifiers read as stale, so
     /// the scheduler removes and re-adds them.
-    static func contentVersion(personalized: Bool) -> String {
-        personalized ? "p1" : "g1"
+    ///
+    /// `listening` is folded in for the same reason, one milestone later: a sound
+    /// label can reach a body via `Digest.lead`, so withdrawing listening consent
+    /// has to invalidate already-scheduled bodies too. Erasing the stored
+    /// soundprints is not sufficient on its own — the scheduler skips any
+    /// identifier it has already scheduled, so without this bit the phrase
+    /// Soundpost heard would keep firing on the lock screen after the switch was
+    /// turned off, which is exactly what the Settings copy promises it will not do.
+    ///
+    /// It only varies while `personalized` is on: generic copy never consults a
+    /// digest, so a label cannot appear there and the token stays `g1`.
+    static func contentVersion(personalized: Bool, listening: Bool) -> String {
+        guard personalized else { return "g1" }
+        return listening ? "p1" : "p1n"
     }
 }

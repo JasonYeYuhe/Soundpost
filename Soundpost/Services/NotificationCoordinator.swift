@@ -47,12 +47,13 @@ final class NotificationCoordinator: NSObject, UNUserNotificationCenterDelegate 
     /// resurfacing on their date, and captured ones echoing back later. Bodies are
     /// built by the pure `NotificationCopy` (metadata-only — never faults audio),
     /// personalized when the user opted in (§S3/§4A, default off). The current
-    /// personalized state is folded into each request's identity via
-    /// `contentVersion`, so flipping the preference re-issues every owned request
+    /// personalized *and listening* states are folded into each request's identity
+    /// via `contentVersion`, so flipping either re-issues every owned request
     /// rather than leaving a stale body baked on the lock screen (§S3 P0).
     func sync(capsules: [Capsule], now: Date = .now) async {
         let plan = NotificationPlanner.plan(capsules: capsules, now: now)
         let personalized = NotificationPreferences.personalized
+        let listening = SoundAnalysisPreferences.isEnabled
         let digests = Dictionary(
             capsules.map {
                 ($0.id, NotificationCopy.Digest(
@@ -69,7 +70,7 @@ final class NotificationCoordinator: NSObject, UNUserNotificationCenterDelegate 
         )
         await scheduler.reconcile(
             plan: plan,
-            contentVersion: NotificationPreferences.contentVersion(personalized: personalized)
+            contentVersion: NotificationPreferences.contentVersion(personalized: personalized, listening: listening)
         ) { item in
             NotificationCopy.make(for: item, digest: digests[item.capsuleID], personalized: personalized)
         }

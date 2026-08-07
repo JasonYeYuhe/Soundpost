@@ -17,8 +17,18 @@ struct NotificationCopyTests {
         return NotificationCopy.make(for: item, digest: digest, personalized: personalized)
     }
 
-    private func digest(note: String? = nil, place: String? = nil, created: Date = .now) -> NotificationCopy.Digest {
-        NotificationCopy.Digest(createdAt: created, note: note, placeName: place, mood: .calm)
+    private func digest(
+        note: String? = nil,
+        place: String? = nil,
+        created: Date = .now,
+        soundprint: Soundprint? = nil
+    ) -> NotificationCopy.Digest {
+        NotificationCopy.Digest(createdAt: created, note: note, placeName: place, mood: .calm, soundprint: soundprint)
+    }
+
+    /// A confident single-label soundprint, in the stored provenance form.
+    private func heard(_ identifier: String, _ confidence: Double = 0.82) -> Soundprint {
+        Soundprint(classifier: "version1", labels: [.init(identifier: identifier, confidence: confidence)])
     }
 
     // MARK: Generic (default, opt-out)
@@ -64,10 +74,52 @@ struct NotificationCopyTests {
         #expect(body == String(localized: "“\("morning birds")” — \(14) days ago. Listen back."))
     }
 
+    // MARK: What it heard — the last-resort lead (M15 §S5)
+
+    @Test func personalizedSealFallsBackToWhatItHeardWithoutWords() {
+        // No note, no place, but something was heard: the gap the classifier fills.
+        let (_, body) = seal(digest(soundprint: heard("rain")), personalized: true)
+        let phrase = SoundVocabulary.displayName(for: "rain")
+        #expect(phrase != nil)
+        #expect(body == String(localized: "“\(phrase!)” — tap to listen."))
+    }
+
+    @Test func theUsersOwnWordsAlwaysOutrankWhatItHeard() {
+        let (_, body) = seal(digest(note: "Rain on the window", soundprint: heard("rain")), personalized: true)
+        #expect(body == String(localized: "“\("Rain on the window")” — tap to listen."))
+    }
+
+    @Test func genericCopyNeverLeaksASoundLabel() {
+        // Opted out of personalized copy: a label must not reach the lock screen
+        // even though one is stored on the capsule.
+        let (_, body) = seal(digest(soundprint: heard("rain")), personalized: false)
+        #expect(body == String(localized: "Open Soundpost to hear this moment again."))
+        if let phrase = SoundVocabulary.displayName(for: "rain") {
+            #expect(!body.contains(phrase))
+        }
+    }
+
     // MARK: Content-version token gates the request identity
 
     @Test func contentVersionDiffersByPreference() {
-        #expect(NotificationPreferences.contentVersion(personalized: true)
-                != NotificationPreferences.contentVersion(personalized: false))
+        #expect(NotificationPreferences.contentVersion(personalized: true, listening: true)
+                != NotificationPreferences.contentVersion(personalized: false, listening: true))
+    }
+
+    /// Withdrawing listening consent has to invalidate already-scheduled bodies:
+    /// a sound phrase may already be baked into a pending request, and the
+    /// scheduler skips identifiers it has already scheduled. Without this the
+    /// label would keep firing after the switch was turned off — the behaviour the
+    /// Settings copy and the 1.6.0 release notes promise by name.
+    @Test func contentVersionDiffersByListeningWhilePersonalized() {
+        #expect(NotificationPreferences.contentVersion(personalized: true, listening: true)
+                != NotificationPreferences.contentVersion(personalized: true, listening: false))
+    }
+
+    @Test func contentVersionIgnoresListeningWhenCopyIsGeneric() {
+        // Generic copy never consults a digest, so listening cannot change the body
+        // and must not churn every scheduled request.
+        #expect(NotificationPreferences.contentVersion(personalized: false, listening: true)
+                == NotificationPreferences.contentVersion(personalized: false, listening: false))
     }
 }

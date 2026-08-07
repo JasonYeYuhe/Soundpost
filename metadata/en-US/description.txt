@@ -12,4 +12,4 @@ And when a moment feels like it belongs to later, you can seal a capsule to resu
 - Private and offline-first — no account, your sounds stay on your device
 - English, 日本語, 简体中文
 
-Honest by design: the seal is a gentle, on-device seal, not encryption. In this version your capsules live only on your device (no cloud backup yet), and we never charge you to open a memory you've already made.
+Honest by design: the seal is a gentle, on-device seal, not encryption. Your capsules back up to your own private iCloud and sync across your devices — nowhere else, and never to us. And we never charge you to open a memory you've already made.

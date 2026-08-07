@@ -168,11 +168,26 @@ struct SettingsView: View {
                     // future analysis while quietly keeping past results would be the
                     // dishonest version of this control (M15 §4I).
                     if !enabled { forgetAllSoundprints() }
+                    // Erasing the stored labels is necessary but not sufficient: a
+                    // label may already be baked into a *pending* lock-screen body,
+                    // and the scheduler skips identifiers it has already scheduled.
+                    // Re-syncing with the listening state folded into
+                    // `contentVersion` makes those requests read as stale, so they
+                    // are removed and rebuilt without it — the §S3 P0, for this
+                    // switch. Mirrors what `deleteCloudData` already does.
+                    Task {
+                        let capsuleStore = CapsuleStore(context: modelContext)
+                        await notifications.sync(capsules: (try? capsuleStore.all()) ?? [])
+                    }
                 }
         } header: {
             Text("Listening")
         } footer: {
-            Text("Soundpost can recognise everyday sounds — rain, birdsong, a train — so your capsules are easier to find later. This happens entirely on your device; no audio is ever uploaded. What it hears is stored with the capsule and syncs only to your own iCloud. Turning this off also erases what it has already heard.")
+            // The privacy sentence names what is true — the *analysis* is on-device —
+            // rather than the stronger "no audio is ever uploaded", which this app
+            // cannot claim: `Capsule.audioData` rides the CloudKit-mirrored schema to
+            // the user's private database, as the iCloud row in this same screen says.
+            Text("Soundpost can recognise everyday sounds — rain, birdsong, a train — so your capsules are easier to find later. The listening happens on your device; no audio is sent away to be analysed. What it hears is stored with the capsule and, like your recordings, syncs only to your own private iCloud. Turning this off also erases what it has already heard.")
         }
     }
 

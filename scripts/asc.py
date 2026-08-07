@@ -178,16 +178,16 @@ def cmd_create_version(version_string):
     return v
 
 
-def cmd_notes():
-    """Push metadata/<locale>/release_notes.txt into the editable version's whatsNew.
+def push_localized_field(filename, attribute, what):
+    """Push metadata/<locale>/<filename> into <attribute> on the editable version.
 
     Only ever writes to the editable version — never to a live one.
     """
     v = editable_version()
     if not v:
         sys.exit('No editable App Store version found — run `create-version <x.y.z>` first.')
-    guard_not_in_review(v, 'rewrite the release notes of')
-    print(f"Setting release notes on v{v['attributes']['versionString']} "
+    guard_not_in_review(v, f'rewrite the {what} of')
+    print(f"Setting {what} on v{v['attributes']['versionString']} "
           f"({v['attributes']['appStoreState']})")
 
     existing = {loc['attributes']['locale']: loc
@@ -195,7 +195,7 @@ def cmd_notes():
 
     metadata_root = os.path.join(PROJECT_DIR, 'metadata')
     for locale in sorted(os.listdir(metadata_root)):
-        path = os.path.join(metadata_root, locale, 'release_notes.txt')
+        path = os.path.join(metadata_root, locale, filename)
         if not os.path.isfile(path):
             continue
         with open(path, encoding='utf-8') as f:
@@ -204,16 +204,32 @@ def cmd_notes():
             patch(f"/v1/appStoreVersionLocalizations/{existing[locale]['id']}",
                   {'data': {'type': 'appStoreVersionLocalizations',
                             'id': existing[locale]['id'],
-                            'attributes': {'whatsNew': text}}})
-            print(f"  {locale}: set whatsNew ({len(text)} chars)")
+                            'attributes': {attribute: text}}})
+            print(f"  {locale}: set {attribute} ({len(text)} chars)")
         else:
             post('/v1/appStoreVersionLocalizations',
                  {'data': {'type': 'appStoreVersionLocalizations',
-                           'attributes': {'locale': locale, 'whatsNew': text},
+                           'attributes': {'locale': locale, attribute: text},
                            'relationships': {'appStoreVersion': {
                                'data': {'type': 'appStoreVersions', 'id': v['id']}}}}})
-            print(f"  {locale}: created localization + whatsNew ({len(text)} chars)")
+            print(f"  {locale}: created localization + {attribute} ({len(text)} chars)")
     return v
+
+
+def cmd_notes():
+    """Push metadata/<locale>/release_notes.txt into the editable version's whatsNew."""
+    return push_localized_field('release_notes.txt', 'whatsNew', 'release notes')
+
+
+def cmd_description():
+    """Push metadata/<locale>/description.txt into the editable version's description.
+
+    Added at M15: the store description had gone stale (it still claimed capsules
+    were device-only long after iCloud backup shipped in 1.3.0) precisely because
+    there was no push path for it — `notes` only ever touched whatsNew, so nothing
+    in the release flow could notice the drift.
+    """
+    return push_localized_field('description.txt', 'description', 'description')
 
 
 def cmd_attach(build_version):
@@ -322,6 +338,8 @@ def main():
         cmd_create_version(sys.argv[2])
     elif cmd == 'notes':
         cmd_notes()
+    elif cmd == 'description':
+        cmd_description()
     elif cmd == 'attach':
         cmd_attach(sys.argv[2])
     elif cmd == 'submit':
