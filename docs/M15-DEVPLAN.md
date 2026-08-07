@@ -11,15 +11,15 @@
 
 ---
 
-> ## Status: **S1–S7 IMPLEMENTED** (2026-08-04)
+> ## Status: **S1–S7 IMPLEMENTED — 1.6.0 (build 12) submitted 2026-08-07**
 >
-> **322 tests / 0 warnings / i18n EN·JA·ZH-Hans 100% / 52 sound labels translated /
+> **335 tests / 0 warnings / i18n EN·JA·ZH-Hans 100% / 52 sound labels translated /
 > zero new third-party deps**, CI green, deployment target still **iOS 17.0**.
 >
 > | Step | Commit | What it turned out to be about |
 > |---|---|---|
-> | S1 — service + model field | `3662650` | the *gates*, not the model: silence classifies as `music 0.25` |
-> | S2 — vocabulary | `b5b2f14` | 52 labels named, **45 refused**; a new CI gate for the copy |
+> | S1 — service + model field | `7c83819` | the *gates*, not the model: silence classifies as `music 0.25` |
+> | S2 — vocabulary | `b5b2f14` | 52 labels named, **44 refused**; a new CI gate for the copy |
 > | S3 — capture suggestions | `38f1412` | suggest a line, never a mood |
 > | S4 — search by sound | `674394d` | the `rain`/`train` false positive |
 > | S5 — consent + resurface copy | `aeb211c` | two layered switches, not one overloaded one |
@@ -31,9 +31,35 @@
 > a mood is a claim about the person, which is the emotion-inference §2 already put
 > out of scope. The classifier suggests what it heard; how it felt stays the user's.
 >
-> **Not yet released.** 1.5.0 (M14) is still `WAITING_FOR_REVIEW`, and ASC allows one
-> version in the pipeline — `asc.py` now refuses to touch a version in Apple's hands,
-> so M15's release waits for that to clear.
+> **Three corrections to this table, made 2026-08-07.** S1 cited `3662650`, which is
+> "fix a redundant `try? #require` that tripped the warning gate" — a four-line test
+> change, not the step. The implementation is `7c83819`. The refusal count was 45; the
+> deny-list holds 44 unique identifiers. The test count was 322 against an actual 323.
+> An earlier pass had "verified" these hashes by checking they *resolve* — which
+> `3662650` does. Resolving is not identifying.
+
+## Post-submission audit (2026-08-07)
+
+A pre-submission audit of 1.6.0 found three things that should not have shipped, all
+fixed in `8ef7f29` before build 12 was submitted:
+
+| Finding | Why it mattered |
+|---|---|
+| "no audio is ever uploaded" — release notes **and** the Listening footer | False. `Capsule.audioData` rides the CloudKit-mirrored schema into the user's private database. Contradicted the iCloud row in the same Settings screen. Now claims only what is true: the *analysis* is on-device |
+| Store description said "no cloud backup yet" | False since 1.3.0, and unnoticed because `asc.py` had no `description` push path at all — nothing in the release flow could see the drift |
+| Withdrawing listening consent left the label on the lock screen | `contentVersion` guarded exactly this hazard for the personalized toggle (§S3 P0) and was never extended to the listening switch |
+
+The audit's remaining findings were triaged after submission; these are fixed on
+`master` for the next release:
+
+| # | Fix |
+|---|---|
+| Erase had zero coverage | `forgetAllSoundprints` was a private method inside `SettingsView`, unreachable from the test target — the one M15 rule with no test, and the one the release notes name. Extracted to `SoundprintEraser` and covered |
+| Backfill could undo the erase | The batch read consent once at entry, then classified up to 20 clips across as many awaits. Consent withdrawn mid-batch was ignored and the batch saved labels on top of the capsules just cleared. Results are now staged and applied only after re-confirming consent — staged rather than rolled back, because `rollback()` does not restore already-materialised objects |
+| The amplitude gate measured the wrong thing | `minimumPeak` is documented as an absolute peak but was handed `Extraction.peak`, a *bucket average* — and one that moves with a waveform-drawing parameter that differs per call site (capture 56, backfill 32). The same quiet recording could clear the gate at capture and fail it at backfill, which then wrote the terminal "nothing to say" marker and put the capsule permanently beyond both search and retry. `Extraction` now carries a true per-frame `absolutePeak` |
+| `asc.py` could act on the wrong version | `editable_version()` returned the first editable version of an unordered list, and `EDITABLE_STATES` includes the rejection states. A rejected 1.5.0 beside a 1.6.0 draft could have had its listing rewritten with 1.6.0's copy. It now matches the project's `MARKETING_VERSION` and refuses anything else |
+
+**Still open**, carried to the next milestone — see §11.
 
 ## 0. Goal & success statement
 
@@ -400,6 +426,26 @@ weight than usual because "AI" is exactly where users assume the opposite.**
 - An "insights"/analytics feed, streaks, or year-in-review.
 - Custom-trained models (Create ML) — the built-in classifier is enough to prove it.
 - WidgetKit widget; Swift 6 flip; promo/win-back codes.
+
+### 11A. Known-open, from the 1.6.0 pre-submission audit
+
+Ranked. Everything here was found before submitting 1.6.0 and deliberately not held
+the release for; the first two are the ones with a user-visible promise attached.
+
+| # | Open issue | Shape of the fix |
+|---|---|---|
+| 1 | **The erase does not survive a second device.** The consent flag is `UserDefaults`, which is per-device; the erase writes `soundprintRaw = nil` into the CloudKit-mirrored store, so it propagates everywhere. A second device with listening still on backfills those same capsules and syncs the labels home. Search finds them again on the device where the user turned it off. Nothing in the UI says the switch is per-device — though the toggle does read "on this device" | A product decision, not a bug fix: either make consent account-wide (needs a synced home — a KVS entitlement or a settings model in the CloudKit schema) and reword the toggle, or keep it per-device and say so in the copy. Worth deciding before it is documented as behaviour |
+| 2 | **Capsules already mis-marked by the 1.6.0 amplitude gate stay stuck.** The gate is fixed on `master`, but 1.6.0 ships it, and a capsule it wrote `1/version1\|` onto is never reconsidered — the backfill only refetches `soundprintRaw == nil` | A one-time remediation pass that clears *empty* markers so they are re-analysed once under the corrected gate. Needs a way to tell an old marker from a new one — the stored form already carries a schema version |
+| 3 | **The Apple Intelligence sentence has no language control.** `SoundSummaryWriter.instructions` is English-only with no directive to answer in the user's language, and `validated()`'s refusal blocklist is English-only, so a Japanese refusal or preamble passes every guard and renders as if it described the memory | Add a language directive and a `SystemLanguageModel.supportedLanguages` check; widen or restructure the refusal guard. Gated behind iOS 26 + Apple Intelligence, and no shipped claim mentions it |
+| 4 | **"Search 'rain'" is eventually true, not immediately true.** Classification is async and `save()` persists whatever exists at that moment; the backfill does 20 capsules once per launch. A 300-capsule library needs ~15 launches, with no indication indexing is in progress | Either surface progress, or re-run the backfill within a session |
+| 5 | **The data export omits `soundprintRaw`.** Derived personal data, synced to the user's iCloud, absent from the data-subject export. The Settings copy enumerates what is included, so it is incomplete rather than false | Add the field to `CapsuleBulkExporter`'s manifest |
+| 6 | **The "never auto-applies" regression guard is vacuous.** `aSoundprintNeverAppliesItself` asserts nothing changed in a scenario where nothing *could* change — it never lands a soundprint. A future change that pre-seeded the note would pass | Drive `save(using:)` with a soundprint present and assert `note == nil` |
+| 7 | In ja/zh, search matches only the phrase-*leading* token (CJK has no spaces, and `matches(phrase:query:)` requires a word boundary), so さえずり finds nothing against 鳥のさえずり | Substring match for scripts without word boundaries |
+| 8 | Accepting a suggestion joins with an ASCII space, which is typographically wrong between CJK runs | Join without a space when neither side is Latin |
+| 9 | The 52 runtime-looked-up sound keys carry no `extractionState`, so a future Xcode cleanup can mark them stale and offer 52 hand-authored translations for removal. The four `push.*` keys already use `"manual"` for exactly this | Mark them `"manual"` |
+| 10 | `accessibilityLabel("Restore purchases")` / `("Manage subscription")` are absent from the catalog, so VoiceOver reads English on ja/zh. Pre-existing, not M15 | Add the two keys |
+| 11 | The "no label can reach Sentry" guarantee is convention on a `String` parameter, not a type. All 14 call sites pass literals today; `CaptureView` does put a sound phrase in an `accessibilityLabel`, and automatic breadcrumb tracking is left at its default | A type that only accepts static strings would make it structural |
+| 12 | The ASC privacy nutrition label was asserted unchanged, but nothing in the repo can verify server-side state and `asc.py` has no read path for it | One manual check in ASC — the exact failure mode the re-audit existed to correct |
 
 ## 12. Review record (2026-08-02)
 

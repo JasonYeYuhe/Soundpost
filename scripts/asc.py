@@ -14,7 +14,7 @@ Usage (run with the venv that has pyjwt+requests):
 Rebuilding the venv:
   python3 -m venv /tmp/asc-venv && /tmp/asc-venv/bin/python3 -m pip install "pyjwt[crypto]" requests
 """
-import sys, time, json, os
+import sys, time, json, os, re
 import jwt, requests
 
 KEY_ID  = os.environ.get('ASC_API_KEY_ID', 'DMMFP6XTXX')
@@ -75,6 +75,20 @@ EDITABLE_STATES = ('PREPARE_FOR_SUBMISSION', 'REJECTED', 'DEVELOPER_REJECTED',
                    'IN_REVIEW')
 
 
+def project_marketing_version():
+    """MARKETING_VERSION from the Xcode project — the version the binary says it is."""
+    pbxproj = os.path.join(PROJECT_DIR, 'Soundpost.xcodeproj', 'project.pbxproj')
+    found = set()
+    with open(pbxproj, encoding='utf-8') as f:
+        for line in f:
+            m = re.search(r'MARKETING_VERSION = ([0-9][^;]*);', line)
+            if m:
+                found.add(m.group(1).strip())
+    if len(found) != 1:
+        sys.exit(f'Could not read a single MARKETING_VERSION from the project (found: {sorted(found)}).')
+    return found.pop()
+
+
 def editable_version():
     """The version we (re)submit, or None when there isn't one.
 
@@ -82,10 +96,28 @@ def editable_version():
     live (READY_FOR_SALE) that fallback resolved to the *shipped* version, so
     `attach` and `submit` would have aimed at the public listing. Callers handle
     None by telling you to create a version first (`create-version`).
+
+    It is also matched against the project's `MARKETING_VERSION` rather than taken
+    as "the first editable one". `ios_versions()` is unordered and `EDITABLE_STATES`
+    includes the rejection states, so with a rejected 1.5.0 sitting beside a
+    1.6.0 draft the API could hand back 1.5.0 first — and `notes` would have
+    rewritten the 1.5.0 listing with 1.6.0's copy while `attach` bound the new
+    binary to the old version string. Nothing downstream would have noticed.
     """
-    for v in ios_versions():
-        if v['attributes']['appStoreState'] in EDITABLE_STATES:
+    expected = project_marketing_version()
+    editable = [v for v in ios_versions()
+                if v['attributes']['appStoreState'] in EDITABLE_STATES]
+    for v in editable:
+        if v['attributes']['versionString'] == expected:
             return v
+    if editable:
+        others = ', '.join(f"{v['attributes']['versionString']} ({v['attributes']['appStoreState']})"
+                           for v in editable)
+        sys.exit(
+            f"No editable v{expected} on App Store Connect, but these are editable: {others}.\n"
+            f"  The project's MARKETING_VERSION is {expected}; refusing to act on a different\n"
+            f"  version. Run `create-version {expected}`, or fix MARKETING_VERSION first."
+        )
     return None
 
 

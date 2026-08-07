@@ -48,7 +48,8 @@ actor SoundprintBackfill {
         limit: Int = 20,
         audioStore: AudioStore = AudioStore(),
         classifier: some SoundClassifying = SoundAnalysisClassifier(),
-        isEnabled: Bool = SoundAnalysisPreferences.isEnabled
+        isEnabled: Bool = SoundAnalysisPreferences.isEnabled,
+        consentStillGranted: @Sendable () -> Bool = { SoundAnalysisPreferences.isEnabled }
     ) async -> Int {
         // Consent is checked here too, not only at capture: a user who turned
         // listening off must not have their back catalogue quietly analysed instead.
@@ -61,31 +62,52 @@ actor SoundprintBackfill {
         descriptor.fetchLimit = limit
         guard let pending = try? modelContext.fetch(descriptor), !pending.isEmpty else { return 0 }
 
-        var written = 0
+        // Results are held here and applied only once consent has been confirmed to
+        // still hold. Consent can be withdrawn *while* this batch runs — it is up to
+        // `limit` clips long and every one is an `await`, nothing cancels the task
+        // when the switch flips, and the erase writes on a different context. A
+        // batch that started before the flip would otherwise land fresh labels on
+        // capsules the user had just cleared, seconds after asking us to stop.
+        //
+        // Staged rather than written-then-rolled-back on purpose: `rollback()` does
+        // not restore already-materialised objects, so a mutated `Capsule` stays
+        // mutated in memory and any later `save()` on this long-lived context would
+        // make it durable after all.
+        var staged: [(capsule: Capsule, stored: String?)] = []
         for capsule in pending {
             if Task.isCancelled { break }
+            guard consentStillGranted() else {
+                Diagnostics.info("M15 backfill: consent withdrawn mid-batch, discarded")
+                return 0
+            }
             guard let outcome = await Self.analyse(capsule, audioStore: audioStore,
                                                    classifier: classifier, isEnabled: isEnabled) else {
                 continue
             }
             switch outcome {
             case .analysed(let soundprint):
-                capsule.soundprintRaw = soundprint.stored
-                written += 1
+                staged.append((capsule, soundprint.stored))
             case .skipped(.tooShort), .skipped(.tooQuiet):
                 // A terminal answer, and it must be *recorded* — otherwise every
                 // launch re-examines the same silent clip forever. An empty
                 // soundprint is exactly the "we listened, nothing to say" marker.
-                capsule.soundprintRaw = Soundprint(classifier: classifier.classifierIdentifier).stored
-                written += 1
+                staged.append((capsule, Soundprint(classifier: classifier.classifierIdentifier).stored))
             case .skipped(.failed), .skipped(.notPermitted):
                 // Leave `nil` so a later launch can try again — a transient failure
                 // or a withdrawn consent is not a verdict about the audio.
                 continue
             }
         }
-        if written > 0 { try? modelContext.save() }
-        return written
+        // The last `await` above is where a withdrawal lands most often, and this
+        // save is the only thing that would make the batch durable.
+        guard consentStillGranted() else {
+            Diagnostics.info("M15 backfill: consent withdrawn before save, discarded")
+            return 0
+        }
+        guard !staged.isEmpty else { return 0 }
+        for entry in staged { entry.capsule.soundprintRaw = entry.stored }
+        try? modelContext.save()
+        return staged.count
     }
 
     /// Read one capsule's clip and classify it. Returns `nil` when there is no audio
@@ -113,6 +135,9 @@ actor SoundprintBackfill {
         defer { if isScratch { try? FileManager.default.removeItem(at: scratch) } }
 
         // The amplitude gate needs the absolute peak, which only the extractor knows.
+        // `buckets` shapes the waveform, not the gate — `absolutePeak` is a
+        // per-frame maximum and does not move with it, so this no longer has to
+        // agree with whatever the capture screen asked for.
         guard let extraction = try? WaveformExtractor.extract(from: url, buckets: 32) else { return nil }
         // Forward the consent decision the caller already made. Letting this
         // re-read the global preference would let the inner call disagree with the
@@ -121,7 +146,7 @@ actor SoundprintBackfill {
         return await SoundprintService.soundprint(
             forClipAt: url,
             duration: capsule.durationSeconds,
-            peak: extraction.peak,
+            peak: extraction.absolutePeak,
             classifier: classifier,
             isEnabled: isEnabled
         )

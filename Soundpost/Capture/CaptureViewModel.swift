@@ -112,7 +112,7 @@ final class CaptureViewModel {
         let clipURL = audioStore.url(for: fileName)
         let extraction = try? WaveformExtractor.extract(from: clipURL, buckets: waveformBuckets)
         waveform = extraction?.samples ?? []
-        startClassifying(clipAt: clipURL, duration: duration, peak: extraction?.peak ?? 0)
+        startClassifying(clipAt: clipURL, duration: duration, peak: extraction?.absolutePeak ?? 0)
         echoAt = Self.randomEchoDate(in: echoWindow)
         echoEnabled = true
         phase = .review

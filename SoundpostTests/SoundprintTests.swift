@@ -1,6 +1,7 @@
 import Testing
 import Foundation
 import SoundAnalysis
+import SwiftData
 @testable import Soundpost
 
 /// A stub classifier so every rule — gates, floor, ordering, provenance — is tested
@@ -626,6 +627,103 @@ struct SoundprintBackfillTests {
                                   labels: [Soundprint.Label(identifier: "rain", confidence: 0.99)])
         _ = await SoundprintBackfill.backfill(in: store.context, limit: 10, classifier: stub, isEnabled: true)
         #expect(capsule.soundprintRaw == existing, "an analysed capsule must not be re-analysed")
+    }
+
+    /// Consent withdrawn *during* a batch. The batch reads `isEnabled` once at
+    /// entry, so without a live re-check it would classify happily and then save
+    /// labels on top of the capsules the erase had just cleared — on the same
+    /// device, seconds after the user asked it to stop.
+    @Test func itDiscardsTheBatchWhenConsentIsWithdrawnMidRun() async throws {
+        let clip = try realClip()
+        defer { try? FileManager.default.removeItem(at: clip.directory) }
+        let store = try TestSupport.isolatedStore()
+        let capsule = try seed(store, audio: clip.data)
+        try store.save()
+
+        let stub = StubClassifier(identifier: "version1",
+                                  labels: [Soundprint.Label(identifier: "rain", confidence: 0.9)])
+        // Granted at entry, withdrawn by the time the loop looks again.
+        let granted = MutableFlag(true)
+        let written = await SoundprintBackfill.backfill(
+            in: store.context, limit: 10, classifier: stub, isEnabled: true,
+            consentStillGranted: { granted.take() }
+        )
+
+        #expect(written == 0)
+        #expect(capsule.soundprintRaw == nil, "a batch that outlived consent must write nothing")
+    }
+}
+
+/// A `Sendable` one-shot flag: the first read returns the seeded value, every read
+/// after it returns `false`. Models "consent was granted when the batch started and
+/// withdrawn before it looked again" without needing a real clock.
+private final class MutableFlag: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value: Bool
+    init(_ value: Bool) { self.value = value }
+    func take() -> Bool {
+        lock.lock(); defer { lock.unlock() }
+        defer { value = false }
+        return value
+    }
+}
+
+// MARK: - Erasing what it heard (M15 §4I)
+
+/// The one behaviour the 1.6.0 release notes promise by name — "turning this off
+/// also erases what it already heard". It had no coverage at all while it lived as
+/// a private method inside `SettingsView`.
+@Suite(.serialized)
+@MainActor
+struct SoundprintEraserTests {
+
+    private func seed(_ store: CapsuleStore, soundprint: String?) throws -> Capsule {
+        let capsule = store.create()
+        capsule.soundprintRaw = soundprint
+        return capsule
+    }
+
+    @Test func itClearsEveryStoredSoundprint() throws {
+        let store = try TestSupport.isolatedStore()
+        let heard = try seed(store, soundprint: Soundprint(
+            classifier: "version1",
+            labels: [Soundprint.Label(identifier: "rain", confidence: 0.9)]).stored)
+        let analysedEmpty = try seed(store, soundprint: Soundprint(classifier: "version1").stored)
+        let never = try seed(store, soundprint: nil)
+        try store.save()
+
+        let erased = try SoundprintEraser.eraseAll(in: store.context)
+
+        #expect(erased == 2, "both the labelled and the analysed-but-empty capsule are cleared")
+        #expect(heard.soundprintRaw == nil)
+        #expect(analysedEmpty.soundprintRaw == nil, "the analysed-but-empty marker is also something it heard")
+        #expect(never.soundprintRaw == nil)
+    }
+
+    /// Back to `nil`, not to the analysed-but-empty marker: `nil` is the truthful
+    /// "never analysed", and it is also what lets the backfill pick the capsule up
+    /// again if the user changes their mind.
+    @Test func itErasesToNeverAnalysedSoTurningItBackOnWorks() async throws {
+        let store = try TestSupport.isolatedStore()
+        let capsule = try seed(store, soundprint: Soundprint(
+            classifier: "version1",
+            labels: [Soundprint.Label(identifier: "rain", confidence: 0.9)]).stored)
+        try store.save()
+
+        _ = try SoundprintEraser.eraseAll(in: store.context)
+        #expect(Soundprint(stored: capsule.soundprintRaw) == nil)
+
+        let pending = try store.context.fetch(
+            FetchDescriptor<Capsule>(predicate: #Predicate { $0.soundprintRaw == nil }))
+        #expect(pending.contains { $0.id == capsule.id },
+                "an erased capsule is eligible for the backfill again")
+    }
+
+    @Test func erasingAnUnheardLibraryIsANoOp() throws {
+        let store = try TestSupport.isolatedStore()
+        _ = try seed(store, soundprint: nil)
+        try store.save()
+        #expect(try SoundprintEraser.eraseAll(in: store.context) == 0)
     }
 }
 

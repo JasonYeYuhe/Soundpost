@@ -191,15 +191,12 @@ struct SettingsView: View {
         }
     }
 
-    /// Clear every stored soundprint. Deliberately synchronous and immediate: when
-    /// someone withdraws consent, "we'll get to it" is not an acceptable answer.
+    /// Clear every stored soundprint. The work itself lives in `SoundprintEraser`
+    /// so the test target can reach it — as a private method here it was the one
+    /// M15 rule with no coverage, and it is the one the release notes name.
     private func forgetAllSoundprints() {
         do {
-            let capsules = try modelContext.fetch(FetchDescriptor<Capsule>())
-            for capsule in capsules where capsule.soundprintRaw != nil {
-                capsule.soundprintRaw = nil
-            }
-            try modelContext.save()
+            try SoundprintEraser.eraseAll(in: modelContext)
         } catch {
             Diagnostics.notice("Clearing soundprints failed")
         }
