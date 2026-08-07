@@ -23,11 +23,32 @@ enum TestSupport {
     }()
 
     /// A `CapsuleStore` over a fresh context with all prior data cleared.
+    ///
+    /// The `delete(model:)` is container-wide, so this is only safe under the
+    /// assumption in this type's doc: synchronous `@MainActor` tests that run to
+    /// completion. Anything `async` must use `isolatedStore()` instead.
     static func freshStore() throws -> CapsuleStore {
         let context = ModelContext(container)
         try context.delete(model: Capsule.self)
         try context.save()
         return CapsuleStore(context: context)
+    }
+
+    /// A `CapsuleStore` over its **own** container, isolated from every other suite.
+    ///
+    /// M15's backfill tests broke the shared-container assumption above: they are
+    /// `async`, so they suspend, and another suite's `freshStore()` — a
+    /// container-wide `delete(model:)` — can remove the capsule under test during
+    /// an `await`. The backfill then finds nothing to label and the assertion reads
+    /// as a *product* failure ("it did not label the capsule") when the capsule had
+    /// simply been deleted out from under it. An async test must own its store.
+    static func isolatedStore() throws -> CapsuleStore {
+        // `ModelContext` retains its container, so the store keeps it alive.
+        let container = try ModelContainer(
+            for: Capsule.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+        )
+        return CapsuleStore(context: ModelContext(container))
     }
 
     /// Write a real ~`seconds`-long mono AAC/m4a clip into `store` and return its

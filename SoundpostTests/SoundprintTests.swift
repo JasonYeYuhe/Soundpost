@@ -521,9 +521,13 @@ struct SoundNotificationCopyTests {
 // MARK: - Backfill (M15 §4H / S7)
 
 /// `.serialized`, and every assertion is scoped to the capsule the test created.
-/// The suite shares one in-memory container with every other suite, and these tests
-/// are `async` — so unlike the synchronous `@MainActor` suites they genuinely
-/// interleave, and any assertion about the store *as a whole* is a race.
+///
+/// These tests are `async`, so — unlike the synchronous `@MainActor` suites — they
+/// genuinely interleave with everything else. That makes the *shared* container
+/// unusable here: another suite's `TestSupport.freshStore()` is a container-wide
+/// `delete(model:)`, and landing it inside one of these `await`s deletes the
+/// capsule under test, so the backfill finds nothing and the failure reads as a
+/// product bug. Each test therefore takes its own container via `isolatedStore()`.
 @Suite(.serialized)
 @MainActor
 struct SoundprintBackfillTests {
@@ -551,7 +555,7 @@ struct SoundprintBackfillTests {
     @Test func itLabelsCapsulesRecordedBeforeM15() async throws {
         let clip = try realClip()
         defer { try? FileManager.default.removeItem(at: clip.directory) }
-        let store = try TestSupport.freshStore()
+        let store = try TestSupport.isolatedStore()
         let capsule = try seed(store, audio: clip.data)
         try store.save()
         #expect(capsule.soundprintRaw == nil)
@@ -568,7 +572,7 @@ struct SoundprintBackfillTests {
     @Test func aTerminalNoResultIsRecordedSoItIsNeverRetried() async throws {
         let clip = try realClip()
         defer { try? FileManager.default.removeItem(at: clip.directory) }
-        let store = try TestSupport.freshStore()
+        let store = try TestSupport.isolatedStore()
         // Duration under one classifier window → terminally unclassifiable.
         let capsule = try seed(store, audio: clip.data, duration: 0.4)
         try store.save()
@@ -593,7 +597,7 @@ struct SoundprintBackfillTests {
     @Test func itRespectsWithdrawnConsent() async throws {
         let clip = try realClip()
         defer { try? FileManager.default.removeItem(at: clip.directory) }
-        let store = try TestSupport.freshStore()
+        let store = try TestSupport.isolatedStore()
         let capsule = try seed(store, audio: clip.data)
         try store.save()
 
@@ -611,7 +615,7 @@ struct SoundprintBackfillTests {
     @Test func anAlreadyAnalysedCapsuleIsLeftAlone() async throws {
         let clip = try realClip()
         defer { try? FileManager.default.removeItem(at: clip.directory) }
-        let store = try TestSupport.freshStore()
+        let store = try TestSupport.isolatedStore()
         let capsule = try seed(store, audio: clip.data)
         let existing = Soundprint(classifier: "version1",
                                   labels: [Soundprint.Label(identifier: "ocean", confidence: 0.8)]).stored
