@@ -127,6 +127,36 @@ enum SoundVocabulary {
         displayNames[identifier] != nil
     }
 
+    /// Labels that must clear more than the default confidence before Soundpost will
+    /// say them out loud.
+    ///
+    /// A single global floor assumes every label is equally easy to confuse, and it
+    /// is not. Measured on real AAC clips against the real `.version1` classifier:
+    /// low-passed noise at the level of a quiet room (rms 0.0045–0.010) returns
+    /// **`waterfall` at 0.30–0.38 on 2 clips in 12** — comfortably over the 0.30
+    /// floor. Broadband room tone is spectrally close to running water, so the model
+    /// is doing something reasonable and the floor is simply in the wrong place for
+    /// this label. Rendering "a waterfall" for a recording of an empty room is
+    /// exactly what §1.2 forbids.
+    ///
+    /// 0.45 clears every false positive observed (max 0.38) with margin. It is
+    /// **provisional in one direction**: it was calibrated against negatives only, so
+    /// it is known to remove these false labels and is *not* yet known to preserve
+    /// real waterfalls — that needs a true-positive corpus, which is why this is a
+    /// raised floor rather than a removal from the allow-list.
+    ///
+    /// `waterfall` is the only entry with measured evidence. Do not add others by
+    /// intuition; measure them the same way first.
+    static let elevatedConfidenceFloors: [String: Double] = [
+        "waterfall": 0.45,
+    ]
+
+    /// The confidence a label must reach, which is the default unless it is a known
+    /// confusable.
+    static func confidenceFloor(for identifier: String, default defaultFloor: Double) -> Double {
+        max(defaultFloor, elevatedConfidenceFloors[identifier] ?? 0)
+    }
+
     /// The localized phrase for a label, or `nil` if we do not name this sound.
     ///
     /// `String(localized:)` over a runtime key: Xcode cannot extract these, so the

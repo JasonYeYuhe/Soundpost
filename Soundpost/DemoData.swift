@@ -8,8 +8,10 @@ import SwiftData
 enum DemoData {
     @MainActor
     static let container: ModelContainer = {
+        // Mirrors the production schema — a screenshot build that reaches Settings
+        // would otherwise trap the moment the Listening toggle wrote its record.
         let container = try! ModelContainer(
-            for: Capsule.self,
+            for: Capsule.self, ListeningConsent.self,
             configurations: ModelConfiguration(isStoredInMemoryOnly: true)
         )
         seed(into: container.mainContext)

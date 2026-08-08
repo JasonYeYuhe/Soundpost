@@ -27,6 +27,31 @@ struct WaveformExtractorTests {
         return url
     }
 
+    /// A mostly-quiet clip with one short loud burst — the shape that separates a
+    /// per-frame peak from a bucket average.
+    private func makeBurstClip(seconds: Double, burstSeconds: Double,
+                               quiet: Float, burst: Float) throws -> URL {
+        let url = URL.temporaryDirectory.appending(path: "wf-burst-\(UUID().uuidString).m4a", directoryHint: .notDirectory)
+        let file = try AVAudioFile(forWriting: url, settings: [
+            AVFormatIDKey: kAudioFormatMPEG4AAC,
+            AVSampleRateKey: 44_100.0,
+            AVNumberOfChannelsKey: 1,
+        ])
+        let frames = AVAudioFrameCount(44_100.0 * seconds)
+        let buffer = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: frames)!
+        buffer.frameLength = frames
+        let channel = buffer.floatChannelData![0]
+        // Put the burst a third of the way in, so it lands mid-clip for any bucketing.
+        let burstStart = Int(Double(frames) / 3)
+        let burstEnd = burstStart + Int(44_100.0 * burstSeconds)
+        for i in 0..<Int(frames) {
+            let amplitude = (i >= burstStart && i < burstEnd) ? burst : quiet
+            channel[i] = sin(Float(i) * 0.05) * amplitude
+        }
+        try file.write(from: buffer)
+        return url
+    }
+
     @Test func extractsRequestedBucketCount() throws {
         let url = try makeSineClip()
         let samples = try WaveformExtractor.samples(from: url, buckets: 64)
@@ -83,22 +108,48 @@ struct WaveformExtractorTests {
         #expect(abs(at32.absolutePeak - at56.absolutePeak) < 0.001)
     }
 
-    /// And it really is a peak: never below the loudest bucket average, because a
-    /// mean can never exceed the maximum it averages over.
-    @Test func absolutePeakIsAtLeastTheLoudestBucketAverage() throws {
+    /// A peak, not a mean — and *strictly* above it. The earlier version of this
+    /// test asserted `absolutePeak >= peak`, which is trivially true when the two
+    /// are the same value: it passed just as happily against the bug it was written
+    /// to guard. A sine's mean magnitude is 2/π of its peak, so a real peak must
+    /// clear the bucket average by a wide, checkable margin.
+    @Test func absolutePeakIsStrictlyAboveTheLoudestBucketAverage() throws {
         let url = try makeSineClip(seconds: 3)
         for buckets in [8, 32, 56, 128] {
             let e = try WaveformExtractor.extract(from: url, buckets: buckets)
-            #expect(e.absolutePeak >= e.peak - 0.001,
-                    "buckets=\(buckets): absolutePeak \(e.absolutePeak) < bucket peak \(e.peak)")
+            #expect(e.absolutePeak > e.peak * 1.3,
+                    "buckets=\(buckets): absolutePeak \(e.absolutePeak) is not meaningfully above bucket peak \(e.peak)")
         }
     }
 
-    /// Silence must land well under `SoundprintService.minimumPeak` — that gate is
-    /// the whole reason silence does not get classified as "music".
-    @Test func silenceStaysBelowTheGate() throws {
-        let url = try makeSineClip(seconds: 1, amplitude: 0)
+    /// The shipped defect itself: the gate's input must not change with a
+    /// waveform-*drawing* parameter. Capture asks for 56 buckets and the backfill
+    /// for 32, so a measure that moves between them let the same recording pass at
+    /// capture and be written off as silent at backfill — permanently.
+    ///
+    /// A sparse clip (mostly quiet, one short burst) is the case that separates the
+    /// two measures: averaging the burst over a longer window drags a bucket mean
+    /// down, while a per-frame maximum does not move at all. The assertion on `peak`
+    /// is deliberate — it pins *why* the old input was unusable, so this test still
+    /// means something if someone tries to switch back.
+    @Test func theGateInputIsStableAcrossTheTwoCallSitesBucketCounts() throws {
+        let url = try makeBurstClip(seconds: 3, burstSeconds: 0.05, quiet: 0.002, burst: 0.6)
+        let backfill = try WaveformExtractor.extract(from: url, buckets: 32)
+        let capture = try WaveformExtractor.extract(from: url, buckets: 56)
+
+        #expect(abs(backfill.absolutePeak - capture.absolutePeak) < 0.001,
+                "the gate input moved between the backfill's 32 buckets and capture's 56")
+        #expect(backfill.peak != capture.peak,
+                "bucket averages are expected to differ — that is why they cannot gate")
+    }
+
+    /// Near-silence, not digital zero. A pure zero clip is not a meaningful test of
+    /// this gate: a real room recording is never zero, and both the old and new
+    /// measures read 0 for it, so the assertion held no matter which was wired in.
+    @Test func nearSilenceStaysBelowTheGate() throws {
+        let url = try makeSineClip(seconds: 1, amplitude: 0.001)
         let peak = try WaveformExtractor.extract(from: url).absolutePeak
-        #expect(peak < SoundprintService.minimumPeak)
+        #expect(peak < SoundprintService.minimumPeak,
+                "room-tone-level audio (\(peak)) must not reach the classifier")
     }
 }

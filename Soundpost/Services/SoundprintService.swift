@@ -37,6 +37,18 @@ enum SoundprintService {
     /// Absolute peak (pre-normalisation) below which we treat the clip as silent and
     /// never ask the classifier. Deliberately conservative: saying nothing is always
     /// better than saying something wrong about someone's memory (M15 §1.2).
+    ///
+    /// **Kept at 0.02 when the input changed from a bucket average to a true peak**,
+    /// against a review that wanted it scaled up ~5x to match. Scaling assumes the
+    /// two statistics differ only by a factor; they differ in distribution, and the
+    /// measurements say the opposite of the intuition. On real AAC clips with the
+    /// real classifier, the *only* band where the old and new inputs disagree is
+    /// around rms 0.0015 (old 0/12 admitted, new 12/12) — and that band produced
+    /// **0/12** stored labels. Every false label observed anywhere in the sweep sat
+    /// in a band the old gate already admitted, so it is not this gate's doing.
+    /// Meanwhile 0.10 would have rejected a 10 s clip whose one clearly audible
+    /// event peaks at 0.10, and sustained quiet rain (rms 0.0045 → peak 0.070).
+    /// Raising it would buy nothing measurable and cost real recordings.
     static let minimumPeak: Float = 0.02
 
     /// Must sit **above** the measured silence artefact (0.25), or silence leaks
@@ -71,7 +83,8 @@ enum SoundprintService {
                 // to show never enters storage or iCloud in the first place — which
                 // is a stronger guarantee than "we promise not to render it".
                 .filter { SoundVocabulary.isAllowed($0.identifier) }
-                .filter { $0.confidence >= confidenceFloor }
+                .filter { $0.confidence >= SoundVocabulary.confidenceFloor(for: $0.identifier,
+                                                                          default: confidenceFloor) }
                 .sorted { $0.confidence > $1.confidence }
                 .prefix(maximumLabels)
             // An empty result here is a legitimate, terminal answer: analysed, and

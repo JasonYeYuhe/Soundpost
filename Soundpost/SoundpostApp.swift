@@ -144,7 +144,11 @@ private struct RootView: View {
                     // backfill below gates on that mirror, so a withdrawal made on
                     // another device has to land here first — otherwise this launch
                     // would re-label the very capsules the user cleared elsewhere.
-                    _ = try? ListeningConsentStore.applyToDevice(in: store.container.mainContext)
+                    do {
+                        _ = try ListeningConsentStore.applyToDevice(in: store.container.mainContext)
+                    } catch {
+                        Diagnostics.notice("Could not read account-wide listening consent at launch; using this device's answer")
+                    }
                     // Give pre-M15 capsules their soundprints, a bounded batch per
                     // launch so a long-time user's back catalogue fills in over a few
                     // sessions instead of stalling one (M15 §4H).

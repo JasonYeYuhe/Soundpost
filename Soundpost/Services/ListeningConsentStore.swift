@@ -52,6 +52,29 @@ enum ListeningConsentStore {
         SoundAnalysisPreferences.isEnabled = enabled
     }
 
+    /// Carry a pre-account-wide "off" into the synced record, once.
+    ///
+    /// Someone who turned listening off before this build has their answer only as a
+    /// local `UserDefaults` mirror. Without this, that intent never becomes a record:
+    /// they add a second device, it starts with the default (on) and finds no record,
+    /// and it happily analyses the whole library they had opted out of — the very
+    /// failure account-wide consent exists to prevent, just one device removed.
+    ///
+    /// Only a **non-default** mirror is adopted. `false` can only have got there by
+    /// someone deliberately switching it off, so there is real intent to preserve.
+    /// Seeding a `true` would be seeding the default — no intent, and every device
+    /// racing to write one, which is what `ListeningConsent` deliberately avoids.
+    ///
+    /// `changedAt` is `.distantPast`: this is an answer of unknown age, so any dated
+    /// answer from any device — including a later "turn it back on" — outranks it.
+    private static func adoptPreAccountWithdrawal(in context: ModelContext) throws {
+        guard !SoundAnalysisPreferences.isEnabled else { return }
+        guard try winner(in: context) == nil else { return }
+        context.insert(ListeningConsent(enabled: false, changedAt: .distantPast))
+        try context.save()
+        Diagnostics.info("Adopted this device's existing listening opt-out as the account-wide answer")
+    }
+
     /// Bring this device into line with the account-wide answer.
     ///
     /// Call at launch and on every remote merge. Returns the effective value.
@@ -64,6 +87,7 @@ enum ListeningConsentStore {
     /// clear, so paying for it on every merge costs a fetch.
     @discardableResult
     static func applyToDevice(in context: ModelContext) throws -> Bool {
+        try adoptPreAccountWithdrawal(in: context)
         let effective = try resolve(in: context)
         SoundAnalysisPreferences.isEnabled = effective
         if !effective {

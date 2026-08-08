@@ -30,8 +30,32 @@ enum TestSupport {
     static func freshStore() throws -> CapsuleStore {
         let context = ModelContext(container)
         try context.delete(model: Capsule.self)
+        // ListeningConsent too, or a row written by one test resolves for the next
+        // one and silently decides its consent for it.
+        try context.delete(model: ListeningConsent.self)
         try context.save()
         return CapsuleStore(context: context)
+    }
+
+    /// Run `body` with `SoundAnalysisPreferences` pointed at storage nobody else
+    /// shares, seeded to `enabled`.
+    ///
+    /// Three suites drive that one key and Swift Testing runs suites in parallel, so
+    /// save-and-restore is not enough: another suite can read between this one's
+    /// write and its restore. A private `UserDefaults` suite removes the contention
+    /// rather than ordering it.
+    /// `nonisolated` because it touches only `UserDefaults` and a task-local — the
+    /// suites that need it are not all `@MainActor`.
+    nonisolated static func withIsolatedListeningPreference<T>(
+        _ enabled: Bool,
+        _ body: () throws -> T
+    ) rethrows -> T {
+        let name = "soundpost.test.\(UUID().uuidString)"
+        defer { UserDefaults(suiteName: name)?.removePersistentDomain(forName: name) }
+        return try SoundAnalysisPreferences.$defaultsSuiteName.withValue(name) {
+            SoundAnalysisPreferences.isEnabled = enabled
+            return try body()
+        }
     }
 
     /// A `CapsuleStore` over its **own** container, isolated from every other suite.

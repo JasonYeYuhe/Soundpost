@@ -13,7 +13,7 @@
 
 > ## Status: **S1–S7 IMPLEMENTED — 1.6.0 (build 12) submitted 2026-08-07**
 >
-> **344 tests / 0 warnings / i18n EN·JA·ZH-Hans 100% / 52 sound labels translated /
+> **350 tests / 0 warnings / i18n EN·JA·ZH-Hans 100% / 52 sound labels translated /
 > zero new third-party deps**, CI green, deployment target still **iOS 17.0**.
 >
 > | Step | Commit | What it turned out to be about |
@@ -513,3 +513,90 @@ Schema note: adding an entity is additive, so an existing store migrates lightly
 
 Copy: the toggle drops "on this device", and the footer says the setting follows the
 iCloud account and that turning it off erases what was heard *everywhere*.
+
+#### 11B-i. BLOCKING before this ships — promote the CloudKit schema
+
+`ListeningConsent` is a new entity, which `NSPersistentCloudKitContainer` maps to a
+new **`CD_ListeningConsent`** record type. That type is auto-created only in the
+CloudKit **Development** environment; **Production is read-only from the client**,
+and App Store / TestFlight builds talk to Production.
+
+M9 recorded this as a discrete human step and it was done for `CD_Capsule`
+(docs/M9-DEVPLAN.md:228). Nothing did it for this entity — §11B originally said only
+"adding an entity is additive, so an existing store migrates lightly", which is true
+of SwiftData's *local* migration and says nothing about the server side. That
+sentence is exactly what stopped the thought.
+
+**If this ships unpromoted the failure is silent by construction.** Schema legality
+is validated locally, so the container stays on the CloudKit rung and nothing
+throws; only the export of the new record type fails, server-side. Consent then
+never syncs, `resolve()` falls back to the device mirror, and the feature degrades
+to precisely the per-device bug it was written to fix — while the Settings footer
+tells the user it "applies on every device you use Soundpost on".
+
+- [ ] **Jason:** run a signed build on a device signed into iCloud, open Settings and
+      toggle Listening once (this creates `CD_ListeningConsent` in Development).
+- [ ] **Jason:** CloudKit Dashboard → Schema → **Deploy Schema Changes** to
+      Production; verify `CD_ListeningConsent` is live there.
+- [ ] Only then archive and submit a build containing this entity.
+
+The launch and merge paths now log through `Diagnostics` instead of swallowing the
+error with `try?`, so a failure is at least observable in Console — but logging is
+not a substitute for the promotion, and there is no in-app signal that consent
+failed to sync.
+
+### 11C. The amplitude gate, measured (2026-08-08)
+
+A review of the gate change recommended raising `minimumPeak` from 0.02 to 0.10, on
+the reasoning that the new input (a per-frame absolute peak) reads ~5x higher than
+the old one (a bucket average), so the threshold should scale with it. **Measured,
+and rejected.** Probed on real AAC clips against the real `.version1` classifier —
+low-passed noise at 14 levels, 12 trials each, plus digital silence and
+burst-in-quiet clips.
+
+| rms | absPeak | peak@32 | old gate | new gate | stored a label |
+|---|---|---|---|---|---|
+| 0.0012 | 0.0186 | 0.0147 | 0/12 | 0/12 | 0/12 |
+| **0.0015** | **0.0232** | **0.0183** | **0/12** | **12/12** | **0/12** |
+| 0.0018 | 0.0279 | 0.0220 | 12/12 | 12/12 | 0/12 |
+| 0.0045 | 0.0697 | 0.0550 | 12/12 | 12/12 | 2/12 `waterfall` 0.37–0.38 |
+| 0.0060 | 0.0928 | 0.0733 | 12/12 | 12/12 | 2/12 `waterfall` 0.32–0.33 |
+| 0.0100 | 0.1544 | 0.1222 | 12/12 | 12/12 | 2/12 `waterfall` 0.30–0.32 |
+| 0.0280+ | ≥0.43 | ≥0.34 | 12/12 | 12/12 | 0/12 |
+
+Three things fall out.
+
+1. **The two gates disagree in exactly one band, rms ≈ 0.0015 — and that band stored
+   0/12 labels.** Every false label observed anywhere sat in a band 1.6.0's gate
+   already admitted, so those false positives ship today and are not this change's
+   doing. The premise that the change would admit confident nonsense is not
+   supported.
+2. **0.10 would cost real recordings.** Sustained quiet rain (rms 0.0045) peaks at
+   0.070, and a 10 s quiet clip whose one clearly audible event peaks at 0.10 sits
+   right on the line. Both would be rejected — and a rejection is written as the
+   terminal "nothing to say" marker, so it is permanent.
+3. **The old input really was unusable.** That same 10 s clip measures peak@32
+   0.0112 and peak@56 0.0137 — *both under 0.02*, so 1.6.0 writes off a recording
+   with an unmistakable sound in it, and the two call sites disagree besides.
+
+`minimumPeak` stays at **0.02**. Codex and Gemini 3.6 Flash were consulted with the
+measurements and independently reached the same conclusion, both rejecting the
+scale-the-threshold argument on the grounds that the two statistics differ in
+distribution, not by a constant.
+
+**What the measurements did surface: `waterfall`.** Quiet broadband room tone is
+spectrally close to running water, and the model says so at 0.30–0.38 — over the
+global floor. "A waterfall" for a recording of an empty room is precisely what §1.2
+forbids. Fixed with a **per-label floor** (`SoundVocabulary.elevatedConfidenceFloors`)
+rather than a global raise, which would have cost every other label, or a removal,
+which would have cost real waterfalls. `waterfall` → 0.45, above every false positive
+observed. Calibrated against negatives only: known to remove these, not yet known to
+preserve true positives.
+
+### 11D. Open, from the same pass
+
+| # | Issue | Note |
+|---|---|---|
+| 1 | **Window confidences are averaged over *all* windows** (`Collector.best()`: `sum / windows`). A sound present in part of a capsule is diluted by the rest of it — mechanically certain from the code, and the longer the capsule the worse | Raised independently by Gemini. **I could not demonstrate harm**: synthetic probes failed to isolate it, because the quiet portion of a tonal test signal still reads as tonal (`mean(present)` equalled `mean(all)` at every occupancy). Needs a real-audio corpus before changing the aggregate — a naive switch to `max` would trade dilution for one-window false positives |
+| 2 | The terminal "nothing to say" marker carries no **gate/pipeline version**, so a capsule written off under one set of thresholds is never reconsidered when they change — which they just did, twice | Both Codex and Gemini raised this unprompted. Compounds §11A#2. The stored form already carries a schema version and classifier id; a gate version belongs beside them |
+| 3 | The confidence floor is one global number chosen to clear one measured artefact | `waterfall` is now the first per-label exception. Codex would go further: per-label calibration against a confuser corpus, and prefer one well-supported label over "up to three" |

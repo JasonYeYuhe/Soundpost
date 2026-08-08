@@ -174,7 +174,22 @@ struct SettingsView: View {
                     // erase — was account-wide, so a second device with listening
                     // still on would re-analyse the cleared capsules and sync the
                     // labels back (M15 §4I, revised).
-                    try? ListeningConsentStore.set(enabled, in: modelContext)
+                    //
+                    // On failure the local effect still stands — @AppStorage has
+                    // already moved the mirror every gate reads, and for an "off"
+                    // that is the safe outcome; reverting the switch would resume
+                    // listening against the user's stated wish. What is lost is
+                    // *propagation*, so this must not be swallowed: a store that
+                    // cannot record consent is exactly how the account-wide promise
+                    // in the footer below silently becomes false.
+                    do {
+                        try ListeningConsentStore.set(enabled, in: modelContext)
+                    } catch {
+                        // Leave no half-applied insert/delete on the shared main
+                        // context for the next unrelated save to commit.
+                        modelContext.rollback()
+                        Diagnostics.notice("Listening consent could not be recorded; it applies on this device only")
+                    }
                     // Turning it off FORGETS rather than hides. A switch that stopped
                     // future analysis while quietly keeping past results would be the
                     // dishonest version of this control.

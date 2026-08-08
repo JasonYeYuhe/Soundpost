@@ -30,12 +30,33 @@ import Foundation
 enum SoundAnalysisPreferences {
     static let enabledKey = "sound.analysisEnabled"
 
+    /// Test-only override of where the answer is stored. **`nil` — and therefore
+    /// `.standard` — in the app**; nothing outside the test target ever sets it.
+    ///
+    /// It is a `@TaskLocal` rather than a plain `static var` on purpose. Three
+    /// separate suites drive this one key, Swift Testing runs suites in parallel,
+    /// and `.serialized` orders a suite's tests against each other and nothing else.
+    /// A mutable static would only move the race from the *key* to the *pointer*:
+    /// one suite swapping the store while another reads it is the same bug wearing a
+    /// hat. A task-local is scoped to the task tree that bound it, so each test sees
+    /// its own value no matter what runs beside it — the preference-shaped version
+    /// of the container isolation `TestSupport.isolatedStore()` already provides
+    /// (commit `b4c72a0`).
+    /// Carries the suite *name* rather than a `UserDefaults` instance: the class is
+    /// not `Sendable`, and a task-local value must be.
+    @TaskLocal static var defaultsSuiteName: String?
+
+    static var defaults: UserDefaults {
+        guard let defaultsSuiteName else { return .standard }
+        return UserDefaults(suiteName: defaultsSuiteName) ?? .standard
+    }
+
     static var isEnabled: Bool {
         get {
             // `bool(forKey:)` returns false for an unset key, so default-on has to be
             // expressed explicitly rather than relying on the zero value.
-            UserDefaults.standard.object(forKey: enabledKey) as? Bool ?? true
+            defaults.object(forKey: enabledKey) as? Bool ?? true
         }
-        set { UserDefaults.standard.set(newValue, forKey: enabledKey) }
+        set { defaults.set(newValue, forKey: enabledKey) }
     }
 }

@@ -425,28 +425,23 @@ struct SoundPhraseMatchingTests {
 @Suite(.serialized)
 struct SoundConsentTests {
 
+    // Save-and-restore of the shared key was not enough: suites run in parallel, so
+    // another suite reads between this one's write and its restore. Each test now
+    // owns its storage (TestSupport.withIsolatedListeningPreference).
     private func withListening(_ enabled: Bool, _ body: () throws -> Void) rethrows {
-        let key = SoundAnalysisPreferences.enabledKey
-        let original = UserDefaults.standard.object(forKey: key)
-        defer {
-            if let original { UserDefaults.standard.set(original, forKey: key) }
-            else { UserDefaults.standard.removeObject(forKey: key) }
-        }
-        SoundAnalysisPreferences.isEnabled = enabled
-        try body()
+        try TestSupport.withIsolatedListeningPreference(enabled, body)
     }
 
     /// Listening is on unless the user says otherwise — and that has to be explicit,
     /// because `bool(forKey:)` returns false for an unset key.
     @Test func listeningDefaultsToOn() {
-        let key = SoundAnalysisPreferences.enabledKey
-        let original = UserDefaults.standard.object(forKey: key)
-        defer {
-            if let original { UserDefaults.standard.set(original, forKey: key) }
-            else { UserDefaults.standard.removeObject(forKey: key) }
+        let name = "soundpost.test.\(UUID().uuidString)"
+        defer { UserDefaults(suiteName: name)?.removePersistentDomain(forName: name) }
+        // A store with the key genuinely unset — the state a first launch sees.
+        SoundAnalysisPreferences.$defaultsSuiteName.withValue(name) {
+            #expect(UserDefaults(suiteName: name)?.object(forKey: SoundAnalysisPreferences.enabledKey) == nil)
+            #expect(SoundAnalysisPreferences.isEnabled)
         }
-        UserDefaults.standard.removeObject(forKey: key)
-        #expect(SoundAnalysisPreferences.isEnabled)
     }
 
     @Test func consentRoundTrips() {
@@ -651,6 +646,9 @@ struct SoundprintBackfillTests {
 
         #expect(written == 0)
         #expect(capsule.soundprintRaw == nil, "a batch that outlived consent must write nothing")
+        // Without this the test would also pass against a backfill that never got
+        // going at all — it has to prove the batch ran and was then *discarded*.
+        #expect(stub.calls.count > 0, "the batch must have actually classified before being abandoned")
     }
 }
 
@@ -811,5 +809,67 @@ struct SoundSummaryWriterTests {
         for word in ["mood", "feel", "emotion", "happy", "sad"] {
             #expect(!prompt.lowercased().contains(word), "the prompt mentions \(word)")
         }
+    }
+}
+
+// MARK: - Per-label confidence floors (measured, M15 §11C)
+
+/// A single global floor assumes every label is equally confusable. Measured
+/// against the real classifier, `waterfall` is not: quiet broadband room tone
+/// returns it at 0.30–0.38, over the 0.30 floor.
+struct ElevatedConfidenceFloorTests {
+
+    @Test func waterfallNeedsMoreThanTheDefaultFloor() {
+        let floor = SoundVocabulary.confidenceFloor(for: "waterfall",
+                                                    default: SoundprintService.confidenceFloor)
+        #expect(floor > SoundprintService.confidenceFloor)
+        // Above every false positive measured (max 0.38).
+        #expect(floor > 0.38)
+    }
+
+    @Test func ordinaryLabelsKeepTheDefaultFloor() {
+        for identifier in ["rain", "music", "singing"] {
+            #expect(SoundVocabulary.confidenceFloor(for: identifier,
+                                                    default: SoundprintService.confidenceFloor)
+                    == SoundprintService.confidenceFloor)
+        }
+    }
+
+    /// An elevated floor may only ever raise the bar, never lower it — otherwise a
+    /// stale table entry could quietly admit weaker guesses than the default.
+    @Test func anElevatedFloorCanOnlyRaiseTheBar() {
+        for (identifier, _) in SoundVocabulary.elevatedConfidenceFloors {
+            #expect(SoundVocabulary.confidenceFloor(for: identifier, default: 0.99) == 0.99)
+        }
+    }
+
+    @Test func everyElevatedLabelIsActuallyInTheAllowList() {
+        for (identifier, _) in SoundVocabulary.elevatedConfidenceFloors {
+            #expect(SoundVocabulary.isAllowed(identifier),
+                    "\(identifier) has a raised floor but is not a label we ever show")
+        }
+    }
+
+    /// The gate itself: a `waterfall` guess in the measured false-positive range must
+    /// not be stored, while the same confidence for an ordinary label is fine.
+    @Test func aWeakWaterfallGuessIsDroppedButAnEqualRainGuessIsKept() async {
+        let weak = 0.35
+        let waterfallStub = StubClassifier(identifier: "version1",
+                                           labels: [Soundprint.Label(identifier: "waterfall", confidence: weak)])
+        let rainStub = StubClassifier(identifier: "version1",
+                                      labels: [Soundprint.Label(identifier: "rain", confidence: weak)])
+
+        let waterfall = await SoundprintService.soundprint(
+            forClipAt: URL(fileURLWithPath: "/dev/null"), duration: 5, peak: 0.5,
+            classifier: waterfallStub, isEnabled: true)
+        let rain = await SoundprintService.soundprint(
+            forClipAt: URL(fileURLWithPath: "/dev/null"), duration: 5, peak: 0.5,
+            classifier: rainStub, isEnabled: true)
+
+        guard case .analysed(let w) = waterfall, case .analysed(let r) = rain else {
+            Issue.record("both clips should have been analysed"); return
+        }
+        #expect(w.identifiers.isEmpty, "a 0.35 waterfall is inside the measured false-positive band")
+        #expect(r.identifiers == ["rain"], "an ordinary label at the same confidence is unaffected")
     }
 }

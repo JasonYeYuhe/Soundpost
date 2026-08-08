@@ -11,21 +11,19 @@ import SwiftData
 /// backfill the just-cleared capsules and sync the labels home, and search found
 /// them again on the device where the user had turned it off.
 ///
-/// `.serialized` because these mutate `SoundAnalysisPreferences`, which is process-
-/// wide `UserDefaults` that other suites also read.
-@Suite(.serialized)
+/// Each test owns both its store *and* its preference storage. `.serialized` was the
+/// first attempt and is not enough: it orders a suite's tests against each other and
+/// says nothing about other suites, and `SoundConsentTests` and
+/// `SoundprintBackfillTests` drive the same `UserDefaults` key in parallel. So the
+/// contention is removed rather than ordered — see
+/// `TestSupport.withIsolatedListeningPreference`.
 @MainActor
 struct ListeningConsentTests {
 
-    /// Restore the mirror around each test — it is global mutable state.
     private func withMirror(_ initial: Bool, _ body: (CapsuleStore) throws -> Void) throws {
-        let saved = UserDefaults.standard.object(forKey: SoundAnalysisPreferences.enabledKey)
-        defer {
-            if let saved { UserDefaults.standard.set(saved, forKey: SoundAnalysisPreferences.enabledKey) }
-            else { UserDefaults.standard.removeObject(forKey: SoundAnalysisPreferences.enabledKey) }
+        try TestSupport.withIsolatedListeningPreference(initial) {
+            try body(try TestSupport.isolatedStore())
         }
-        SoundAnalysisPreferences.isEnabled = initial
-        try body(try TestSupport.isolatedStore())
     }
 
     private func record(_ store: CapsuleStore, enabled: Bool, at date: Date) {
