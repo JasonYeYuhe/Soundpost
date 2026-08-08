@@ -558,6 +558,31 @@ tells the user it "applies on every device you use Soundpost on".
 slip past the same way this one did. Run `status` as part of release prep; it is the
 check that did not exist when this was missed.
 
+**What can be checked in software, and now is.** Every other test container passes
+`cloudKitDatabase: .none` on purpose — `.automatic` spins up a mirroring delegate
+that fails noisily on a signed-out simulator — which left the CloudKit rung itself
+untested. That matters because of how it fails: `makeProductionContainer()` catches
+*any* throw from rung 1 and falls through to a local store, so a CloudKit-illegal
+schema produces no crash, no error, and no user-visible signal — just an app that
+has quietly stopped syncing.
+
+`CloudKitSchemaTests` loads **the shipping schema** (`SoundpostModelContainer.productionSchema`,
+exposed rather than rebuilt so a test copy cannot drift from it) against a
+CloudKit-backed configuration, and separately asserts the rules the schema comment
+claims: no uniqueness constraints, every attribute optional or defaulted, every
+relationship optional.
+
+Verified by negative control rather than assumed: removing the default from
+`ListeningConsent.enabled` makes it fail with the real thing —
+*"CloudKit integration requires that all attributes be optional, or have a default
+value set"* — and restoring it makes it pass. Two of the tests written for the
+amplitude gate turned out to pass against the bug they guarded, so a new gate is not
+trusted here until it has been seen to fail.
+
+**It does not replace §11B-i.** Schema *legality* is a local check. Whether the
+matching record type exists in CloudKit **Production** is a server-side deployment
+that no test can reach, and from inside the app the two failures look identical.
+
 The launch and merge paths now log through `Diagnostics` instead of swallowing the
 error with `try?`, so a failure is at least observable in Console — but logging is
 not a substitute for the promotion, and there is no in-app signal that consent

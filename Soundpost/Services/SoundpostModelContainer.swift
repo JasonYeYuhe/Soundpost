@@ -37,19 +37,26 @@ enum SoundpostModelContainer {
     /// app's iCloud entitlement; recorded here for reference and account queries.
     static let cloudKitContainerID = "iCloud.com.soundpost.Soundpost"
 
+    /// The one schema the app ships.
+    ///
+    /// Exposed rather than built inline so a test can exercise **this** schema against
+    /// a CloudKit-backed configuration. A test that rebuilt the entity list would be
+    /// testing its own copy: the next entity added here would not appear there, and
+    /// the check that matters — does the CloudKit rung still load — would keep
+    /// passing while production quietly dropped to local.
+    ///
+    /// `Capsule` is CloudKit-legal by construction: no `@Attribute(.unique)`, every
+    /// property optional or defaulted (incl. `waveformSamples: [Float] = []`).
+    /// CONTINGENCY (docs/M9-DEVPLAN.md §S3 / risks): SwiftData maps `[Float]` to a
+    /// transformable; some CloudKit-backed stores reject a schema-level default for
+    /// it. If that ever throws a schema-validation error, make `waveformSamples` an
+    /// optional `[Float]?`. `ListeningConsent` joins on the same terms (M15 §4I,
+    /// revised): no unique attribute, every property defaulted, and adding an entity
+    /// is purely additive so an existing store migrates lightly.
+    static var productionSchema: Schema { Schema([Capsule.self, ListeningConsent.self]) }
+
     static func makeProductionContainer() -> ProductionStore {
-        // `Capsule`'s schema is CloudKit-legal by construction: no @Attribute(.unique),
-        // every property optional or defaulted (incl. `waveformSamples: [Float] = []`).
-        // CONTINGENCY (docs/M9-DEVPLAN.md §S3 / risks): SwiftData maps `[Float]` to a
-        // transformable; some CloudKit-backed stores reject a schema-level default for
-        // it. If, once the §8 iCloud entitlement is live, this throws a schema-
-        // validation error, make `waveformSamples` an optional `[Float]?`. Until then
-        // the ladder simply falls through to the local rung — no crash, but also no
-        // sync, so this MUST be confirmed on a real CloudKit-entitled build before ship.
-        // `ListeningConsent` joins the schema on the same terms (M15 §4I, revised):
-        // no unique attribute, every property defaulted. Adding an entity is purely
-        // additive, so an existing store migrates lightly.
-        let schema = Schema([Capsule.self, ListeningConsent.self])
+        let schema = productionSchema
 
         // Rung 1 — CloudKit-mirrored private database.
         do {
