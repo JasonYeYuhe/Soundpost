@@ -19,6 +19,11 @@ struct SettingsView: View {
     @AppStorage(DeliveryPreferences.optedOutKey) private var cloudOptedOut = false
     /// Consent for on-device listening (M15 §4I). Default on — see
     /// `SoundAnalysisPreferences` for why this one is not opt-in.
+    ///
+    /// Bound to the *local mirror* so the row stays instant and offline-safe. The
+    /// account-wide record is written alongside it in `onChange`, and read back into
+    /// this mirror by `ListeningConsentStore.applyToDevice` at launch and on every
+    /// remote merge — so a change made on another device shows up here.
     @AppStorage(SoundAnalysisPreferences.enabledKey) private var listeningEnabled = true
 
     @State private var showingPaywall = false
@@ -162,11 +167,17 @@ struct SettingsView: View {
 
     private var listeningSection: some View {
         Section {
-            Toggle("Listen to my recordings on this device", isOn: $listeningEnabled)
+            Toggle("Listen to my recordings", isOn: $listeningEnabled)
                 .onChange(of: listeningEnabled) { _, enabled in
+                    // Record the answer account-wide, not just here. The switch used
+                    // to be a per-device `UserDefaults` flag while its effect — the
+                    // erase — was account-wide, so a second device with listening
+                    // still on would re-analyse the cleared capsules and sync the
+                    // labels back (M15 §4I, revised).
+                    try? ListeningConsentStore.set(enabled, in: modelContext)
                     // Turning it off FORGETS rather than hides. A switch that stopped
                     // future analysis while quietly keeping past results would be the
-                    // dishonest version of this control (M15 §4I).
+                    // dishonest version of this control.
                     if !enabled { forgetAllSoundprints() }
                     // Erasing the stored labels is necessary but not sufficient: a
                     // label may already be baked into a *pending* lock-screen body,
@@ -187,7 +198,7 @@ struct SettingsView: View {
             // rather than the stronger "no audio is ever uploaded", which this app
             // cannot claim: `Capsule.audioData` rides the CloudKit-mirrored schema to
             // the user's private database, as the iCloud row in this same screen says.
-            Text("Soundpost can recognise everyday sounds — rain, birdsong, a train — so your capsules are easier to find later. The listening happens on your device; no audio is sent away to be analysed. What it hears is stored with the capsule and, like your recordings, syncs only to your own private iCloud. Turning this off also erases what it has already heard.")
+            Text("Soundpost can recognise everyday sounds — rain, birdsong, a train — so your capsules are easier to find later. The listening happens on your device; no audio is sent away to be analysed. What it hears is stored with the capsule and, like your recordings, syncs only to your own private iCloud. This setting follows your iCloud account, so it applies on every device you use Soundpost on — and turning it off erases what it has already heard, everywhere.")
         }
     }
 

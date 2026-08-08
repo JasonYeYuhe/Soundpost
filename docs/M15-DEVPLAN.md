@@ -13,7 +13,7 @@
 
 > ## Status: **S1–S7 IMPLEMENTED — 1.6.0 (build 12) submitted 2026-08-07**
 >
-> **335 tests / 0 warnings / i18n EN·JA·ZH-Hans 100% / 52 sound labels translated /
+> **344 tests / 0 warnings / i18n EN·JA·ZH-Hans 100% / 52 sound labels translated /
 > zero new third-party deps**, CI green, deployment target still **iOS 17.0**.
 >
 > | Step | Commit | What it turned out to be about |
@@ -434,7 +434,7 @@ the release for; the first two are the ones with a user-visible promise attached
 
 | # | Open issue | Shape of the fix |
 |---|---|---|
-| 1 | **The erase does not survive a second device.** The consent flag is `UserDefaults`, which is per-device; the erase writes `soundprintRaw = nil` into the CloudKit-mirrored store, so it propagates everywhere. A second device with listening still on backfills those same capsules and syncs the labels home. Search finds them again on the device where the user turned it off. Nothing in the UI says the switch is per-device — though the toggle does read "on this device" | A product decision, not a bug fix: either make consent account-wide (needs a synced home — a KVS entitlement or a settings model in the CloudKit schema) and reword the toggle, or keep it per-device and say so in the copy. Worth deciding before it is documented as behaviour |
+| ~~1~~ | ~~**The erase does not survive a second device.**~~ **Fixed** — consent is now account-wide. See §11B | — |
 | 2 | **Capsules already mis-marked by the 1.6.0 amplitude gate stay stuck.** The gate is fixed on `master`, but 1.6.0 ships it, and a capsule it wrote `1/version1\|` onto is never reconsidered — the backfill only refetches `soundprintRaw == nil` | A one-time remediation pass that clears *empty* markers so they are re-analysed once under the corrected gate. Needs a way to tell an old marker from a new one — the stored form already carries a schema version |
 | 3 | **The Apple Intelligence sentence has no language control.** `SoundSummaryWriter.instructions` is English-only with no directive to answer in the user's language, and `validated()`'s refusal blocklist is English-only, so a Japanese refusal or preamble passes every guard and renders as if it described the memory | Add a language directive and a `SystemLanguageModel.supportedLanguages` check; widen or restructure the refusal guard. Gated behind iOS 26 + Apple Intelligence, and no shipped claim mentions it |
 | 4 | **"Search 'rain'" is eventually true, not immediately true.** Classification is async and `save()` persists whatever exists at that moment; the backfill does 20 capsules once per launch. A 300-capsule library needs ~15 launches, with no indication indexing is in progress | Either surface progress, or re-run the backfill within a session |
@@ -477,3 +477,39 @@ The CLI is **still tier-ineligible on this machine** (verified 2026-08-02:
 individuals; migrate to Antigravity`). Identical blocker to M13 §12, five weeks on.
 To get a Gemini 3.6 pass, paste this document into Gemini web / Antigravity by hand —
 the plan is otherwise review-complete.
+
+### 11B. Listening consent is account-wide (2026-08-08)
+
+§11A #1 resolved. The switch was a per-device `UserDefaults` flag while its effect —
+erasing every stored soundprint — went through the CloudKit-mirrored store and so
+applied everywhere. A second device with listening still on backfilled the cleared
+capsules and synced the labels home; search found them again on the very device
+where the user had turned it off.
+
+**Consent now lives in the SwiftData store**, as a `ListeningConsent` model that
+mirrors through the existing CloudKit container.
+
+*Why not `NSUbiquitousKeyValueStore`* — the textbook home for a small synced
+setting, and it would have needed a new entitlement (`ubiquity-kvstore-identifier`)
+plus a provisioning change. But the deciding reason is ordering, not provisioning:
+KVS and the capsule store are two independent sync channels with no ordering
+guarantee between them, so a device could observe "consent withdrawn" before or
+after the erase that accompanied it and re-analyse in the gap. Keeping consent in
+the same store as the data it governs means the decision and its effect travel
+together, over one channel.
+
+| Decision | Why |
+|---|---|
+| Resolution is **last-writer-wins** on `changedAt` | The most recent answer is the one the user meant. Not an off-latch: turning it back on later wins too |
+| A **tie goes to off** | Device clocks differ. When we cannot tell which answer came last, honour the privacy-preserving one |
+| **No row is seeded at launch** — absence means the default (on) | Seeding would have every device racing to create one, and a seeded row carries no user intent to preserve. The row is written only by a deliberate toggle |
+| `SoundAnalysisPreferences` **stays** as a local mirror | Every gate reads it synchronously, often as a defaulted parameter. `ListeningConsentStore.applyToDevice` keeps it honest at launch and on each remote merge, so nothing else needed a `ModelContext` |
+| `applyToDevice` erases **whenever consent is off**, not only on a transition | The erase and its consent record can arrive in either order, and a backfill batch can land between them. The invariant worth holding is "consent off ⇒ nothing stored here". A no-op when clean |
+| Consent is adopted **before** the launch backfill and **before** notification bodies rebuild | Both read the mirror. A withdrawal made elsewhere has to land first, or this launch re-labels exactly what the user cleared |
+
+Schema note: adding an entity is additive, so an existing store migrates lightly.
+`ListeningConsent` is CloudKit-legal on the same terms as `Capsule` — no
+`@Attribute(.unique)`, every property defaulted.
+
+Copy: the toggle drops "on this device", and the footer says the setting follows the
+iCloud account and that turning it off erases what was heard *everywhere*.

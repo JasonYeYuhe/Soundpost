@@ -46,7 +46,10 @@ enum SoundpostModelContainer {
         // validation error, make `waveformSamples` an optional `[Float]?`. Until then
         // the ladder simply falls through to the local rung — no crash, but also no
         // sync, so this MUST be confirmed on a real CloudKit-entitled build before ship.
-        let schema = Schema([Capsule.self])
+        // `ListeningConsent` joins the schema on the same terms (M15 §4I, revised):
+        // no unique attribute, every property defaulted. Adding an entity is purely
+        // additive, so an existing store migrates lightly.
+        let schema = Schema([Capsule.self, ListeningConsent.self])
 
         // Rung 1 — CloudKit-mirrored private database.
         do {

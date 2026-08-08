@@ -21,6 +21,12 @@ import Foundation
 /// setting says plainly what it does, and turning it off **deletes** what was
 /// already heard rather than merely hiding it — a switch that only stops future
 /// analysis while quietly keeping past results would be the dishonest version.
+/// **This device's mirror of an account-wide answer.** The authoritative record is
+/// `ListeningConsent` in the SwiftData store, which syncs; this stays as the fast,
+/// synchronous, offline-safe read that every gate uses, kept in step by
+/// `ListeningConsentStore.applyToDevice` at launch and on each remote merge. Write
+/// through `ListeningConsentStore.set` rather than here, or the answer will not
+/// leave the device.
 enum SoundAnalysisPreferences {
     static let enabledKey = "sound.analysisEnabled"
 
