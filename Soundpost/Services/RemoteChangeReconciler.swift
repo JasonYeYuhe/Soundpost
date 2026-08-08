@@ -52,7 +52,7 @@ final class RemoteChangeReconciler {
             // may be carrying a withdrawal made on another device, and the bodies
             // built below consult the soundprints this call may be about to erase
             // (M15 §4I). `applyToDevice` also refreshes the mirror the copy reads.
-            try? ListeningConsentStore.applyToDevice(in: container.mainContext)
+            _ = try? ListeningConsentStore.applyToDevice(in: container.mainContext)
             guard let notifications else { return }
             let capsules = (try? CapsuleStore(context: container.mainContext).all()) ?? []
             await notifications.sync(capsules: capsules)
