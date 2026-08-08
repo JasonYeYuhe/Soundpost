@@ -26,6 +26,36 @@ struct Soundprint: Equatable, Sendable {
     /// Bump only when the *encoding* changes, not when the classifier does.
     static let schemaVersion = 1
 
+    /// The version of the **gates** that produced this result — the amplitude
+    /// threshold, the confidence floor, the allow-list — as distinct from the
+    /// encoding (`schemaVersion`) and the model (`classifier`).
+    ///
+    /// It exists because an *empty* soundprint is a verdict, and a verdict is only
+    /// as good as the thresholds behind it. "We listened and had nothing to say" is
+    /// terminal by design — the backfill only ever refetches `soundprintRaw == nil`,
+    /// which is what stops it re-examining the same silent clip on every launch. But
+    /// with no record of *which* gates said so, a capsule written off under one set
+    /// of thresholds could never be reconsidered under a better one, and the
+    /// thresholds have now moved twice: the amplitude gate's input changed from a
+    /// bucket average to a true peak (§11C), and `waterfall` got a raised floor.
+    /// Codex and Gemini both named this unprompted, from opposite directions.
+    ///
+    /// **Bump this whenever a gate changes in a way that could alter an empty
+    /// verdict.** `SoundprintRemediation` reopens empty markers from older gates so
+    /// they are analysed once more; labelled results are left alone, since a label
+    /// is evidence about the audio rather than a judgement call about a threshold.
+    ///
+    /// 1 = shipped in 1.6.0 (bucket-average amplitude input, flat 0.30 floor).
+    /// 2 = absolute-peak amplitude input, per-label floors.
+    static let gateVersion = 2
+
+    /// The stored form of "we listened and had nothing to say", for a given
+    /// classifier and gate generation. Exact strings, so the remediation pass can
+    /// select them with a plain equality predicate instead of parsing in SQL.
+    static func emptyMarker(classifier: String, gate: Int = gateVersion) -> String {
+        Soundprint(classifier: classifier, gate: gate).stored
+    }
+
     struct Label: Equatable, Sendable {
         let identifier: String
         let confidence: Double
@@ -33,11 +63,15 @@ struct Soundprint: Equatable, Sendable {
 
     /// The `SNClassifierIdentifier` raw value this came from, e.g. `version1`.
     let classifier: String
+    /// Which generation of gates produced this. Values stored by 1.6.0 carry no
+    /// gate component and read back as `1` — see `gateVersion`.
+    let gate: Int
     /// Highest confidence first. May be empty — see the type doc.
     let labels: [Label]
 
-    init(classifier: String, labels: [Label] = []) {
+    init(classifier: String, gate: Int = Soundprint.gateVersion, labels: [Label] = []) {
         self.classifier = classifier
+        self.gate = gate
         self.labels = labels.sorted { $0.confidence > $1.confidence }
     }
 
@@ -45,14 +79,26 @@ struct Soundprint: Equatable, Sendable {
     /// corrupted value degrades to "never analysed" rather than to wrong labels.
     init?(stored: String?) {
         guard let stored, !stored.isEmpty else { return nil }
-        // <schema>/<classifier>|<pairs>
+        // <schema>/<classifier>[/<gate>]|<pairs>
+        //
+        // The gate component is optional on read and always written. 1.6.0 shipped
+        // `1/version1|…` and those values must keep parsing exactly as before —
+        // rejecting them would strand every capsule it analysed, since the backfill
+        // only looks at `soundprintRaw == nil` and would never see them again.
         let head = stored.split(separator: "|", maxSplits: 1, omittingEmptySubsequences: false)
         guard head.count == 2 else { return nil }
-        let provenance = head[0].split(separator: "/", maxSplits: 1)
-        guard provenance.count == 2,
+        let provenance = head[0].split(separator: "/")
+        guard provenance.count == 2 || provenance.count == 3,
               let schema = Int(provenance[0]),
               schema == Self.schemaVersion,
               !provenance[1].isEmpty else { return nil }
+        let gate: Int
+        if provenance.count == 3 {
+            guard let parsed = Int(provenance[2]), parsed > 0 else { return nil }
+            gate = parsed
+        } else {
+            gate = 1
+        }
 
         var parsed: [Label] = []
         for pair in head[1].split(separator: ";") {
@@ -63,14 +109,23 @@ struct Soundprint: Equatable, Sendable {
                   confidence.isFinite else { continue }
             parsed.append(Label(identifier: String(parts[0]), confidence: confidence))
         }
-        self.init(classifier: String(provenance[1]), labels: parsed)
+        self.init(classifier: String(provenance[1]), gate: gate, labels: parsed)
     }
 
     var stored: String {
         let pairs = labels
             .map { "\($0.identifier)=\(String(format: "%.2f", $0.confidence))" }
             .joined(separator: ";")
-        return "\(Self.schemaVersion)/\(classifier)|\(pairs)"
+        // Gate 1 is written *without* the component, because gate 1 IS the format
+        // 1.6.0 shipped. One representation per (schema, classifier, gate), and the
+        // legacy values already in users' stores are byte-identical to what gate 1
+        // would produce now — which is what lets the remediation pass find them with
+        // a plain equality predicate. A first draft always wrote the component, so
+        // it looked for `1/version1/1|` and would have matched nothing at all.
+        let provenance = gate > 1
+            ? "\(Self.schemaVersion)/\(classifier)/\(gate)"
+            : "\(Self.schemaVersion)/\(classifier)"
+        return "\(provenance)|\(pairs)"
     }
 
     /// Whether this soundprint has anything to show. An analysed-but-empty

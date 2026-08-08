@@ -13,7 +13,7 @@
 
 > ## Status: **S1–S7 IMPLEMENTED — 1.6.0 (build 12) submitted 2026-08-07**
 >
-> **354 tests / 0 warnings / i18n EN·JA·ZH-Hans 100% / 52 sound labels translated /
+> **362 tests / 0 warnings / i18n EN·JA·ZH-Hans 100% / 52 sound labels translated /
 > zero new third-party deps**, CI green, deployment target still **iOS 17.0**.
 >
 > | Step | Commit | What it turned out to be about |
@@ -641,5 +641,39 @@ preserve true positives.
 | # | Issue | Note |
 |---|---|---|
 | 1 | **Window confidences are averaged over *all* windows** (`Collector.best()`: `sum / windows`). A sound present in part of a capsule is diluted by the rest of it — mechanically certain from the code, and the longer the capsule the worse | Raised independently by Gemini. **I could not demonstrate harm**: synthetic probes failed to isolate it, because the quiet portion of a tonal test signal still reads as tonal (`mean(present)` equalled `mean(all)` at every occupancy). Needs a real-audio corpus before changing the aggregate — a naive switch to `max` would trade dilution for one-window false positives |
-| 2 | The terminal "nothing to say" marker carries no **gate/pipeline version**, so a capsule written off under one set of thresholds is never reconsidered when they change — which they just did, twice | Both Codex and Gemini raised this unprompted. Compounds §11A#2. The stored form already carries a schema version and classifier id; a gate version belongs beside them |
+| ~~2~~ | ~~The terminal "nothing to say" marker carries no gate version~~ | **Fixed** — see §11E |
 | 3 | The confidence floor is one global number chosen to clear one measured artefact | `waterfall` is now the first per-label exception. Codex would go further: per-label calibration against a confuser corpus, and prefer one well-supported label over "up to three" |
+
+
+### 11E. A verdict now records which gates produced it (2026-08-09)
+
+Closes §11A#2 and §11D#2, which Codex and Gemini raised independently and from
+opposite directions.
+
+`1/version1|` means "we listened and had nothing to say". It is terminal on purpose:
+the backfill only refetches `soundprintRaw == nil`, which is what stops it
+re-examining the same silent clip on every launch forever. The cost is that a verdict
+outlives the thresholds that produced it — and 1.6.0's were wrong in a way that
+mattered. Its amplitude gate read a bucket average whose value moved with a
+waveform-*drawing* parameter that differed per call site, so a quiet-but-audible
+recording could clear the gate at capture, fail it during backfill, and be written
+off permanently (§11C).
+
+The stored form now carries a **gate generation** beside the schema version and the
+classifier id: `<schema>/<classifier>[/<gate>]|<pairs>`.
+
+| Decision | Why |
+|---|---|
+| **Gate 1 is written without the component** | Gate 1 *is* the format 1.6.0 shipped. One representation per (schema, classifier, gate), the values already in users' stores are byte-identical to what gate 1 would produce now, and the remediation pass can therefore find them with a plain equality predicate |
+| The component is **optional on read**, absent ⇒ gate 1 | Rejecting `1/version1|…` would strand every capsule 1.6.0 analysed: `Soundprint(stored:)` would return nil while `soundprintRaw` stayed non-nil, so the capsule would look unanalysed *and* never be picked up again |
+| **Only empty markers are reopened** | A stored label is evidence about the audio; a threshold change does not make it wrong, and re-analysing labelled capsules would churn the whole library for nothing. An empty marker is entirely a judgement call by the gates, so it is exactly what a gate change invalidates |
+| Reopening = setting `soundprintRaw` back to `nil` | Hands the capsule to the ordinary backfill instead of adding a second analysis path to keep in step with the first |
+| Bounded (40/launch) and consent-gated | Same reasoning as the backfill; and reopening is a prelude to analysing again, so it must respect the switch that says not to |
+
+Gate **2** = absolute-peak amplitude input, per-label confidence floors. Bump it
+whenever a gate changes in a way that could alter an empty verdict.
+
+A first draft always wrote the gate component, so it looked for `1/version1/1|` and
+would have matched **nothing at all** — the remediation would have run, reported
+success, and silently reopened zero capsules. The test that pins the marker 1.6.0
+actually wrote is what caught it.

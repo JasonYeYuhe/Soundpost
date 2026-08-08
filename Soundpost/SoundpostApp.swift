@@ -149,6 +149,11 @@ private struct RootView: View {
                     } catch {
                         Diagnostics.notice("Could not read account-wide listening consent at launch; using this device's answer")
                     }
+                    // Hand back the capsules an older generation of gates wrote off,
+                    // before the backfill runs — reopening sets `soundprintRaw` to
+                    // nil, which is exactly what the backfill below looks for, so
+                    // the two compose in one launch instead of two (M15 §11E).
+                    SoundprintRemediation.reopenSupersededVerdicts(in: store.container.mainContext)
                     // Give pre-M15 capsules their soundprints, a bounded batch per
                     // launch so a long-time user's back catalogue fills in over a few
                     // sessions instead of stalling one (M15 §4H).

@@ -42,7 +42,9 @@ struct SoundprintTests {
     @Test func storedFormCarriesItsProvenanceAndRoundTrips() throws {
         let print = Soundprint(classifier: "version1",
                                labels: [label("rain", 0.82), label("wind", 0.41)])
-        #expect(print.stored == "1/version1|rain=0.82;wind=0.41")
+        // New writes carry the gate generation; gate 1 alone is written without it,
+        // because gate 1 is the format 1.6.0 shipped (see `Soundprint.stored`).
+        #expect(print.stored == "1/version1/\(Soundprint.gateVersion)|rain=0.82;wind=0.41")
 
         let parsed = try #require(Soundprint(stored: print.stored))
         #expect(parsed.classifier == "version1")
@@ -61,7 +63,7 @@ struct SoundprintTests {
     /// the same clip forever.
     @Test func analysedButEmptyIsDistinctFromNeverAnalysed() throws {
         let empty = Soundprint(classifier: "version1", labels: [])
-        #expect(empty.stored == "1/version1|")
+        #expect(empty.stored == "1/version1/\(Soundprint.gateVersion)|")
         let parsed = try #require(Soundprint(stored: empty.stored))
         #expect(parsed.isEmpty)
         #expect(parsed.classifier == "version1")
@@ -871,5 +873,126 @@ struct ElevatedConfidenceFloorTests {
         }
         #expect(w.identifiers.isEmpty, "a 0.35 waterfall is inside the measured false-positive band")
         #expect(r.identifiers == ["rain"], "an ordinary label at the same confidence is unaffected")
+    }
+}
+
+// MARK: - Gate provenance and reopening superseded verdicts (M15 §11E)
+
+/// An empty soundprint is a *verdict*, and a verdict is only as good as the gates
+/// behind it. Recording which generation of gates produced one is what lets a
+/// capsule written off under bad thresholds be reconsidered under better ones.
+@Suite(.serialized)
+@MainActor
+struct SoundprintGateVersionTests {
+
+    // MARK: Encoding
+
+    @Test func theStoredFormCarriesTheGateGeneration() throws {
+        let print = Soundprint(classifier: "version1", gate: 7,
+                               labels: [Soundprint.Label(identifier: "rain", confidence: 0.82)])
+        #expect(print.stored == "1/version1/7|rain=0.82")
+        let parsed = try #require(Soundprint(stored: print.stored))
+        #expect(parsed.gate == 7)
+        #expect(parsed.classifier == "version1")
+        #expect(parsed.identifiers == ["rain"])
+    }
+
+    /// 1.6.0 shipped `1/version1|…` with no gate component. Those must keep parsing
+    /// exactly as before: rejecting them would strand every capsule it analysed,
+    /// because the backfill only ever looks at `soundprintRaw == nil` and would
+    /// never see them again.
+    @Test func valuesWrittenBeforeGateVersioningStillParseAsGateOne() throws {
+        let legacy = try #require(Soundprint(stored: "1/version1|rain=0.82;wind=0.41"))
+        #expect(legacy.gate == 1)
+        #expect(legacy.classifier == "version1")
+        #expect(legacy.identifiers == ["rain", "wind"])
+
+        let legacyEmpty = try #require(Soundprint(stored: "1/version1|"))
+        #expect(legacyEmpty.gate == 1)
+        #expect(legacyEmpty.isEmpty)
+    }
+
+    @Test func aNonsenseGateComponentDegradesToNeverAnalysed() {
+        for junk in ["1/version1/x|rain=0.8", "1/version1/0|rain=0.8", "1/version1/-1|", "1/version1/2/3|"] {
+            #expect(Soundprint(stored: junk) == nil, "\(junk.debugDescription) should not parse")
+        }
+    }
+
+    @Test func newWritesCarryTheCurrentGate() {
+        #expect(Soundprint(classifier: "version1").gate == Soundprint.gateVersion)
+        #expect(Soundprint.emptyMarker(classifier: "version1")
+                == "1/version1/\(Soundprint.gateVersion)|")
+    }
+
+    // MARK: Which markers are superseded
+
+    @Test func everySupersededMarkerIsEmptyAndFromAnOlderGate() throws {
+        #expect(!SoundprintRemediation.supersededEmptyMarkers.isEmpty,
+                "gateVersion is past 1, so there is at least one superseded generation")
+        for marker in SoundprintRemediation.supersededEmptyMarkers {
+            let parsed = try #require(Soundprint(stored: marker))
+            #expect(parsed.isEmpty)
+            #expect(parsed.gate < Soundprint.gateVersion)
+        }
+        #expect(SoundprintRemediation.supersededEmptyMarkers.contains("1/version1|"),
+                "the marker 1.6.0 actually wrote must be in the set")
+        #expect(!SoundprintRemediation.supersededEmptyMarkers
+            .contains(Soundprint.emptyMarker(classifier: "version1")),
+                "the current generation's own marker must never be reopened")
+    }
+
+    // MARK: Reopening
+
+    private func seed(_ store: CapsuleStore, _ raw: String?) -> Capsule {
+        let capsule = store.create()
+        capsule.soundprintRaw = raw
+        return capsule
+    }
+
+    @Test func itReopensOnlyTheVerdictsAStaleGateWroteOff() throws {
+        try TestSupport.withIsolatedListeningPreference(true) {
+            let store = try TestSupport.isolatedStore()
+            let stale = seed(store, "1/version1|")                                   // 1.6.0's "nothing to say"
+            let current = seed(store, Soundprint.emptyMarker(classifier: "version1")) // this gate said so
+            let labelled = seed(store, "1/version1|rain=0.82")                        // evidence, not a judgement
+            let never = seed(store, nil)
+            try store.save()
+
+            let reopened = SoundprintRemediation.reopenSupersededVerdicts(in: store.context)
+
+            #expect(reopened == 1)
+            #expect(stale.soundprintRaw == nil, "a stale empty verdict is handed back to the backfill")
+            #expect(current.soundprintRaw != nil, "this generation's own verdict stands")
+            #expect(labelled.soundprintRaw == "1/version1|rain=0.82",
+                    "a stored label is evidence about the audio, not a threshold judgement")
+            #expect(never.soundprintRaw == nil)
+        }
+    }
+
+    /// Reopening is a prelude to analysing again, so it has to respect the switch
+    /// that says not to.
+    @Test func itDoesNothingWithoutListeningConsent() throws {
+        try TestSupport.withIsolatedListeningPreference(false) {
+            let store = try TestSupport.isolatedStore()
+            let stale = seed(store, "1/version1|")
+            try store.save()
+
+            #expect(SoundprintRemediation.reopenSupersededVerdicts(in: store.context) == 0)
+            #expect(stale.soundprintRaw == "1/version1|")
+        }
+    }
+
+    @Test func itIsBoundedAndConverges() throws {
+        try TestSupport.withIsolatedListeningPreference(true) {
+            let store = try TestSupport.isolatedStore()
+            for _ in 0..<5 { _ = seed(store, "1/version1|") }
+            try store.save()
+
+            #expect(SoundprintRemediation.reopenSupersededVerdicts(in: store.context, limit: 2) == 2)
+            #expect(SoundprintRemediation.reopenSupersededVerdicts(in: store.context, limit: 2) == 2)
+            #expect(SoundprintRemediation.reopenSupersededVerdicts(in: store.context, limit: 2) == 1)
+            // Converged: nothing left to reopen, so repeated launches stop costing.
+            #expect(SoundprintRemediation.reopenSupersededVerdicts(in: store.context, limit: 2) == 0)
+        }
     }
 }
