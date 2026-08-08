@@ -534,11 +534,24 @@ never syncs, `resolve()` falls back to the device mirror, and the feature degrad
 to precisely the per-device bug it was written to fix — while the Settings footer
 tells the user it "applies on every device you use Soundpost on".
 
-- [ ] **Jason:** run a signed build on a device signed into iCloud, open Settings and
-      toggle Listening once (this creates `CD_ListeningConsent` in Development).
-- [ ] **Jason:** CloudKit Dashboard → Schema → **Deploy Schema Changes** to
-      Production; verify `CD_ListeningConsent` is live there.
+- [ ] **Jason:** create a CloudKit **management** token — CloudKit Console →
+      Settings → Tokens → CloudKit Management Tokens → New Token — then
+      `xcrun cktool save-token <token> --type management`. (Account sign-in; cannot
+      be scripted.)
+- [ ] **Jason:** run a signed build on a device signed into iCloud and toggle
+      Listening once. That write is what creates `CD_ListeningConsent` in
+      Development; `cktool` cannot conjure a record type, and hand-authoring the
+      schema risks a field mismatch Production could never take back.
+- [ ] `./scripts/cloudkit-schema.sh status` — shows what each environment has and
+      what the app's schema implies. Exits 2 when Production is behind.
+- [ ] `CK_CONFIRM=yes ./scripts/cloudkit-schema.sh promote` — imports Development's
+      schema into Production and verifies it afterwards.
 - [ ] Only then archive and submit a build containing this entity.
+
+`scripts/cloudkit-schema.sh` derives the expected record types from
+`Schema([...])` in source rather than a hard-coded list, so the next entity cannot
+slip past the same way this one did. Run `status` as part of release prep; it is the
+check that did not exist when this was missed.
 
 The launch and merge paths now log through `Diagnostics` instead of swallowing the
 error with `try?`, so a failure is at least observable in Console — but logging is
