@@ -534,10 +534,15 @@ never syncs, `resolve()` falls back to the device mirror, and the feature degrad
 to precisely the per-device bug it was written to fix — while the Settings footer
 tells the user it "applies on every device you use Soundpost on".
 
-- [ ] **Jason:** create a CloudKit **management** token — CloudKit Console →
-      Settings → Tokens → CloudKit Management Tokens → New Token — then
-      `xcrun cktool save-token <token> --type management`. (Account sign-in; cannot
-      be scripted.)
+- [x] ~~Create a CloudKit management token~~ — **not needed, one was already saved.**
+      The `authorization-failed` that suggested otherwise came from passing the wrong
+      team: `M3B2SV6M8B` is the **App ID resource** from an M9 checklist line, not the
+      team. `DEVELOPMENT_TEAM` is `KHMK6Q3L3K`. A wrong team id reports identically to
+      a missing token.
+- [x] **Verified against the live container** (2026-08-08): Development holds
+      `CD_Capsule` + `Users`, Production the same. `CD_ListeningConsent` is in
+      **neither** — so there is nothing to promote yet, and the analysis that it
+      would silently fail to sync is confirmed by observation, not inference.
 - [ ] **Jason:** run a signed build on a device signed into iCloud and toggle
       Listening once. That write is what creates `CD_ListeningConsent` in
       Development; `cktool` cannot conjure a record type, and hand-authoring the

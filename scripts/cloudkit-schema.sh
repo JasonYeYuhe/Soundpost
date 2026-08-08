@@ -18,14 +18,23 @@
 #   scripts/cloudkit-schema.sh status     # what is in each environment, and the drift
 #   scripts/cloudkit-schema.sh promote    # import Development's schema into Production
 #
-# Requires a CloudKit **management token**:
-#   CloudKit Console -> Settings -> Tokens -> CloudKit Management Tokens -> New Token
+# Auth: a saved cktool management token. One is already saved on this machine — if
+# you see `authorization-failed`, suspect the TEAM ID before the token. A wrong team
+# reports identically to a missing token, which cost a wrong diagnosis once already.
 #   xcrun cktool save-token <token> --type management
+#   (CloudKit Console -> Settings -> Tokens -> CloudKit Management Tokens)
 set -euo pipefail
 
-TEAM_ID="${CK_TEAM_ID:-M3B2SV6M8B}"
-CONTAINER="${CK_CONTAINER:-iCloud.com.soundpost.Soundpost}"
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# Read both from source. The first draft of this script hard-coded the team as
+# M3B2SV6M8B, copied from an M9 checklist line that is describing the **App ID
+# resource**, not the team — the real team is DEVELOPMENT_TEAM in the project, and
+# the mistake only surfaces as an opaque auth failure against the wrong account.
+TEAM_ID="${CK_TEAM_ID:-$(sed -n 's/.*DEVELOPMENT_TEAM = \([A-Z0-9]*\);.*/\1/p' \
+  "$PROJECT_DIR/Soundpost.xcodeproj/project.pbxproj" | head -1)}"
+CONTAINER="${CK_CONTAINER:-$(sed -n 's@.*<string>\(iCloud\.[^<]*\)</string>.*@\1@p' \
+  "$PROJECT_DIR/Soundpost/Soundpost.entitlements" | head -1)}"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
@@ -47,14 +56,26 @@ fetch() { # fetch <environment> <outfile>
     --team-id "$TEAM_ID" --container-id "$CONTAINER" --environment "$1" \
     > "$2" 2>"$WORK/err.$1" || {
       if grep -q 'authorization-failed' "$WORK/err.$1"; then
-        die "cktool is not authorized. Create a CloudKit **management** token in the CloudKit Console (Settings -> Tokens), then: xcrun cktool save-token <token> --type management"
+        # This message used to say "make a management token", which is the wrong
+        # first guess: a saved token was already present and the real cause was a
+        # WRONG TEAM ID (M3B2SV6M8B, an App ID resource, copied out of an M9
+        # checklist line). Same opaque error either way, so name both causes and
+        # print what we actually used.
+        die "cktool refused: team=$TEAM_ID container=$CONTAINER.
+    Check the team id first — it must be DEVELOPMENT_TEAM from the project, not the
+    App ID resource identifier; a wrong team reports as an authorization failure.
+    If the team is right, the saved token is missing or expired:
+      xcrun cktool save-token <token> --type management
+    (CloudKit Console -> Settings -> Tokens -> CloudKit Management Tokens)"
       fi
       sed 's/^/    /' "$WORK/err.$1" >&2
       die "could not export the $1 schema"
     }
 }
 
-types_in() { grep -oE '^RECORD TYPE [A-Za-z0-9_]+' "$1" | awk '{print $3}' | sort -u; }
+# `|| true`: grep exits 1 when a schema has none of these, and under `set -e` that
+# killed the script mid-report with no message — it looked like an auth problem.
+types_in() { grep -oE 'RECORD TYPE [A-Za-z0-9_]+' "$1" 2>/dev/null | awk '{print $3}' | sort -u || true; }
 
 cmd_status() {
   echo "Container: $CONTAINER   Team: $TEAM_ID"
