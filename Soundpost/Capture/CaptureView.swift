@@ -295,11 +295,14 @@ struct CaptureView: View {
 
     private static func isCJK(_ scalar: Unicode.Scalar) -> Bool {
         switch scalar.value {
-        case 0x3040...0x30FF,   // Hiragana, Katakana
+        case 0x3000...0x303F,   // CJK symbols and punctuation — 、。「」・
+             0x3040...0x30FF,   // Hiragana, Katakana
              0x3400...0x4DBF,   // CJK Unified Ideographs Extension A
              0x4E00...0x9FFF,   // CJK Unified Ideographs
              0xF900...0xFAFF,   // CJK Compatibility Ideographs
-             0xFF66...0xFF9F:   // Halfwidth Katakana
+             0xFF01...0xFF60,   // Fullwidth forms — ，！？：
+             0xFF66...0xFF9F,   // Halfwidth Katakana
+             0x20000...0x3134F: // CJK Extension B–G
             return true
         default:
             return false

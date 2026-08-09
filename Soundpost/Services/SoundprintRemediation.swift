@@ -1,7 +1,7 @@
 import Foundation
 import SwiftData
 
-/// Reopens capsules an **older generation of gates** wrote off.
+/// Re-judges capsules an **older generation of gates** decided about.
 ///
 /// `1/version1|` means "we listened and had nothing to say", and it is terminal on
 /// purpose: the backfill only refetches `soundprintRaw == nil`, which is what stops
@@ -12,59 +12,89 @@ import SwiftData
 /// 1.6.0's amplitude gate was handed a bucket average whose value moved with a
 /// waveform-*drawing* parameter that differed per call site (56 at capture, 32 at
 /// backfill, §11C). A quiet-but-audible recording could clear the gate at capture
-/// and fail it during backfill, and the failure was written as this marker. Those
-/// capsules are unlabelled, unsearchable, and — without this — permanently so.
+/// and fail it during backfill, and the failure was written as an empty marker.
 ///
-/// **Only empty markers are reopened.** A stored label is evidence about the audio;
-/// a threshold change does not make it wrong, and re-analysing it would churn every
-/// capsule in the library for nothing. An empty marker is the opposite: it is
-/// entirely a judgement call by the gates, so it is exactly what a gate change
-/// invalidates.
+/// **Labelled results are re-judged too.** The first version of this reopened only
+/// empty markers, arguing that "a stored label is evidence about the audio, and a
+/// threshold change does not make it wrong". That argument does not survive its own
+/// motivation: the per-label floor exists *because* measured `waterfall` labels at
+/// 0.30–0.38 were wrong about quiet rooms. A capsule carrying `waterfall=0.35` from
+/// gate 1 would otherwise keep displaying, searching and exporting as "a waterfall"
+/// forever — the §1.2 failure the floor was raised to prevent, grandfathered in.
 ///
-/// Reopening means setting `soundprintRaw` back to `nil`, which hands the capsule to
-/// the ordinary backfill — no second analysis path to keep in step with the first.
+/// So a superseded capsule takes one of two paths, and neither costs an analysis it
+/// does not need:
+/// - its labels still clear the current gates → the stored value is **re-stamped**
+///   with the current gate. Vetted without re-reading the audio, and it leaves the
+///   candidate set, so passes converge instead of re-examining it every launch.
+/// - they do not → it is **reopened** (`soundprintRaw = nil`) and the ordinary
+///   backfill re-analyses it. No second analysis path to keep in step with the first.
 enum SoundprintRemediation {
 
-    /// Every empty marker a *superseded* gate could have written, as exact strings.
+    /// The prefix every value written before gate versioning carries.
     ///
-    /// Exact equality rather than a prefix or suffix test so the fetch stays a plain
-    /// indexed predicate: SwiftData's `#Predicate` support for string operations is
-    /// narrow, and "ends with a pipe" is not something to lean on.
-    static var supersededEmptyMarkers: [String] {
-        guard Soundprint.gateVersion > 1 else { return [] }
-        // Only `version1` has ever shipped. A future classifier would add its own
-        // markers here; the set stays small because it is (classifiers × gates).
-        return (1..<Soundprint.gateVersion).map {
-            Soundprint.emptyMarker(classifier: "version1", gate: $0)
-        }
+    /// Gate 1 was written without a gate component (it *is* 1.6.0's format), so every
+    /// superseded value — empty or labelled — begins `1/<classifier>|`. A prefix test
+    /// keeps the fetch a predicate the store can run rather than a full scan.
+    static func legacyPrefix(classifier: String = "version1") -> String {
+        "\(Soundprint.schemaVersion)/\(classifier)|"
     }
 
-    /// Clear up to `limit` superseded empty markers so the backfill reconsiders them.
+    /// What a re-judgement decided.
+    enum Outcome: Equatable {
+        /// Labels still stand; the value was re-stamped with the current gate.
+        case revalidated
+        /// The verdict was invalidated; the capsule goes back to the backfill.
+        case reopened
+    }
+
+    /// Re-judge one stored value under the **current** gates.
+    ///
+    /// Pure, so the rule is testable without a store: an empty verdict is always
+    /// reopened (it was entirely a threshold judgement), and a labelled one keeps
+    /// only labels that still clear today's allow-list and floors. If nothing
+    /// survives, there is no longer anything to say and the capsule is reopened.
+    static func rejudge(_ stored: String) -> (outcome: Outcome, stored: String?) {
+        guard let print = Soundprint(stored: stored), print.gate < Soundprint.gateVersion else {
+            return (.revalidated, stored)
+        }
+        guard !print.isEmpty else { return (.reopened, nil) }
+
+        let surviving = print.labels.filter {
+            SoundVocabulary.isAllowed($0.identifier)
+                && $0.confidence >= SoundVocabulary.confidenceFloor(
+                    for: $0.identifier, default: SoundprintService.confidenceFloor)
+        }
+        guard !surviving.isEmpty else { return (.reopened, nil) }
+        return (.revalidated,
+                Soundprint(classifier: print.classifier, labels: surviving).stored)
+    }
+
+    /// Re-judge up to `limit` superseded capsules.
     ///
     /// Bounded like the backfill, and for the same reason: a long-time user's library
-    /// should fill in over a few launches rather than stalling one. Each pass
-    /// permanently removes its capsules from the candidate set, so repeated launches
-    /// converge.
+    /// should settle over a few launches rather than stalling one. Every capsule this
+    /// touches leaves the candidate set — reopened to `nil`, or re-stamped with the
+    /// current gate — so repeated launches converge.
     ///
-    /// Returns how many were reopened.
+    /// Returns how many were reopened for re-analysis (re-stamps are not counted:
+    /// nothing further happens to those).
     @discardableResult
     static func reopenSupersededVerdicts(
         in context: ModelContext,
         limit: Int = 40,
         isEnabled: Bool = SoundAnalysisPreferences.isEnabled
     ) -> Int {
-        // Consent first. Reopening is only ever a prelude to analysing again, and a
-        // user who turned listening off must not have their library quietly queued
-        // up for it.
+        // Consent first. Re-judging is a prelude to analysing again, and a user who
+        // turned listening off must not have their library quietly queued up for it.
         guard isEnabled else { return 0 }
+        guard Soundprint.gateVersion > 1 else { return 0 }
 
-        let markers = supersededEmptyMarkers
-        guard !markers.isEmpty else { return 0 }
-
+        let prefix = legacyPrefix()
         var descriptor = FetchDescriptor<Capsule>(
             predicate: #Predicate { capsule in
                 if let raw = capsule.soundprintRaw {
-                    return markers.contains(raw)
+                    return raw.starts(with: prefix)
                 } else {
                     return false
                 }
@@ -72,16 +102,29 @@ enum SoundprintRemediation {
             sortBy: [SortDescriptor(\.createdAt, order: .reverse)]
         )
         descriptor.fetchLimit = limit
-        guard let stale = try? context.fetch(descriptor), !stale.isEmpty else { return 0 }
+        guard let superseded = try? context.fetch(descriptor), !superseded.isEmpty else { return 0 }
 
-        for capsule in stale { capsule.soundprintRaw = nil }
+        // Remember the originals: `rollback()` does not restore already-materialised
+        // objects — this project established that the hard way when the first version
+        // of the backfill's consent fix passed its own assertion and still left the
+        // capsule mutated. On failure the values are put back by hand.
+        let originals = superseded.map { ($0, $0.soundprintRaw) }
+        var reopened = 0
+        for capsule in superseded {
+            guard let raw = capsule.soundprintRaw else { continue }
+            let (outcome, replacement) = rejudge(raw)
+            capsule.soundprintRaw = replacement
+            if outcome == .reopened { reopened += 1 }
+        }
+
         do {
             try context.save()
         } catch {
-            Diagnostics.notice("Reopening superseded soundprint verdicts failed")
+            for (capsule, original) in originals { capsule.soundprintRaw = original }
+            Diagnostics.notice("Re-judging superseded soundprint verdicts failed")
             return 0
         }
-        Diagnostics.info("Reopened superseded soundprint verdicts for re-analysis")
-        return stale.count
+        Diagnostics.info("Re-judged superseded soundprint verdicts")
+        return reopened
     }
 }

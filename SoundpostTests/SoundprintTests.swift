@@ -908,18 +908,6 @@ struct SoundSummaryWriterTests {
         #expect(SoundSummaryWriter.validated(withPlace, describing: facts(sounds: [])) == withPlace)
     }
 
-    /// Anchors are sound phrases and the place. When a capsule has neither — only the
-    /// user's own note — there is nothing short and quotable to anchor on, and a
-    /// legitimate rephrasing may share no words with it. The check stands aside there
-    /// rather than rejecting good sentences, and the blocklist carries that case.
-    @Test func aNoteOnlyCapsuleIsNotHeldToTheAnchorCheck() {
-        let noteOnly = SoundSummaryWriter.Facts(soundPhrases: [], note: "the storm broke",
-                                                placeName: nil, elapsedPhrase: "eight months ago")
-        let sentence = "An afternoon you wanted to keep."
-        #expect(SoundSummaryWriter.mentionsAGivenFact(noteOnly, in: sentence))
-        #expect(SoundSummaryWriter.validated(sentence, describing: noteOnly) == sentence)
-    }
-
     @Test func thePromptCarriesOnlyFactsWeAlreadyDisplay() {
         let prompt = SoundSummaryWriter.prompt(for: facts(note: "the storm broke"))
         #expect(prompt.contains("rain"))
@@ -1053,19 +1041,17 @@ struct SoundprintGateVersionTests {
 
     // MARK: Which markers are superseded
 
-    @Test func everySupersededMarkerIsEmptyAndFromAnOlderGate() throws {
-        #expect(!SoundprintRemediation.supersededEmptyMarkers.isEmpty,
-                "gateVersion is past 1, so there is at least one superseded generation")
-        for marker in SoundprintRemediation.supersededEmptyMarkers {
-            let parsed = try #require(Soundprint(stored: marker))
-            #expect(parsed.isEmpty)
-            #expect(parsed.gate < Soundprint.gateVersion)
-        }
-        #expect(SoundprintRemediation.supersededEmptyMarkers.contains("1/version1|"),
-                "the marker 1.6.0 actually wrote must be in the set")
-        #expect(!SoundprintRemediation.supersededEmptyMarkers
-            .contains(Soundprint.emptyMarker(classifier: "version1")),
-                "the current generation's own marker must never be reopened")
+    /// The prefix must be the one 1.6.0 actually wrote. A first draft built markers
+    /// by always emitting the gate component, so it looked for `1/version1/1|` — a
+    /// string no build has ever produced — and the pass would have run, reported
+    /// success, and touched nothing.
+    @Test func theLegacyPrefixIsWhatShippedNotWhatIsWrittenNow() {
+        #expect(SoundprintRemediation.legacyPrefix() == "1/version1|")
+        #expect("1/version1|".hasPrefix(SoundprintRemediation.legacyPrefix()))
+        #expect("1/version1|rain=0.91".hasPrefix(SoundprintRemediation.legacyPrefix()))
+        // A current-generation value must NOT look superseded.
+        let current = Soundprint(classifier: "version1").stored
+        #expect(!current.hasPrefix(SoundprintRemediation.legacyPrefix()))
     }
 
     // MARK: Reopening
@@ -1076,6 +1062,8 @@ struct SoundprintGateVersionTests {
         return capsule
     }
 
+    /// Empty verdicts come back for re-analysis; labels that still stand are
+    /// re-stamped with the current gate so they leave the candidate set.
     @Test func itReopensOnlyTheVerdictsAStaleGateWroteOff() throws {
         try TestSupport.withIsolatedListeningPreference(true) {
             let store = try TestSupport.isolatedStore()
@@ -1090,8 +1078,8 @@ struct SoundprintGateVersionTests {
             #expect(reopened == 1)
             #expect(stale.soundprintRaw == nil, "a stale empty verdict is handed back to the backfill")
             #expect(current.soundprintRaw != nil, "this generation's own verdict stands")
-            #expect(labelled.soundprintRaw == "1/version1|rain=0.82",
-                    "a stored label is evidence about the audio, not a threshold judgement")
+            #expect(labelled.soundprintRaw == "1/version1/\(Soundprint.gateVersion)|rain=0.82",
+                    "a label that still clears the gates is re-stamped, not re-analysed")
             #expect(never.soundprintRaw == nil)
         }
     }
@@ -1121,5 +1109,170 @@ struct SoundprintGateVersionTests {
             // Converged: nothing left to reopen, so repeated launches stop costing.
             #expect(SoundprintRemediation.reopenSupersededVerdicts(in: store.context, limit: 2) == 0)
         }
+    }
+}
+
+// MARK: - Guards added after external review (2026-08-09)
+
+/// Findings from a Codex/Gemini review pass, each pinned so the fix cannot rot.
+struct PostReviewGuardTests {
+
+    /// A Japanese or Chinese model wraps prose in corner brackets, not quotes. With
+    /// 「 left on the front, the refusal check never fired — so the trilingual
+    /// blocklist was reachable only for output that happened to be unwrapped.
+    @Test func aRefusalWrappedInCornerBracketsIsStillRejected() {
+        let facts = SoundSummaryWriter.Facts(soundPhrases: ["rain"], note: nil,
+                                             placeName: nil, elapsedPhrase: "eight months ago")
+        for raw in ["「申し訳ありませんが、お手伝いできません。」",
+                    "『すみません、それはできません。』",
+                    "「抱歉，我无法完成这个请求。」"] {
+            #expect(SoundSummaryWriter.validated(raw, describing: facts) == nil, "\(raw) should be rejected")
+        }
+    }
+
+    /// `Locale.Language(identifier: "zh-TW").script` is nil — the script is implied
+    /// by the region. Comparing declared scripts alone served Simplified prose to a
+    /// Traditional Chinese reader.
+    @Test func traditionalChineseIsNotMatchedByASimplifiedOnlyModel() {
+        let simplifiedOnly: Set<Locale.Language> = [Locale.Language(identifier: "zh-Hans-CN")]
+        #expect(!SoundSummaryWriter.isLanguageSupported(Locale.Language(identifier: "zh-TW"),
+                                                        in: simplifiedOnly))
+        #expect(SoundSummaryWriter.isLanguageSupported(Locale.Language(identifier: "zh-CN"),
+                                                       in: simplifiedOnly))
+    }
+
+    /// A join after Japanese punctuation must not take an ASCII space: "朝の音、雨",
+    /// never "朝の音、 雨".
+    @Test func cjkPunctuationCountsAsCJKForJoining() {
+        #expect(!CaptureView.needsSpaceBetween("朝の音、", "雨"))
+        #expect(!CaptureView.needsSpaceBetween("下雨了，", "雨声"))
+        #expect(!CaptureView.needsSpaceBetween("音。", "雨"))
+        #expect(CaptureView.needsSpaceBetween("morning,", "rain"))
+    }
+
+    /// The invariant the parser exists to hold, restated after a review argued for
+    /// loosening it: corruption degrades to "never analysed", never to wrong labels.
+    @Test func corruptProvenanceNeverBecomesRealLabels() {
+        for junk in ["1/version1/x|rain=0.8", "1/version1/2/3|rain=0.8", "1/version1/0|rain=0.8"] {
+            #expect(Soundprint(stored: junk) == nil,
+                    "\(junk) must not parse into labels — it would be wrong data, not missing data")
+        }
+    }
+}
+
+// MARK: - Codex review findings (2026-08-09)
+
+/// Each of these pins a defect an external review found. Several are cases where my
+/// own reasoning was self-contradictory, so they are worth keeping executable.
+@Suite(.serialized)
+@MainActor
+struct CodexReviewGuardTests {
+
+    private func facts(sounds: [String] = ["rain"], note: String? = nil,
+                       place: String? = nil) -> SoundSummaryWriter.Facts {
+        SoundSummaryWriter.Facts(soundPhrases: sounds, note: note, placeName: place,
+                                 elapsedPhrase: "eight months ago")
+    }
+
+    // MARK: The rain/train bug, reintroduced in a new place
+
+    /// This project already fixed exactly this for search: the phrase for `train`
+    /// contains `rain`. The fact-anchor check brought it back with
+    /// `localizedStandardContains`, so a sentence about a train satisfied an anchor
+    /// of rain and would have been shown as a description of a rainy morning.
+    @Test func anAnchorMustNotMatchInsideALongerWord() {
+        #expect(!SoundSummaryWriter.mentionsAGivenFact(facts(sounds: ["rain"]),
+                                                       in: "A train passed through the evening."))
+        #expect(SoundSummaryWriter.mentionsAGivenFact(facts(sounds: ["rain"]),
+                                                      in: "Rain on the window, eight months ago."))
+    }
+
+    /// The boundary rule cannot apply to scripts without spaces — it would degrade to
+    /// "must start the sentence" and switch the feature off for ja/zh.
+    @Test func cjkAnchorsMatchAnywhereInTheSentence() {
+        #expect(SoundSummaryWriter.mentionsAGivenFact(facts(sounds: ["雨"]),
+                                                      in: "今朝は雨でした。"))
+        #expect(!SoundSummaryWriter.mentionsAGivenFact(facts(sounds: ["雨"]),
+                                                       in: "静かな朝でした。"))
+    }
+
+    // MARK: Note-only capsules must still be grounded
+
+    /// The first version returned `true` when there were no sound or place anchors,
+    /// which meant a note-only capsule had no factual check at all — and a test
+    /// locked that in.
+    @Test func aNoteOnlyCapsuleStillRequiresGrounding() {
+        let noteOnly = facts(sounds: [], note: "the storm broke")
+        #expect(!SoundSummaryWriter.mentionsAGivenFact(noteOnly, in: "You watched fireworks together."))
+        #expect(SoundSummaryWriter.mentionsAGivenFact(noteOnly, in: "The storm you wrote about, eight months ago."))
+    }
+
+    // MARK: The response's own language
+
+    /// The gate proves the model *can* speak the language and the brief *asks* it to.
+    /// Neither checks what came back, and the place anchor is satisfied by a CJK
+    /// place name sitting inside English prose.
+    @Test func englishProseIsRejectedWhenTheFactsAreJapanese() {
+        let japanese = facts(sounds: ["雨"], note: "朝の音", place: "東京")
+        #expect(!SoundSummaryWriter.looksLikeTheSameScript(as: japanese,
+                                                           text: "A rainy afternoon in 東京."))
+        #expect(SoundSummaryWriter.looksLikeTheSameScript(as: japanese,
+                                                          text: "東京の雨の朝、八か月前。"))
+        // English facts are unaffected — the check only fires when the facts are CJK.
+        #expect(SoundSummaryWriter.looksLikeTheSameScript(as: facts(sounds: ["rain"]),
+                                                          text: "A rainy afternoon."))
+    }
+
+    // MARK: Consent ordering
+
+    /// A device whose clock runs fast could otherwise pin listening on: every
+    /// correctly dated answer after it would lose to a future-dated grant.
+    @Test func aFutureDatedAnswerIsClampedToNow() {
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        let future = now.addingTimeInterval(86_400 * 365)
+        #expect(ListeningConsentStore.effectiveDate(future, now: now) == now)
+        #expect(ListeningConsentStore.effectiveDate(now.addingTimeInterval(-60), now: now)
+                == now.addingTimeInterval(-60))
+    }
+
+    // MARK: Re-judging labelled results, not only empty ones
+
+    /// The floor exists *because* measured `waterfall` labels at 0.30–0.38 were wrong
+    /// about quiet rooms. A capsule carrying one from gate 1 must not keep saying
+    /// "a waterfall" forever.
+    @Test func aLabelTheCurrentFloorWouldRejectIsReopened() {
+        let (outcome, stored) = SoundprintRemediation.rejudge("1/version1|waterfall=0.35")
+        #expect(outcome == .reopened)
+        #expect(stored == nil)
+    }
+
+    /// One that still stands is re-stamped rather than re-analysed — vetted without
+    /// re-reading the audio, and it leaves the candidate set so passes converge.
+    @Test func aLabelThatStillStandsIsRestampedNotReanalysed() throws {
+        let (outcome, stored) = SoundprintRemediation.rejudge("1/version1|rain=0.91")
+        #expect(outcome == .revalidated)
+        let reparsed = try #require(Soundprint(stored: try #require(stored)))
+        #expect(reparsed.gate == Soundprint.gateVersion)
+        #expect(reparsed.identifiers == ["rain"])
+    }
+
+    /// A mixed result keeps what survives rather than throwing the capsule away.
+    @Test func aMixedResultKeepsOnlyWhatStillClearsTheGates() throws {
+        let (outcome, stored) = SoundprintRemediation.rejudge("1/version1|rain=0.91;waterfall=0.35")
+        #expect(outcome == .revalidated)
+        let reparsed = try #require(Soundprint(stored: try #require(stored)))
+        #expect(reparsed.identifiers == ["rain"], "the false waterfall is dropped, the real rain kept")
+    }
+
+    @Test func anEmptyVerdictFromAnOlderGateIsAlwaysReopened() {
+        #expect(SoundprintRemediation.rejudge("1/version1|").outcome == .reopened)
+    }
+
+    @Test func aCurrentGenerationValueIsLeftAlone() {
+        let current = Soundprint(classifier: "version1",
+                                 labels: [Soundprint.Label(identifier: "rain", confidence: 0.91)]).stored
+        let (outcome, stored) = SoundprintRemediation.rejudge(current)
+        #expect(outcome == .revalidated)
+        #expect(stored == current)
     }
 }

@@ -70,11 +70,23 @@ enum SoundSummaryWriter {
     /// matters for Chinese, so it is compared when both sides declare one.
     static func isLanguageSupported(_ language: Locale.Language,
                                     in supported: Set<Locale.Language>) -> Bool {
-        supported.contains { candidate in
+        let wantedScript = effectiveScript(language)
+        return supported.contains { candidate in
             guard candidate.languageCode == language.languageCode else { return false }
-            if let a = candidate.script, let b = language.script { return a == b }
+            if let a = effectiveScript(candidate), let b = wantedScript { return a == b }
             return true
         }
+    }
+
+    /// The script, inferred when it is not written down.
+    ///
+    /// `Locale.Language(identifier: "zh-TW").script` is nil — the script is implied
+    /// by the region, not stated. Comparing the declared script alone therefore let
+    /// a Traditional Chinese reader match a Simplified-only model and be served
+    /// Simplified prose. `maximalIdentifier` resolves `zh-TW` to `zh-Hant-TW`, which
+    /// is the comparison that was meant.
+    private static func effectiveScript(_ language: Locale.Language) -> Locale.Script? {
+        language.script ?? Locale.Language(identifier: language.maximalIdentifier).script
     }
 
     /// The longest sentence we will show. A model that runs on is a model that has
@@ -154,7 +166,16 @@ enum SoundSummaryWriter {
         // Models like to wrap prose in quotes; that is presentation, not content.
         // Note the pair is not symmetric — a typographic quote OPENS with U+201C and
         // CLOSES with U+201D, so a `first == last` test silently never fires.
-        let quotePairs: [(Character, Character)] = [("\"", "\""), ("\u{201C}", "\u{201D}"), ("'", "'")]
+        // Japanese and Chinese models wrap prose in corner brackets, not quotes. With
+        // 「 left on the front, a `hasPrefix("申し訳")` check never fires — so the
+        // refusal list below was reachable only for output that happened to be
+        // unwrapped, which is not how these models format.
+        let quotePairs: [(Character, Character)] = [
+            ("\"", "\""), ("\u{201C}", "\u{201D}"), ("'", "'"),
+            ("\u{300C}", "\u{300D}"),   // 「 」
+            ("\u{300E}", "\u{300F}"),   // 『 』
+            ("\u{2018}", "\u{2019}"),   // ‘ ’
+        ]
         var stripped = true
         while stripped {
             stripped = false
@@ -175,6 +196,8 @@ enum SoundSummaryWriter {
         // And the language-independent one: it has to actually mention something we
         // gave it.
         guard mentionsAGivenFact(facts, in: text) else { return nil }
+        // And that it came back in the script the facts were written in.
+        guard looksLikeTheSameScript(as: facts, text: text) else { return nil }
         return text
     }
 
@@ -220,11 +243,102 @@ enum SoundSummaryWriter {
     /// Rejecting a good sentence costs nothing dangerous: the caller falls back to
     /// its own localized copy. Accepting a bad one breaks §1.2.
     static func mentionsAGivenFact(_ facts: Facts, in text: String) -> Bool {
-        let anchors = (facts.soundPhrases + [facts.placeName].compactMap { $0 })
+        var anchors = (facts.soundPhrases + [facts.placeName].compactMap { $0 })
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
-        guard !anchors.isEmpty else { return true }
-        return anchors.contains { text.localizedStandardContains($0) }
+        // The note grounds a capsule that has neither a sound nor a place. The first
+        // version stood aside there and returned `true`, which meant a note-only
+        // capsule had NO factual check at all — "You watched fireworks together."
+        // would have been accepted against the note "the storm broke". Under §1.2
+        // ungrounded prose about someone's memory is exactly what must not ship, so
+        // the fallback is now to reject, not to wave through.
+        if anchors.isEmpty, let note = facts.note {
+            anchors = contentTokens(of: note)
+        }
+        guard !anchors.isEmpty else { return false }
+        return anchors.contains { anchorMatches($0, in: text) }
+    }
+
+    /// Anchor matching, per script.
+    ///
+    /// For Latin text this must respect word boundaries, because plain containment
+    /// reintroduces the exact bug this project already fixed once for search: the
+    /// phrase for `train` contains `rain`, so a summary saying "A train passed" would
+    /// have satisfied an anchor of "rain" and been shown as a description of a rainy
+    /// morning (§4E / Codex F4). `GalleryFilter.matches` is the boundary rule search
+    /// already uses.
+    ///
+    /// For Japanese and Chinese that rule cannot apply: there are no spaces, so it
+    /// degrades to "must start the sentence", and 「今朝は雨でした」would fail its own
+    /// anchor 雨. Applying it there would not make the check stricter — it would
+    /// switch the feature off for two of the three shipped languages. The
+    /// substring risk is also different in kind: these anchors are whole localized
+    /// nouns, not fragments that happen to nest inside other words.
+    private static func anchorMatches(_ anchor: String, in text: String) -> Bool {
+        containsCJK(anchor)
+            ? text.localizedStandardContains(anchor)
+            : GalleryFilter.matches(phrase: text, query: anchor)
+    }
+
+    static func containsCJK(_ string: String) -> Bool {
+        string.unicodeScalars.contains { scalar in
+            switch scalar.value {
+            case 0x3040...0x30FF, 0x3400...0x4DBF, 0x4E00...0x9FFF,
+                 0xF900...0xFAFF, 0xFF66...0xFF9F, 0x20000...0x3134F:
+                return true
+            default:
+                return false
+            }
+        }
+    }
+
+    /// Is the sentence written in the same kind of script as the facts?
+    ///
+    /// The language gate establishes only that the model *can* speak the reader's
+    /// language, and the brief only *asks* it to. Neither checks what came back — and
+    /// the prompt's own field labels are English, which pulls the other way. Given
+    /// Japanese facts, "A rainy afternoon in 東京." satisfies the place anchor while
+    /// being the exact failure this was all meant to prevent.
+    ///
+    /// A script comparison is coarse and that is the point: it needs no language
+    /// identification, and it catches the case that actually occurs — English prose
+    /// returned for CJK facts.
+    static func looksLikeTheSameScript(as facts: Facts, text: String) -> Bool {
+        let given = facts.soundPhrases + [facts.note, facts.placeName].compactMap { $0 }
+        guard containsCJK(given.joined(separator: " ")) else { return true }
+        // Look at the sentence with the given facts REMOVED. Asking only whether the
+        // output contains CJK is satisfied by a single quoted place name — "A rainy
+        // afternoon in 東京." would pass while being precisely the English-on-a-
+        // Japanese-screen failure this exists to catch. What matters is the script of
+        // the model's own prose, which is what is left once the nouns we handed it
+        // are taken back out.
+        var remainder = text
+        for fact in given.sorted(by: { $0.count > $1.count }) {
+            remainder = remainder.replacingOccurrences(of: fact, with: " ",
+                                                       options: [.caseInsensitive, .diacriticInsensitive])
+        }
+        let prose = remainder.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Nothing but the facts themselves is not evidence either way; the anchor
+        // check has already established it is about this capsule.
+        guard prose.contains(where: { $0.isLetter }) else { return true }
+        return containsCJK(prose)
+    }
+
+    /// Substrings of a note worth treating as anchors.
+    ///
+    /// Words for scripts that space them; two-character runs for scripts that do not,
+    /// which is the shortest unit that still means something in Japanese or Chinese.
+    private static func contentTokens(of note: String) -> [String] {
+        let trimmed = note.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return [] }
+        let words = trimmed
+            .split(whereSeparator: { $0.isWhitespace || $0.isPunctuation })
+            .map(String.init)
+            .filter { $0.count >= 3 }
+        if !words.isEmpty { return words }
+        let characters = Array(trimmed)
+        guard characters.count >= 2 else { return [] }
+        return (0..<(characters.count - 1)).map { String(characters[$0...$0 + 1]) }
     }
 
     /// Internal rather than private so the language rule can be asserted — the

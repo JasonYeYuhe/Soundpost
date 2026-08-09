@@ -88,6 +88,16 @@ struct Soundprint: Equatable, Sendable {
         let head = stored.split(separator: "|", maxSplits: 1, omittingEmptySubsequences: false)
         guard head.count == 2 else { return nil }
         let provenance = head[0].split(separator: "/")
+        // Exactly two components (legacy) or three (with a gate). Deliberately
+        // strict, and a review argued the opposite: that splitting from the right
+        // would tolerate a classifier identifier containing a slash. It would — and
+        // it would also make `1/version1/x|rain=0.8` parse as the classifier
+        // "version1/x" with real labels, which breaks the guarantee this type is
+        // built on: *a corrupted value degrades to "never analysed", never to wrong
+        // labels.* No `SNClassifierIdentifier` contains a slash, and if one ever did,
+        // degrading to "never analysed" hands the capsule back to the backfill, which
+        // is recovery rather than loss. Strictness costs a hypothetical and buys the
+        // documented invariant.
         guard provenance.count == 2 || provenance.count == 3,
               let schema = Int(provenance[0]),
               schema == Self.schemaVersion,
@@ -99,6 +109,7 @@ struct Soundprint: Equatable, Sendable {
         } else {
             gate = 1
         }
+        let classifier = String(provenance[1])
 
         var parsed: [Label] = []
         for pair in head[1].split(separator: ";") {
@@ -109,7 +120,7 @@ struct Soundprint: Equatable, Sendable {
                   confidence.isFinite else { continue }
             parsed.append(Label(identifier: String(parts[0]), confidence: confidence))
         }
-        self.init(classifier: String(provenance[1]), gate: gate, labels: parsed)
+        self.init(classifier: classifier, gate: gate, labels: parsed)
     }
 
     var stored: String {

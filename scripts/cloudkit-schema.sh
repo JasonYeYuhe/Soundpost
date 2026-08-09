@@ -46,9 +46,22 @@ ok() { printf '\033[32m✓ %s\033[0m\n' "$1"; }
 # prefixed CD_ the way NSPersistentCloudKitContainer names them. Derived from source
 # rather than hard-coded, so adding an entity cannot silently escape this check.
 expected_types() {
-  sed -n 's/.*let schema = Schema(\[\(.*\)\]).*/\1/p' \
+  # Match `Schema([...])` wherever it appears, not `let schema = Schema([...])`.
+  # The first version pinned the assignment form and broke the day that declaration
+  # became a computed property — leaving this script extracting an EMPTY list and
+  # therefore checking nothing, which is the precise failure it exists to prevent.
+  sed -n 's/.*Schema(\[\([^]]*\)\]).*/\1/p' \
     "$PROJECT_DIR/Soundpost/Services/SoundpostModelContainer.swift" \
-    | tr ',' '\n' | sed 's/\.self//g; s/[[:space:]]//g' | grep -v '^$' | sed 's/^/CD_/'
+    | head -1 | tr ',' '\n' | sed 's/\.self//g; s/[[:space:]]//g' | grep -v '^$' | sed 's/^/CD_/' || true
+}
+
+# Never let an empty expectation read as "nothing is missing".
+require_expected_types() {
+  if [ -z "$(expected_types)" ]; then
+    die "Could not read Schema([...]) from SoundpostModelContainer.swift.
+    Refusing to report on a schema this script cannot see — an empty expectation
+    would pass every check while verifying nothing."
+  fi
 }
 
 fetch() { # fetch <environment> <outfile>
@@ -78,6 +91,7 @@ fetch() { # fetch <environment> <outfile>
 types_in() { grep -oE 'RECORD TYPE [A-Za-z0-9_]+' "$1" 2>/dev/null | awk '{print $3}' | sort -u || true; }
 
 cmd_status() {
+  require_expected_types
   echo "Container: $CONTAINER   Team: $TEAM_ID"
   fetch development "$WORK/dev.ckdb"
   fetch production  "$WORK/prod.ckdb"
@@ -107,6 +121,7 @@ cmd_status() {
 }
 
 cmd_promote() {
+  require_expected_types
   fetch development "$WORK/dev.ckdb"
   fetch production  "$WORK/prod.ckdb"
 

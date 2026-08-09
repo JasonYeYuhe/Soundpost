@@ -13,7 +13,7 @@
 
 > ## Status: **S1–S7 IMPLEMENTED — 1.6.0 (build 12) submitted 2026-08-07**
 >
-> **373 tests / 0 warnings / i18n EN·JA·ZH-Hans 100% / 52 sound labels translated /
+> **388 tests / 0 warnings / i18n EN·JA·ZH-Hans 100% / 52 sound labels translated /
 > zero new third-party deps**, CI green, deployment target still **iOS 17.0**.
 >
 > | Step | Commit | What it turned out to be about |
@@ -707,3 +707,76 @@ share nothing quotable with it. For a note-only capsule the check stands aside a
 blocklist is the whole defence, which is a limit worth stating rather than papering
 over. Rejecting a good sentence costs a fallback to localized copy; accepting a bad
 one breaks §1.2.
+
+
+### 11G. External review pass — Codex + Gemini 3.6 Flash (2026-08-09)
+
+Both reviewed the unreleased delta. Between them they found eleven defects, several
+in reasoning I had written down as settled. What was accepted, what was not:
+
+**Where my own argument was self-contradictory.** `SoundprintRemediation` reopened
+only *empty* markers, on the stated grounds that "a stored label is evidence about
+the audio; a threshold change does not make it wrong". The per-label floor added
+hours earlier exists precisely *because* measured `waterfall` labels at 0.30–0.38
+were wrong about quiet rooms — so a capsule carrying one from gate 1 would have kept
+saying "a waterfall" forever, grandfathering in the §1.2 failure the floor was raised
+to stop. Superseded capsules are now re-judged: labels that still clear today's gates
+are **re-stamped** with the current gate (vetted without re-reading audio, and they
+leave the candidate set so passes converge), and anything else is reopened.
+
+**The `rain`/`train` bug, reintroduced in a new place.** `mentionsAGivenFact` used
+`localizedStandardContains`, so the anchor `rain` matched inside "A train passed" —
+the same substring trap this project already fixed for search (§4E / Codex F4). It
+now uses `GalleryFilter.matches` for scripts with word boundaries. Not for CJK: there
+the boundary rule degrades to "must start the sentence", and 「今朝は雨でした」 would
+fail its own anchor 雨, which would switch the feature off for two of three shipped
+languages rather than make it stricter.
+
+**A guard that guarded nothing.** For a note-only capsule `mentionsAGivenFact`
+returned `true` — no factual check at all — and a test locked that in. "You watched
+fireworks together." was accepted against the note "the storm broke". The note now
+supplies anchors (words for spaced scripts, two-character runs for CJK) and the
+fallback is to reject.
+
+**Language, checked rather than requested.** The gate proves the model *can* speak
+the reader's language and the brief *asks* it to; neither looks at what came back,
+and the place anchor is satisfied by a CJK place name sitting inside English prose.
+`looksLikeTheSameScript` now strips the given facts out first and tests the script of
+the model's own remaining prose — "A rainy afternoon in 東京." fails, as it should.
+Also: Japanese models wrap output in 「corner brackets」, which the quote-stripper did
+not remove, so `hasPrefix("申し訳")` never fired and the trilingual refusal list was
+reachable only for unwrapped output.
+
+**Consent ordering.** `.distantPast` adoption lost a genuinely newer opt-out: device A
+records "on", the user later switches off on device B while it is still on 1.6.0, B
+upgrades, finds A's record and stands aside — silently resuming listening against the
+most recent thing the user did. A carried-over opt-out is now dated `.now` and does
+not defer to an existing record, once per device. It can outrank a genuinely newer
+grant, and that asymmetry is deliberate: forcing off wrongly costs one flick of a
+switch, forcing on wrongly resumes analysing audio somebody opted out of. Separately,
+`changedAt` is clamped to the present on read — a device with a fast clock could
+otherwise pin listening on for as long as its clock was wrong.
+
+**Failures that were only logged.** A failed consent write left `@AppStorage` already
+moved, so the device acted on an answer that was never stored — and the dangerous
+direction is turning listening back *on*, where the next launch resolves the
+surviving "off" and erases labels created in between. The switch now writes through a
+`Binding` that moves the mirror only after the record is durable, so a failed write
+springs the switch back and says so. A failed erase alerts instead of logging
+quietly, because that is the half of the sentence the footer promises by name. Both
+`set` and the remediation restore their values by hand on failure rather than relying
+on `rollback()`, which this project has already established does not restore
+materialised objects.
+
+**Declined, with reasons.**
+
+| Finding | Why not |
+|---|---|
+| Split provenance from the right so a classifier containing `/` parses | Tried it; it made `1/version1/x\|rain=0.8` parse as the classifier "version1/x" **with real labels**, breaking the invariant the type is built on — corruption degrades to "never analysed", never to wrong labels. No `SNClassifierIdentifier` contains a slash, and if one did, degrading hands the capsule to the backfill, which is recovery. Reverted to the strict parse and pinned it with a test |
+| `CloudKitSchemaTests` can't fail because `isStoredInMemoryOnly` disables CloudKit validation | Disproved by negative control before this review: removing the default from `ListeningConsent.enabled` fails it with the real Core Data message. Validation does run |
+| The `#Predicate` cannot translate and silently fetches nothing | The fetch is `try?`, so a translation failure returns 0 — and the tests assert 2/2/1. They could not pass on a swallowed error |
+
+**Still open**: the capture-suggestion tests set `soundprint` through a seam rather
+than driving the real classification completion, so a regression written *inside* that
+completion would still pass. Fixing it properly needs a classifier seam on
+`CaptureViewModel`, which is a larger change than the rest of this pass.

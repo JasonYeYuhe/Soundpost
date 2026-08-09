@@ -151,8 +151,52 @@ struct ListeningConsentTests {
         }
     }
 
-    @Test func adoptingAGrantLeavesCapsulesAlone() throws {
+    /// A local opt-out carried across at upgrade **outranks an older dated grant**,
+    /// and that direction is deliberate.
+    ///
+    /// At first upgrade the two answers cannot be ordered: the local mirror has no
+    /// timestamp, so "I turned it off here" and "I turned it on there" are
+    /// indistinguishable in time. The two ways to be wrong are not symmetric —
+    /// forcing OFF wrongly costs the user one flick of a switch, while forcing ON
+    /// wrongly resumes analysing audio somebody opted out of. §1.2 picks the first.
+    @Test func aLocalOptOutOutranksAnOlderGrantAtUpgrade() throws {
         try withMirror(false) { store in
+            let capsule = store.create()
+            capsule.soundprintRaw = Soundprint(
+                classifier: "version1",
+                labels: [Soundprint.Label(identifier: "rain", confidence: 0.9)]).stored
+            record(store, enabled: true, at: Date(timeIntervalSince1970: 9_000))
+            try store.save()
+
+            let effective = try ListeningConsentStore.applyToDevice(in: store.context)
+
+            #expect(!effective)
+            #expect(capsule.soundprintRaw == nil, "the carried-over opt-out erases here too")
+        }
+    }
+
+    /// And it happens once. A second pass must not keep re-asserting the same
+    /// opt-out over answers made since.
+    @Test func theCarriedOverOptOutIsAssertedOnlyOnce() throws {
+        try withMirror(false) { store in
+            _ = try ListeningConsentStore.applyToDevice(in: store.context)
+            #expect(!SoundAnalysisPreferences.isEnabled)
+
+            // The user turns it back on, here or anywhere.
+            try ListeningConsentStore.set(true, in: store.context)
+            #expect(SoundAnalysisPreferences.isEnabled)
+
+            // A later merge must leave that alone rather than re-adopting.
+            let effective = try ListeningConsentStore.applyToDevice(in: store.context)
+            #expect(effective)
+            #expect(SoundAnalysisPreferences.isEnabled)
+        }
+    }
+
+    /// With the mirror already on there is nothing to carry across, and a grant must
+    /// never erase.
+    @Test func adoptingAGrantLeavesCapsulesAlone() throws {
+        try withMirror(true) { store in
             let capsule = store.create()
             let heard = Soundprint(
                 classifier: "version1",

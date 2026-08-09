@@ -18,13 +18,27 @@ enum ListeningConsentStore {
     /// tell which answer came last, the privacy-preserving one is the safer thing to
     /// honour. A final tie-break on `id` keeps the outcome deterministic rather than
     /// dependent on fetch order.
-    static func winner(in context: ModelContext) throws -> ListeningConsent? {
+    static func winner(in context: ModelContext, now: Date = .now) throws -> ListeningConsent? {
         let all = try context.fetch(FetchDescriptor<ListeningConsent>())
         return all.max { a, b in
-            if a.changedAt != b.changedAt { return a.changedAt < b.changedAt }
+            let aAt = Self.effectiveDate(a.changedAt, now: now)
+            let bAt = Self.effectiveDate(b.changedAt, now: now)
+            if aAt != bAt { return aAt < bAt }
             if a.enabled != b.enabled { return a.enabled && !b.enabled }
             return a.id.uuidString < b.id.uuidString
         }
+    }
+
+    /// A timestamp clamped to the present.
+    ///
+    /// "Last writer wins" is only as good as the clocks writing it. A device whose
+    /// clock runs fast records an answer dated into the future, and every correctly
+    /// dated answer after it loses — a grant written a year ahead would pin listening
+    /// on for a year, which is the wrong side to fail on. Clamping costs nothing for
+    /// honest timestamps and turns a future-dated record into "as recent as now",
+    /// where the tie-break already prefers off.
+    static func effectiveDate(_ date: Date, now: Date = .now) -> Date {
+        min(date, now)
     }
 
     /// The effective account-wide answer. Falls back to this device's mirror when
@@ -46,9 +60,24 @@ enum ListeningConsentStore {
             return fresh
         }()
         for extra in all.dropFirst() { context.delete(extra) }
+        let previousEnabled = keeper.enabled
+        let previousAt = keeper.changedAt
         keeper.enabled = enabled
         keeper.changedAt = now
-        try context.save()
+        do {
+            try context.save()
+        } catch {
+            // `rollback()` does not restore already-materialised objects — this
+            // project learned that when the backfill's first consent fix passed its
+            // own assertion and still left the capsule mutated. Put the values back
+            // by hand so a later unrelated save cannot commit a half-applied answer.
+            keeper.enabled = previousEnabled
+            keeper.changedAt = previousAt
+            throw error
+        }
+        // Only after the write lands. The mirror is what every gate reads, so moving
+        // it before the record is durable is how a device ends up acting on an answer
+        // that was never stored.
         SoundAnalysisPreferences.isEnabled = enabled
     }
 
@@ -65,14 +94,31 @@ enum ListeningConsentStore {
     /// Seeding a `true` would be seeding the default — no intent, and every device
     /// racing to write one, which is what `ListeningConsent` deliberately avoids.
     ///
-    /// `changedAt` is `.distantPast`: this is an answer of unknown age, so any dated
-    /// answer from any device — including a later "turn it back on" — outranks it.
-    private static func adoptPreAccountWithdrawal(in context: ModelContext) throws {
+    /// Recorded **once per device**, so an adoption cannot keep re-asserting itself
+    /// against later answers from anywhere.
+    static let adoptionKey = "sound.consentAdoptedFromDevice"
+
+    /// Dated `.now`, not `.distantPast`, and it does not stand aside for an existing
+    /// record. Both of those were wrong in the first version.
+    ///
+    /// `.distantPast` loses to every dated answer, and skipping when a record already
+    /// exists loses the opt-out entirely: device A upgrades and records "on"; device B
+    /// stays on 1.6.0 and the user switches listening **off** there *afterwards*; B
+    /// upgrades, finds A's record, skips — and B silently resumes listening, against
+    /// the most recent thing the user actually did.
+    ///
+    /// So a local opt-out is carried across as a present-tense answer. It can, in
+    /// principle, outrank a genuinely newer grant from another device, and that
+    /// direction is the deliberate one: when two answers cannot be ordered, §1.2 says
+    /// take the one that says stop. The one-shot flag keeps it to a single assertion.
+    private static func adoptPreAccountWithdrawal(in context: ModelContext, now: Date = .now) throws {
+        guard !SoundAnalysisPreferences.defaults.bool(forKey: adoptionKey) else { return }
+        // Marked regardless of outcome: if this device's answer was the default at
+        // upgrade there is nothing to carry across, now or ever.
+        defer { SoundAnalysisPreferences.defaults.set(true, forKey: adoptionKey) }
         guard !SoundAnalysisPreferences.isEnabled else { return }
-        guard try winner(in: context) == nil else { return }
-        context.insert(ListeningConsent(enabled: false, changedAt: .distantPast))
-        try context.save()
-        Diagnostics.info("Adopted this device's existing listening opt-out as the account-wide answer")
+        try set(false, in: context, now: now)
+        Diagnostics.info("Carried this device's existing listening opt-out into the account-wide answer")
     }
 
     /// Bring this device into line with the account-wide answer.
