@@ -13,7 +13,7 @@
 
 > ## Status: **S1–S7 IMPLEMENTED — 1.6.0 (build 12) submitted 2026-08-07**
 >
-> **388 tests / 0 warnings / i18n EN·JA·ZH-Hans 100% / 52 sound labels translated /
+> **392 tests / 0 warnings / i18n EN·JA·ZH-Hans 100% / 52 sound labels translated /
 > zero new third-party deps**, CI green, deployment target still **iOS 17.0**.
 >
 > | Step | Commit | What it turned out to be about |
@@ -437,7 +437,7 @@ the release for; the first two are the ones with a user-visible promise attached
 | ~~1~~ | ~~**The erase does not survive a second device.**~~ **Fixed** — consent is now account-wide. See §11B | — |
 | 2 | **Capsules already mis-marked by the 1.6.0 amplitude gate stay stuck.** The gate is fixed on `master`, but 1.6.0 ships it, and a capsule it wrote `1/version1\|` onto is never reconsidered — the backfill only refetches `soundprintRaw == nil` | A one-time remediation pass that clears *empty* markers so they are re-analysed once under the corrected gate. Needs a way to tell an old marker from a new one — the stored form already carries a schema version |
 | ~~3~~ | ~~**The Apple Intelligence sentence has no language control.**~~ **Fixed — §11F.** `SoundSummaryWriter.instructions` is English-only with no directive to answer in the user's language, and `validated()`'s refusal blocklist is English-only, so a Japanese refusal or preamble passes every guard and renders as if it described the memory | Add a language directive and a `SystemLanguageModel.supportedLanguages` check; widen or restructure the refusal guard. Gated behind iOS 26 + Apple Intelligence, and no shipped claim mentions it |
-| 4 | **"Search 'rain'" is eventually true, not immediately true.** Classification is async and `save()` persists whatever exists at that moment; the backfill does 20 capsules once per launch. A 300-capsule library needs ~15 launches, with no indication indexing is in progress | Either surface progress, or re-run the backfill within a session |
+| ~~4~~ | ~~**"Search 'rain'" is eventually true, not immediately true.**~~ **Fixed — §11H.** Classification is async and `save()` persists whatever exists at that moment; the backfill does 20 capsules once per launch. A 300-capsule library needs ~15 launches, with no indication indexing is in progress | Either surface progress, or re-run the backfill within a session |
 | ~~5~~ | ~~**The data export omits `soundprintRaw`.**~~ **Fixed** — the manifest now carries `soundsHeard` as display phrases. Derived personal data, synced to the user's iCloud, absent from the data-subject export. The Settings copy enumerates what is included, so it is incomplete rather than false | Add the field to `CapsuleBulkExporter`'s manifest |
 | ~~6~~ | ~~**The "never auto-applies" regression guard is vacuous.**~~ **Fixed** — it now drives `save(using:)` with a soundprint present. `aSoundprintNeverAppliesItself` asserts nothing changed in a scenario where nothing *could* change — it never lands a soundprint. A future change that pre-seeded the note would pass | Drive `save(using:)` with a soundprint present and assert `note == nil` |
 | 7 | In ja/zh, search matches only the phrase-*leading* token (CJK has no spaces, and `matches(phrase:query:)` requires a word boundary), so さえずり finds nothing against 鳥のさえずり | Substring match for scripts without word boundaries |
@@ -787,3 +787,31 @@ materialised objects.
 than driving the real classification completion, so a regression written *inside* that
 completion would still pass. Fixing it properly needs a classifier seam on
 `CaptureViewModel`, which is a larger change than the rest of this pass.
+
+
+### 11H. One launch settles the library, not fifteen (2026-08-10)
+
+Closes §11A#4, which was attached to a claim already shipped: the 1.6.0 release notes
+say *"Search 'rain' and your rainy mornings come back."*
+
+The backfill did exactly one batch of twenty per launch. For a long-time user with
+three hundred pre-M15 capsules that is roughly **fifteen separate launches** before
+the sentence is true, and in the meantime search returns a partial set with nothing
+saying so. The gate versioning added in §11E made it worse rather than better: the
+remediation pass feeds the backfill, and it was bounded the same way, so a library
+labelled under gate 1 waited for *both* to grind through forty and twenty a launch.
+
+The bound was being read too literally. It exists for **memory** — one clip in flight
+at a time, the M9 rule — and for not competing with capture. Neither requires stopping
+after twenty. Measured cost is 0.02–0.05 s for a three-second clip, so three hundred
+capsules is some tens of seconds of background work, once, because it converges.
+
+Both passes now drain: batch, yield, repeat until nothing is left.
+
+| Decision | Why |
+|---|---|
+| Batching stays | It is what keeps peak memory at one clip, and what gives the loop somewhere to yield instead of holding the actor for the whole library |
+| A 250 ms pause between batches | Capture and the UI get the device back between batches; the drain is background work and should feel like it |
+| `maximumBatches` is a **runaway guard, not a quota** | Hitting it logs "stopped at the batch ceiling with work remaining" rather than returning as if the library were settled. A silent cap reads as completion, which is the failure this milestone kept finding elsewhere |
+| The remediation drain counts **touched**, not reopened | A library whose gate-1 labels all still stand touches capsules on every batch and reopens none. A loop keyed on reopenings alone would never decide it was finished — it is pinned by a test |
+| Cancellation is honoured | The launch task can go away; a drain that ignored that would keep working for a screen nobody is looking at |

@@ -153,11 +153,14 @@ private struct RootView: View {
                     // before the backfill runs — reopening sets `soundprintRaw` to
                     // nil, which is exactly what the backfill below looks for, so
                     // the two compose in one launch instead of two (M15 §11E).
-                    SoundprintRemediation.reopenSupersededVerdicts(in: store.container.mainContext)
-                    // Give pre-M15 capsules their soundprints, a bounded batch per
-                    // launch so a long-time user's back catalogue fills in over a few
-                    // sessions instead of stalling one (M15 §4H).
-                    await SoundprintBackfill(modelContainer: store.container).backfill()
+                    SoundprintRemediation.drain(in: store.container.mainContext)
+                    // Give pre-M15 capsules their soundprints. Batched so peak memory
+                    // stays one clip and capture keeps the device between batches
+                    // (M15 §4H), but drained rather than stopped after one batch: the
+                    // release notes say search finds your rainy mornings, and one
+                    // batch per launch made that true only after about fifteen of them
+                    // (§11H).
+                    await SoundprintBackfill(modelContainer: store.container).drain()
                 }
         } else {
             Color.clear // unreachable in practice; never crash if the store is missing

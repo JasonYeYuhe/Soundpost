@@ -34,6 +34,53 @@ actor SoundprintBackfill {
                             classifier: classifier, isEnabled: isEnabled)
     }
 
+    /// Keep running batches until there is nothing left to analyse.
+    ///
+    /// One batch per launch was too literal a reading of "bounded". The bound exists
+    /// for *memory* — one clip in flight at a time, the M9 rule — and for not
+    /// competing with capture. Neither requires stopping after twenty.
+    ///
+    /// What stopping after twenty did require was patience the release notes did not
+    /// ask for: they say "Search 'rain' and your rainy mornings come back", and a
+    /// long-time user with three hundred capsules needed roughly fifteen separate
+    /// launches before that was true, with search quietly returning partial results
+    /// the whole time. Measured cost is 0.02–0.05 s for a three-second clip, so the
+    /// same library is some tens of seconds of background work — once, because it
+    /// converges.
+    ///
+    /// Batching stays: it is what keeps peak memory at one clip and lets the loop
+    /// yield between batches instead of holding the actor. `maximumBatches` is a
+    /// runaway guard, not a quota, and hitting it is **logged** rather than passed
+    /// off as completion.
+    @discardableResult
+    func drain(
+        batchSize: Int = 20,
+        maximumBatches: Int = 100,
+        pauseBetweenBatches: Duration = .milliseconds(250),
+        audioStore: AudioStore = AudioStore(),
+        classifier: some SoundClassifying = SoundAnalysisClassifier(),
+        isEnabled: Bool = SoundAnalysisPreferences.isEnabled
+    ) async -> Int {
+        var total = 0
+        for batch in 0..<maximumBatches {
+            if Task.isCancelled { return total }
+            let written = await backfill(limit: batchSize, audioStore: audioStore,
+                                         classifier: classifier, isEnabled: isEnabled)
+            total += written
+            // A batch that wrote nothing means either "nothing left" or "consent was
+            // withdrawn mid-run" — both are reasons to stop, and neither benefits
+            // from another pass.
+            if written == 0 { return total }
+            if batch == maximumBatches - 1 {
+                Diagnostics.notice("M15 backfill: stopped at the batch ceiling with work remaining")
+                return total
+            }
+            // Let capture and the UI have the device between batches.
+            try? await Task.sleep(for: pauseBetweenBatches)
+        }
+        return total
+    }
+
     /// The backfill core, deliberately **`nonisolated`** so it can be unit-tested
     /// against any `ModelContext` without crossing an actor boundary — the same
     /// arrangement `AudioMigrator` uses, and for the same reason: the suite shares one

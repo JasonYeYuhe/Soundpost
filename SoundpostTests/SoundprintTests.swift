@@ -628,6 +628,52 @@ struct SoundprintBackfillTests {
         #expect(capsule.soundprintRaw == before)
     }
 
+    /// §11H: a library larger than one batch must settle in **one** launch.
+    ///
+    /// The bound is on memory (one clip in flight) and on politeness, not on how much
+    /// gets done — but stopping after a single batch made "search finds your rainy
+    /// mornings" true only after roughly fifteen launches for a 300-capsule library.
+    @Test func drainingSettlesALibraryBiggerThanOneBatch() async throws {
+        let clip = try realClip()
+        defer { try? FileManager.default.removeItem(at: clip.directory) }
+        let store = try TestSupport.isolatedStore()
+        for _ in 0..<7 { _ = try seed(store, audio: clip.data) }
+        try store.save()
+
+        let stub = StubClassifier(identifier: "version1",
+                                  labels: [Soundprint.Label(identifier: "rain", confidence: 0.9)])
+        let actor = SoundprintBackfill(modelContainer: store.context.container)
+        let written = await actor.drain(batchSize: 2, pauseBetweenBatches: .zero,
+                                        classifier: stub, isEnabled: true)
+
+        #expect(written == 7, "every capsule, not just the first batch")
+        let pending = try store.context.fetch(
+            FetchDescriptor<Capsule>(predicate: #Predicate { $0.soundprintRaw == nil }))
+        #expect(pending.isEmpty)
+    }
+
+    /// The ceiling is a runaway guard, not a quota — and hitting it must not read as
+    /// completion, so it stops and says so rather than reporting the library settled.
+    @Test func drainingStopsAtItsCeilingRatherThanRunningForever() async throws {
+        let clip = try realClip()
+        defer { try? FileManager.default.removeItem(at: clip.directory) }
+        let store = try TestSupport.isolatedStore()
+        for _ in 0..<6 { _ = try seed(store, audio: clip.data) }
+        try store.save()
+
+        let stub = StubClassifier(identifier: "version1",
+                                  labels: [Soundprint.Label(identifier: "rain", confidence: 0.9)])
+        let actor = SoundprintBackfill(modelContainer: store.context.container)
+        let written = await actor.drain(batchSize: 2, maximumBatches: 2,
+                                        pauseBetweenBatches: .zero,
+                                        classifier: stub, isEnabled: true)
+
+        #expect(written == 4, "two batches of two, then the ceiling")
+        let pending = try store.context.fetch(
+            FetchDescriptor<Capsule>(predicate: #Predicate { $0.soundprintRaw == nil }))
+        #expect(pending.count == 2, "the remainder is left for the next launch, not silently dropped")
+    }
+
     /// A user who turned listening off must not have their back catalogue quietly
     /// analysed instead — consent is checked in the backfill too, not only capture.
     @Test func itRespectsWithdrawnConsent() async throws {
@@ -1073,9 +1119,10 @@ struct SoundprintGateVersionTests {
             let never = seed(store, nil)
             try store.save()
 
-            let reopened = SoundprintRemediation.reopenSupersededVerdicts(in: store.context)
+            let result = SoundprintRemediation.rejudgeBatch(in: store.context)
 
-            #expect(reopened == 1)
+            #expect(result.reopened == 1)
+            #expect(result.touched == 2, "the stale empty AND the re-stamped label both count as progress")
             #expect(stale.soundprintRaw == nil, "a stale empty verdict is handed back to the backfill")
             #expect(current.soundprintRaw != nil, "this generation's own verdict stands")
             #expect(labelled.soundprintRaw == "1/version1/\(Soundprint.gateVersion)|rain=0.82",
@@ -1092,22 +1139,53 @@ struct SoundprintGateVersionTests {
             let stale = seed(store, "1/version1|")
             try store.save()
 
-            #expect(SoundprintRemediation.reopenSupersededVerdicts(in: store.context) == 0)
+            #expect(SoundprintRemediation.rejudgeBatch(in: store.context) == (0, 0))
+            #expect(SoundprintRemediation.drain(in: store.context) == 0)
             #expect(stale.soundprintRaw == "1/version1|")
         }
     }
 
-    @Test func itIsBoundedAndConverges() throws {
+    @Test func aBatchIsBoundedAndConverges() throws {
         try TestSupport.withIsolatedListeningPreference(true) {
             let store = try TestSupport.isolatedStore()
             for _ in 0..<5 { _ = seed(store, "1/version1|") }
             try store.save()
 
-            #expect(SoundprintRemediation.reopenSupersededVerdicts(in: store.context, limit: 2) == 2)
-            #expect(SoundprintRemediation.reopenSupersededVerdicts(in: store.context, limit: 2) == 2)
-            #expect(SoundprintRemediation.reopenSupersededVerdicts(in: store.context, limit: 2) == 1)
-            // Converged: nothing left to reopen, so repeated launches stop costing.
-            #expect(SoundprintRemediation.reopenSupersededVerdicts(in: store.context, limit: 2) == 0)
+            #expect(SoundprintRemediation.rejudgeBatch(in: store.context, limit: 2).reopened == 2)
+            #expect(SoundprintRemediation.rejudgeBatch(in: store.context, limit: 2).reopened == 2)
+            #expect(SoundprintRemediation.rejudgeBatch(in: store.context, limit: 2).reopened == 1)
+            // Converged: nothing left, so repeated launches stop costing.
+            #expect(SoundprintRemediation.rejudgeBatch(in: store.context, limit: 2) == (0, 0))
+        }
+    }
+
+    /// The whole point of §11H: one launch settles the library, not fifteen.
+    @Test func drainingFinishesTheLibraryInOnePass() throws {
+        try TestSupport.withIsolatedListeningPreference(true) {
+            let store = try TestSupport.isolatedStore()
+            for _ in 0..<5 { _ = seed(store, "1/version1|") }
+            try store.save()
+
+            #expect(SoundprintRemediation.drain(in: store.context, batchSize: 2) == 5)
+            #expect(SoundprintRemediation.drain(in: store.context, batchSize: 2) == 0)
+        }
+    }
+
+    /// Re-stamps must count as progress, or a library whose gate-1 labels all still
+    /// stand would spin: every batch touches capsules, none of them reopens one, and
+    /// a loop keyed on reopenings alone would never decide it was finished.
+    @Test func drainingTerminatesWhenEveryLabelStillStands() throws {
+        try TestSupport.withIsolatedListeningPreference(true) {
+            let store = try TestSupport.isolatedStore()
+            for _ in 0..<5 { _ = seed(store, "1/version1|rain=0.91") }
+            try store.save()
+
+            #expect(SoundprintRemediation.drain(in: store.context, batchSize: 2) == 0,
+                    "nothing needed re-analysis")
+            let stamped = try store.context.fetch(FetchDescriptor<Capsule>())
+                .compactMap { $0.soundprintRaw }
+                .filter { $0.hasPrefix("1/version1/\(Soundprint.gateVersion)|") }
+            #expect(stamped.count == 5, "but every one was re-stamped and left the candidate set")
         }
     }
 }

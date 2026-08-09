@@ -70,25 +70,52 @@ enum SoundprintRemediation {
                 Soundprint(classifier: print.classifier, labels: surviving).stored)
     }
 
+    /// Keep re-judging until nothing superseded is left.
+    ///
+    /// Bounded per batch for the same reason as the backfill, and drained for the
+    /// same reason too: this pass is what *feeds* the backfill for a library labelled
+    /// under gate 1, so leaving it at one batch per launch would just move the
+    /// fifteen-launch wait one step upstream. It reads no audio — parse, decide,
+    /// save — so a batch is cheap.
+    ///
+    /// Returns how many were reopened for re-analysis.
+    @discardableResult
+    static func drain(
+        in context: ModelContext,
+        batchSize: Int = 40,
+        maximumBatches: Int = 100,
+        isEnabled: Bool = SoundAnalysisPreferences.isEnabled
+    ) -> Int {
+        var reopened = 0
+        for batch in 0..<maximumBatches {
+            let result = rejudgeBatch(in: context, limit: batchSize, isEnabled: isEnabled)
+            reopened += result.reopened
+            // Nothing *touched* means nothing superseded is left. Re-stamps count as
+            // progress here — counting only reopenings would loop forever over a
+            // library whose gate-1 labels all still stand.
+            if result.touched == 0 { return reopened }
+            if batch == maximumBatches - 1 {
+                Diagnostics.notice("M15 remediation: stopped at the batch ceiling with work remaining")
+            }
+        }
+        return reopened
+    }
+
     /// Re-judge up to `limit` superseded capsules.
     ///
-    /// Bounded like the backfill, and for the same reason: a long-time user's library
-    /// should settle over a few launches rather than stalling one. Every capsule this
-    /// touches leaves the candidate set — reopened to `nil`, or re-stamped with the
-    /// current gate — so repeated launches converge.
-    ///
-    /// Returns how many were reopened for re-analysis (re-stamps are not counted:
-    /// nothing further happens to those).
+    /// Returns how many capsules were **touched** (reopened or re-stamped) and how
+    /// many of those were **reopened**. The drain needs the first to know whether
+    /// there is more to do; callers care about the second.
     @discardableResult
-    static func reopenSupersededVerdicts(
+    static func rejudgeBatch(
         in context: ModelContext,
         limit: Int = 40,
         isEnabled: Bool = SoundAnalysisPreferences.isEnabled
-    ) -> Int {
+    ) -> (touched: Int, reopened: Int) {
         // Consent first. Re-judging is a prelude to analysing again, and a user who
         // turned listening off must not have their library quietly queued up for it.
-        guard isEnabled else { return 0 }
-        guard Soundprint.gateVersion > 1 else { return 0 }
+        guard isEnabled else { return (0, 0) }
+        guard Soundprint.gateVersion > 1 else { return (0, 0) }
 
         let prefix = legacyPrefix()
         var descriptor = FetchDescriptor<Capsule>(
@@ -102,7 +129,7 @@ enum SoundprintRemediation {
             sortBy: [SortDescriptor(\.createdAt, order: .reverse)]
         )
         descriptor.fetchLimit = limit
-        guard let superseded = try? context.fetch(descriptor), !superseded.isEmpty else { return 0 }
+        guard let superseded = try? context.fetch(descriptor), !superseded.isEmpty else { return (0, 0) }
 
         // Remember the originals: `rollback()` does not restore already-materialised
         // objects — this project established that the hard way when the first version
@@ -122,9 +149,9 @@ enum SoundprintRemediation {
         } catch {
             for (capsule, original) in originals { capsule.soundprintRaw = original }
             Diagnostics.notice("Re-judging superseded soundprint verdicts failed")
-            return 0
+            return (0, 0)
         }
         Diagnostics.info("Re-judged superseded soundprint verdicts")
-        return reopened
+        return (superseded.count, reopened)
     }
 }
