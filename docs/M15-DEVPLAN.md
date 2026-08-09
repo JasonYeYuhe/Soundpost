@@ -13,7 +13,7 @@
 
 > ## Status: **S1–S7 IMPLEMENTED — 1.6.0 (build 12) submitted 2026-08-07**
 >
-> **362 tests / 0 warnings / i18n EN·JA·ZH-Hans 100% / 52 sound labels translated /
+> **373 tests / 0 warnings / i18n EN·JA·ZH-Hans 100% / 52 sound labels translated /
 > zero new third-party deps**, CI green, deployment target still **iOS 17.0**.
 >
 > | Step | Commit | What it turned out to be about |
@@ -436,14 +436,14 @@ the release for; the first two are the ones with a user-visible promise attached
 |---|---|---|
 | ~~1~~ | ~~**The erase does not survive a second device.**~~ **Fixed** — consent is now account-wide. See §11B | — |
 | 2 | **Capsules already mis-marked by the 1.6.0 amplitude gate stay stuck.** The gate is fixed on `master`, but 1.6.0 ships it, and a capsule it wrote `1/version1\|` onto is never reconsidered — the backfill only refetches `soundprintRaw == nil` | A one-time remediation pass that clears *empty* markers so they are re-analysed once under the corrected gate. Needs a way to tell an old marker from a new one — the stored form already carries a schema version |
-| 3 | **The Apple Intelligence sentence has no language control.** `SoundSummaryWriter.instructions` is English-only with no directive to answer in the user's language, and `validated()`'s refusal blocklist is English-only, so a Japanese refusal or preamble passes every guard and renders as if it described the memory | Add a language directive and a `SystemLanguageModel.supportedLanguages` check; widen or restructure the refusal guard. Gated behind iOS 26 + Apple Intelligence, and no shipped claim mentions it |
+| ~~3~~ | ~~**The Apple Intelligence sentence has no language control.**~~ **Fixed — §11F.** `SoundSummaryWriter.instructions` is English-only with no directive to answer in the user's language, and `validated()`'s refusal blocklist is English-only, so a Japanese refusal or preamble passes every guard and renders as if it described the memory | Add a language directive and a `SystemLanguageModel.supportedLanguages` check; widen or restructure the refusal guard. Gated behind iOS 26 + Apple Intelligence, and no shipped claim mentions it |
 | 4 | **"Search 'rain'" is eventually true, not immediately true.** Classification is async and `save()` persists whatever exists at that moment; the backfill does 20 capsules once per launch. A 300-capsule library needs ~15 launches, with no indication indexing is in progress | Either surface progress, or re-run the backfill within a session |
-| 5 | **The data export omits `soundprintRaw`.** Derived personal data, synced to the user's iCloud, absent from the data-subject export. The Settings copy enumerates what is included, so it is incomplete rather than false | Add the field to `CapsuleBulkExporter`'s manifest |
-| 6 | **The "never auto-applies" regression guard is vacuous.** `aSoundprintNeverAppliesItself` asserts nothing changed in a scenario where nothing *could* change — it never lands a soundprint. A future change that pre-seeded the note would pass | Drive `save(using:)` with a soundprint present and assert `note == nil` |
+| ~~5~~ | ~~**The data export omits `soundprintRaw`.**~~ **Fixed** — the manifest now carries `soundsHeard` as display phrases. Derived personal data, synced to the user's iCloud, absent from the data-subject export. The Settings copy enumerates what is included, so it is incomplete rather than false | Add the field to `CapsuleBulkExporter`'s manifest |
+| ~~6~~ | ~~**The "never auto-applies" regression guard is vacuous.**~~ **Fixed** — it now drives `save(using:)` with a soundprint present. `aSoundprintNeverAppliesItself` asserts nothing changed in a scenario where nothing *could* change — it never lands a soundprint. A future change that pre-seeded the note would pass | Drive `save(using:)` with a soundprint present and assert `note == nil` |
 | 7 | In ja/zh, search matches only the phrase-*leading* token (CJK has no spaces, and `matches(phrase:query:)` requires a word boundary), so さえずり finds nothing against 鳥のさえずり | Substring match for scripts without word boundaries |
-| 8 | Accepting a suggestion joins with an ASCII space, which is typographically wrong between CJK runs | Join without a space when neither side is Latin |
-| 9 | The 52 runtime-looked-up sound keys carry no `extractionState`, so a future Xcode cleanup can mark them stale and offer 52 hand-authored translations for removal. The four `push.*` keys already use `"manual"` for exactly this | Mark them `"manual"` |
-| 10 | `accessibilityLabel("Restore purchases")` / `("Manage subscription")` are absent from the catalog, so VoiceOver reads English on ja/zh. Pre-existing, not M15 | Add the two keys |
+| ~~8~~ | ~~Accepting a suggestion joins with an ASCII space~~ **Fixed.**, which is typographically wrong between CJK runs | Join without a space when neither side is Latin |
+| ~~9~~ | ~~The 52 runtime-looked-up sound keys carry no `extractionState`~~ **Fixed** — all 52 marked `manual`., so a future Xcode cleanup can mark them stale and offer 52 hand-authored translations for removal. The four `push.*` keys already use `"manual"` for exactly this | Mark them `"manual"` |
+| ~~10~~ | ~~`accessibilityLabel("Restore purchases")`~~ **Fixed** — both keys added and translated. / `("Manage subscription")` are absent from the catalog, so VoiceOver reads English on ja/zh. Pre-existing, not M15 | Add the two keys |
 | 11 | The "no label can reach Sentry" guarantee is convention on a `String` parameter, not a type. All 14 call sites pass literals today; `CaptureView` does put a sound phrase in an `accessibilityLabel`, and automatic breadcrumb tracking is left at its default | A type that only accepts static strings would make it structural |
 | 12 | The ASC privacy nutrition label was asserted unchanged, but nothing in the repo can verify server-side state and `asc.py` has no read path for it | One manual check in ASC — the exact failure mode the re-audit existed to correct |
 
@@ -677,3 +677,33 @@ A first draft always wrote the gate component, so it looked for `1/version1/1|` 
 would have matched **nothing at all** — the remediation would have run, reported
 success, and silently reopened zero capsules. The test that pins the marker 1.6.0
 actually wrote is what caught it.
+
+
+### 11F. The Apple Intelligence sentence speaks the reader's language (2026-08-09)
+
+Closes §11A#3, which had a §1.2 violation inside it.
+
+`SoundSummaryWriter` had no language handling at all: English-only instructions,
+English field labels in the prompt, and a refusal blocklist of seven English prefixes
+matched with `hasPrefix`. On a Japanese device the model was steered to answer in
+English and that sentence rendered directly above the user's own Japanese note. Worse,
+a Japanese or Chinese *refusal* — "申し訳ありませんが…" — cleared every remaining guard
+(non-empty, under 160 characters, no blank line) and displayed as if it described
+their memory.
+
+Three layers, all testable without Apple Intelligence, which the generation path
+itself is not:
+
+| Layer | What it does |
+|---|---|
+| **Language gate** | `availability()` returns `.unsupportedLanguage` unless the model speaks `Locale.current.language`, compared on language code with script honoured when both sides declare one — an exact `Locale` match would refuse `ja` against a model advertising `ja-JP`. No sentence beats an English one on a Japanese screen; the caller's own copy is already localized |
+| **The brief** | A rule pinning the output language to the language of the facts, naming the failure it prevents so a future edit cannot quietly drop it |
+| **Two output guards** | The refusal list now covers en/ja/zh-Hans. And `mentionsAGivenFact` — a refusal does not contain the user's place or the sound the classifier heard, in any language, whereas the sentence we asked for is built out of exactly those |
+
+`mentionsAGivenFact` anchors only on sound phrases and the place: short localized
+nouns, meaningful in scripts with and without word breaks. The note is deliberately
+not an anchor — free text of any length, and a legitimate one-sentence rephrasing may
+share nothing quotable with it. For a note-only capsule the check stands aside and the
+blocklist is the whole defence, which is a limit worth stating rather than papering
+over. Rejecting a good sentence costs a fallback to localized copy; accepting a bad
+one breaks §1.2.

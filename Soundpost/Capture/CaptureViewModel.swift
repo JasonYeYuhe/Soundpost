@@ -249,6 +249,14 @@ extension CaptureViewModel {
         self.phase = .review
     }
 
+    /// Test seam: land a classification result without running the classifier, so
+    /// the rule that matters — a guess never writes the note or the mood by itself —
+    /// can be proved against `save(using:)` rather than asserted about an empty
+    /// view model that had nothing to apply in the first place.
+    func setSoundprintForTesting(_ soundprint: Soundprint?) {
+        self.soundprint = soundprint
+    }
+
     /// Test seam: drive the finalize path (shared by manual stop and the
     /// recorder's automatic finish) without a microphone.
     func finishRecordingForTesting(fileName: String, duration: TimeInterval) {

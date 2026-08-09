@@ -1453,6 +1453,22 @@
         }
       }
     },
+    "Manage subscription": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "サブスクリプションを管理"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "管理订阅"
+          }
+        }
+      }
+    },
     "Melancholy": {
       "localizations": {
         "ja": {
@@ -2160,6 +2176,22 @@
       }
     },
     "Restore Purchases": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "購入を復元"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "恢复购买"
+          }
+        }
+      }
+    },
+    "Restore purchases": {
       "localizations": {
         "ja": {
           "stringUnit": {
@@ -3207,7 +3239,8 @@
             "value": "婴儿的笑声"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "a cat": {
       "comment": "Sound label shown on a capsule (M15)",
@@ -3224,7 +3257,8 @@
             "value": "猫叫"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "a crackling fire": {
       "comment": "Sound label shown on a capsule (M15)",
@@ -3241,7 +3275,8 @@
             "value": "噼啪的火"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "a crowd": {
       "comment": "Sound label shown on a capsule (M15)",
@@ -3258,7 +3293,8 @@
             "value": "人群"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "a dog barking": {
       "comment": "Sound label shown on a capsule (M15)",
@@ -3275,7 +3311,8 @@
             "value": "狗叫"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "a guitar": {
       "comment": "Sound label shown on a capsule (M15)",
@@ -3292,7 +3329,8 @@
             "value": "吉他"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "a helicopter": {
       "comment": "Sound label shown on a capsule (M15)",
@@ -3309,7 +3347,8 @@
             "value": "直升机"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "a passing car": {
       "comment": "Sound label shown on a capsule (M15)",
@@ -3326,7 +3365,8 @@
             "value": "驶过的车"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "a piano": {
       "comment": "Sound label shown on a capsule (M15)",
@@ -3343,7 +3383,8 @@
             "value": "钢琴"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "a plane overhead": {
       "comment": "Sound label shown on a capsule (M15)",
@@ -3360,7 +3401,8 @@
             "value": "头顶飞过的飞机"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "a running tap": {
       "comment": "Sound label shown on a capsule (M15)",
@@ -3377,7 +3419,8 @@
             "value": "水龙头"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "a stream": {
       "comment": "Sound label shown on a capsule (M15)",
@@ -3394,7 +3437,8 @@
             "value": "溪流"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "a thunderstorm": {
       "comment": "Sound label shown on a capsule (M15)",
@@ -3411,7 +3455,8 @@
             "value": "雷雨"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "a ticking clock": {
       "comment": "Sound label shown on a capsule (M15)",
@@ -3428,7 +3473,8 @@
             "value": "钟表滴答"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "a train": {
       "comment": "Sound label shown on a capsule (M15)",
@@ -3445,7 +3491,8 @@
             "value": "火车"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "a vacuum": {
       "comment": "Sound label shown on a capsule (M15)",
@@ -3462,7 +3509,8 @@
             "value": "吸尘器"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "a violin": {
       "comment": "Sound label shown on a capsule (M15)",
@@ -3479,7 +3527,8 @@
             "value": "小提琴"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "a waterfall": {
       "comment": "Sound label shown on a capsule (M15)",
@@ -3496,7 +3545,8 @@
             "value": "瀑布"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "an owl": {
       "comment": "Sound label shown on a capsule (M15)",
@@ -3513,7 +3563,8 @@
             "value": "猫头鹰"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "applause": {
       "comment": "Sound label shown on a capsule (M15)",
@@ -3530,7 +3581,8 @@
             "value": "掌声"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "bees": {
       "comment": "Sound label shown on a capsule (M15)",
@@ -3547,7 +3599,8 @@
             "value": "蜜蜂"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "birdsong": {
       "comment": "Sound label shown on a capsule (M15)",
@@ -3564,7 +3617,8 @@
             "value": "鸟鸣"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "chatter": {
       "comment": "Sound label shown on a capsule (M15)",
@@ -3581,7 +3635,8 @@
             "value": "交谈声"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "cheering": {
       "comment": "Sound label shown on a capsule (M15)",
@@ -3598,7 +3653,8 @@
             "value": "欢呼"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "chopping": {
       "comment": "Sound label shown on a capsule (M15)",
@@ -3615,7 +3671,8 @@
             "value": "切菜声"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "church bells": {
       "comment": "Sound label shown on a capsule (M15)",
@@ -3632,7 +3689,8 @@
             "value": "教堂钟声"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "crickets": {
       "comment": "Sound label shown on a capsule (M15)",
@@ -3649,7 +3707,8 @@
             "value": "虫鸣"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "crows": {
       "comment": "Sound label shown on a capsule (M15)",
@@ -3666,7 +3725,8 @@
             "value": "乌鸦"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "cutlery": {
       "comment": "Sound label shown on a capsule (M15)",
@@ -3683,7 +3743,8 @@
             "value": "餐具声"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "dishes": {
       "comment": "Sound label shown on a capsule (M15)",
@@ -3700,7 +3761,8 @@
             "value": "锅碗瓢盆"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "frogs": {
       "comment": "Sound label shown on a capsule (M15)",
@@ -3717,7 +3779,8 @@
             "value": "蛙声"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "giggling": {
       "comment": "Sound label shown on a capsule (M15)",
@@ -3734,7 +3797,8 @@
             "value": "咯咯笑"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "humming": {
       "comment": "Sound label shown on a capsule (M15)",
@@ -3751,7 +3815,8 @@
             "value": "哼唱"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "iCloud & delivery": {
       "localizations": {
@@ -3784,7 +3849,8 @@
             "value": "虫子"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "laughter": {
       "comment": "Sound label shown on a capsule (M15)",
@@ -3801,7 +3867,8 @@
             "value": "笑声"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "leaves in the wind": {
       "comment": "Sound label shown on a capsule (M15)",
@@ -3818,7 +3885,8 @@
             "value": "风吹树叶"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "music": {
       "comment": "Sound label shown on a capsule (M15)",
@@ -3835,7 +3903,8 @@
             "value": "音乐"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "pouring": {
       "comment": "Sound label shown on a capsule (M15)",
@@ -3852,7 +3921,8 @@
             "value": "倒水声"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "purring": {
       "comment": "Sound label shown on a capsule (M15)",
@@ -3869,7 +3939,8 @@
             "value": "猫的呼噜声"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "push.echo.body": {
       "extractionState": "manual",
@@ -3978,7 +4049,8 @@
             "value": "雨声"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "raindrops": {
       "comment": "Sound label shown on a capsule (M15)",
@@ -3995,7 +4067,8 @@
             "value": "雨滴"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "singing": {
       "comment": "Sound label shown on a capsule (M15)",
@@ -4012,7 +4085,8 @@
             "value": "歌声"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "something boiling": {
       "comment": "Sound label shown on a capsule (M15)",
@@ -4029,7 +4103,8 @@
             "value": "水开的声音"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "something frying": {
       "comment": "Sound label shown on a capsule (M15)",
@@ -4046,7 +4121,8 @@
             "value": "煎炒声"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "the ocean": {
       "comment": "Sound label shown on a capsule (M15)",
@@ -4063,7 +4139,8 @@
             "value": "大海"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "the subway": {
       "comment": "Sound label shown on a capsule (M15)",
@@ -4080,7 +4157,8 @@
             "value": "地铁"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "traffic": {
       "comment": "Sound label shown on a capsule (M15)",
@@ -4097,7 +4175,8 @@
             "value": "车流声"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "typing": {
       "comment": "Sound label shown on a capsule (M15)",
@@ -4114,7 +4193,8 @@
             "value": "打字声"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "voices": {
       "comment": "Sound label shown on a capsule (M15)",
@@ -4131,7 +4211,8 @@
             "value": "说话声"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "waves": {
       "comment": "Sound label shown on a capsule (M15)",
@@ -4148,7 +4229,8 @@
             "value": "海浪"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "whistling": {
       "comment": "Sound label shown on a capsule (M15)",
@@ -4165,7 +4247,8 @@
             "value": "口哨"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "wind": {
       "comment": "Sound label shown on a capsule (M15)",
@@ -4182,7 +4265,8 @@
             "value": "风声"
           }
         }
-      }
+      },
+      "extractionState": "manual"
     },
     "“%@” — %lld days ago. Listen back.": {
       "comment": "Personalized echo notification (opt-in); %@ is the user's own one-line or place",

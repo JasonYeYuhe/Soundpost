@@ -13,6 +13,15 @@ struct ExportManifestEntry: Codable, Equatable {
     let place: String?
     let sealUntil: Date?
     let echoAt: Date?
+    /// What Soundpost's on-device classifier heard, as display phrases.
+    ///
+    /// Derived personal data: inferred from the user's own recording and synced to
+    /// their iCloud with it. An export that omitted it would hand back less than the
+    /// app holds — the Settings copy enumerates what is included, so this was
+    /// incomplete rather than untrue, but incomplete is not the promise either.
+    /// `nil` = never analysed; `[]` = analysed with nothing confident to say, which
+    /// is a distinction worth preserving in someone's own copy of their data.
+    let soundsHeard: [String]?
     /// The `.m4a` filename in the bundle, or nil if the capsule had no audio.
     let audioFile: String?
 }
@@ -49,6 +58,7 @@ actor CapsuleBulkExporter {
         let sealUntil: Date?
         let echoAt: Date?
         let audioFileName: String?
+        let soundprintRaw: String?
     }
 
     /// Estimate the export's audio size from clip durations alone (the gallery's
@@ -98,7 +108,8 @@ actor CapsuleBulkExporter {
                 placeName: capsule.place?.name,
                 sealUntil: capsule.sealUntil,
                 echoAt: capsule.echoAt,
-                audioFileName: capsule.audioFileName
+                audioFileName: capsule.audioFileName,
+                soundprintRaw: capsule.soundprintRaw
             )
         }
 
@@ -133,6 +144,12 @@ actor CapsuleBulkExporter {
                 place: snap.placeName,
                 sealUntil: snap.sealUntil,
                 echoAt: snap.echoAt,
+                // Display phrases, not raw classifier identifiers: the export is for
+                // the person, and "a waterfall" is their data in a form they can read
+                // where `waterfall=0.62` is ours.
+                soundsHeard: Soundprint(stored: snap.soundprintRaw).map { print in
+                    print.identifiers.compactMap { SoundVocabulary.displayName(for: $0) }
+                },
                 audioFile: wrote ? audioName : nil
             ))
         }

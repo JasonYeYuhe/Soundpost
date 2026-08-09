@@ -284,15 +284,53 @@ struct SoundSuggestionTests {
     }
 
     /// A soundprint arriving must not touch the note or the mood on its own — the
-    /// user has to tap. Nothing in the capture flow writes either from a guess.
-    @Test func aSoundprintNeverAppliesItself() async {
-        let vm = viewModel()
-        #expect(vm.note.isEmpty)
-        #expect(vm.mood == nil)
-        // Even after a classification lands, the fields the user owns stay untouched.
-        #expect(vm.soundprint == nil)
-        #expect(vm.note.isEmpty)
-        #expect(vm.mood == nil)
+    /// user has to tap.
+    ///
+    /// The earlier version of this test never landed a soundprint: it built a bare
+    /// view model and asserted the note and mood were still empty, which is a
+    /// scenario where nothing *could* have changed. It passed identically against an
+    /// implementation that pre-filled the note from a guess. This one drives the
+    /// actual save path with a classification present.
+    @Test func aSoundprintNeverAppliesItself() throws {
+        let store = try TestSupport.freshStore()
+        let vm = CaptureViewModel()
+        vm.setReviewStateForTesting(fileName: "abc.m4a", duration: 7, waveform: [0.5])
+        vm.setSoundprintForTesting(
+            Soundprint(classifier: "version1",
+                       labels: [Soundprint.Label(identifier: "rain", confidence: 0.91)]))
+
+        let capsule = try #require(try vm.save(using: store))
+
+        #expect(capsule.soundprintRaw != nil, "the soundprint itself is stored")
+        #expect(capsule.note == nil, "a guess must never become the user's one line")
+        #expect(capsule.mood == nil, "and never their mood")
+    }
+
+    /// Declining is the other half: the user typed their own line, the classifier
+    /// heard something else, and what they wrote survives untouched.
+    @Test func decliningTheSuggestionLeavesTheUsersOwnWords() throws {
+        let store = try TestSupport.freshStore()
+        let vm = CaptureViewModel()
+        vm.setReviewStateForTesting(fileName: "abc.m4a", duration: 7, waveform: [0.5])
+        vm.note = "the storm broke"
+        vm.setSoundprintForTesting(
+            Soundprint(classifier: "version1",
+                       labels: [Soundprint.Label(identifier: "rain", confidence: 0.91)]))
+
+        let capsule = try #require(try vm.save(using: store))
+        #expect(capsule.note == "the storm broke")
+    }
+
+    /// Joining a suggestion onto existing text must not wedge an ASCII space between
+    /// two CJK runs — two of the three languages this ships in do not write that way,
+    /// and this is the exact path the release notes advertise.
+    @Test func acceptingASuggestionJoinsCorrectlyForEachScript() {
+        #expect(CaptureView.needsSpaceBetween("morning", "rain"))
+        #expect(CaptureView.needsSpaceBetween("朝の音", "rain"))
+        #expect(CaptureView.needsSpaceBetween("morning", "雨"))
+        #expect(!CaptureView.needsSpaceBetween("朝の音", "雨"))
+        #expect(!CaptureView.needsSpaceBetween("下雨的清晨", "雨声"))
+        #expect(!CaptureView.needsSpaceBetween("", "雨"))
     }
 
     /// The classifier describes the room; the mood is the user's reading of the
@@ -764,34 +802,123 @@ struct SoundSummaryWriterTests {
         }
     }
 
+    /// Facts whose anchors ("rain", "Home") the sample sentences below mention, so
+    /// these tests exercise the guard they are about rather than tripping over the
+    /// fact-mention check.
+    private var rainFacts: SoundSummaryWriter.Facts {
+        facts(sounds: ["rain"], note: nil)
+    }
+
     // MARK: Output validation — the part that protects the memory
 
     @Test func itStripsTheQuotesModelsLikeToAdd() {
-        #expect(SoundSummaryWriter.validated("\"Rain on the window.\"") == "Rain on the window.")
-        #expect(SoundSummaryWriter.validated("“Rain on the window.”") == "Rain on the window.")
+        #expect(SoundSummaryWriter.validated("\"Rain on the window.\"", describing: rainFacts) == "Rain on the window.")
+        #expect(SoundSummaryWriter.validated("“Rain on the window.”", describing: rainFacts) == "Rain on the window.")
     }
 
     @Test func itRejectsARefusalOrAPreamble() {
         for raw in ["I can't help with that.", "I'm sorry, but I cannot.",
                     "Sure, here's a sentence: rain.", "Here is your sentence.",
                     "As an AI language model, I..."] {
-            #expect(SoundSummaryWriter.validated(raw) == nil, "\(raw.debugDescription) should be rejected")
+            #expect(SoundSummaryWriter.validated(raw, describing: rainFacts) == nil, "\(raw.debugDescription) should be rejected")
         }
     }
 
     @Test func itRejectsAnythingThatRanOn() {
-        #expect(SoundSummaryWriter.validated(String(repeating: "a", count: 500)) == nil)
-        #expect(SoundSummaryWriter.validated("First thought.\n\nSecond thought.") == nil)
-        #expect(SoundSummaryWriter.validated("   ") == nil)
-        #expect(SoundSummaryWriter.validated("") == nil)
+        #expect(SoundSummaryWriter.validated(String(repeating: "a", count: 500), describing: rainFacts) == nil)
+        #expect(SoundSummaryWriter.validated("First thought.\n\nSecond thought.", describing: rainFacts) == nil)
+        #expect(SoundSummaryWriter.validated("   ", describing: rainFacts) == nil)
+        #expect(SoundSummaryWriter.validated("", describing: rainFacts) == nil)
     }
 
     @Test func itAcceptsTheSentenceWeAskedFor() {
         let good = "A rainy afternoon at home, eight months ago."
-        #expect(SoundSummaryWriter.validated(good) == good)
+        #expect(SoundSummaryWriter.validated(good, describing: rainFacts) == good)
     }
 
     // MARK: The prompt only ever carries what the app already shows
+
+    // MARK: Language — the guards that keep an English sentence off a Japanese screen
+
+    /// Regional variants must match. The model advertises `ja-JP`; the app may be
+    /// running as plain `ja`. An exact-Locale comparison would refuse a language the
+    /// model actually speaks.
+    @Test func aRegionalVariantCountsAsSupport() {
+        let supported: Set<Locale.Language> = [Locale.Language(identifier: "ja-JP"),
+                                               Locale.Language(identifier: "en-US")]
+        #expect(SoundSummaryWriter.isLanguageSupported(Locale.Language(identifier: "ja"), in: supported))
+        #expect(SoundSummaryWriter.isLanguageSupported(Locale.Language(identifier: "en"), in: supported))
+    }
+
+    @Test func anUnsupportedLanguageIsNotClaimedAsSupported() {
+        let supported: Set<Locale.Language> = [Locale.Language(identifier: "en-US")]
+        #expect(!SoundSummaryWriter.isLanguageSupported(Locale.Language(identifier: "ja"), in: supported))
+        #expect(!SoundSummaryWriter.isLanguageSupported(Locale.Language(identifier: "zh-Hans"), in: supported))
+    }
+
+    /// Script is compared when both sides declare one — Simplified and Traditional
+    /// are not interchangeable to a reader.
+    @Test func scriptIsRespectedWhenBothSidesDeclareOne() {
+        let supported: Set<Locale.Language> = [Locale.Language(identifier: "zh-Hans-CN")]
+        #expect(SoundSummaryWriter.isLanguageSupported(Locale.Language(identifier: "zh-Hans"), in: supported))
+        #expect(!SoundSummaryWriter.isLanguageSupported(Locale.Language(identifier: "zh-Hant"), in: supported))
+    }
+
+    /// The failure this prevents: an English sentence rendered above a Japanese note,
+    /// because nothing in the brief ever told the model which language to answer in.
+    @Test func theBriefPinsTheOutputLanguageToTheFacts() {
+        let brief = SoundSummaryWriter.instructions
+        #expect(brief.localizedCaseInsensitiveContains("same language"))
+        #expect(brief.localizedCaseInsensitiveContains("do not translate"))
+        #expect(brief.localizedCaseInsensitiveContains("English"),
+                "the rule has to name the failure mode it is preventing")
+    }
+
+    @Test func theRefusalListCoversEveryShippedLanguage() {
+        #expect(SoundSummaryWriter.refusalPrefixes.contains { $0.contains("申し訳") })
+        #expect(SoundSummaryWriter.refusalPrefixes.contains { $0.contains("抱歉") })
+        #expect(SoundSummaryWriter.refusalPrefixes.contains { $0.hasPrefix("i can") })
+    }
+
+    /// The hole this closes: the blocklist was English-only while the model is now
+    /// asked to answer in the reader's language, so a Japanese or Chinese refusal
+    /// cleared every guard and rendered as if it described the memory.
+    @Test func itRejectsARefusalInJapaneseOrChinese() {
+        for raw in ["申し訳ありませんが、お手伝いできません。",
+                    "すみません、それはできません。",
+                    "抱歉，我无法完成这个请求。",
+                    "对不起，我不能这样做。",
+                    "以下是您的句子：雨。"] {
+            #expect(SoundSummaryWriter.validated(raw, describing: rainFacts) == nil,
+                    "\(raw) should be rejected")
+        }
+    }
+
+    /// The guard that does not depend on knowing the phrasing: a sentence that
+    /// mentions none of the facts we handed over is not a sentence about this memory.
+    @Test func itRejectsProseThatMentionsNoneOfTheGivenFacts() {
+        let unrelated = "A quiet afternoon in the garden with the cat."
+        #expect(SoundSummaryWriter.validated(unrelated, describing: rainFacts) == nil)
+    }
+
+    @Test func aSentenceMentioningTheSoundOrThePlaceIsKept() {
+        let withSound = "Rain, eight months ago."
+        let withPlace = "An afternoon at Home, eight months ago."
+        #expect(SoundSummaryWriter.validated(withSound, describing: rainFacts) == withSound)
+        #expect(SoundSummaryWriter.validated(withPlace, describing: facts(sounds: [])) == withPlace)
+    }
+
+    /// Anchors are sound phrases and the place. When a capsule has neither — only the
+    /// user's own note — there is nothing short and quotable to anchor on, and a
+    /// legitimate rephrasing may share no words with it. The check stands aside there
+    /// rather than rejecting good sentences, and the blocklist carries that case.
+    @Test func aNoteOnlyCapsuleIsNotHeldToTheAnchorCheck() {
+        let noteOnly = SoundSummaryWriter.Facts(soundPhrases: [], note: "the storm broke",
+                                                placeName: nil, elapsedPhrase: "eight months ago")
+        let sentence = "An afternoon you wanted to keep."
+        #expect(SoundSummaryWriter.mentionsAGivenFact(noteOnly, in: sentence))
+        #expect(SoundSummaryWriter.validated(sentence, describing: noteOnly) == sentence)
+    }
 
     @Test func thePromptCarriesOnlyFactsWeAlreadyDisplay() {
         let prompt = SoundSummaryWriter.prompt(for: facts(note: "the storm broke"))

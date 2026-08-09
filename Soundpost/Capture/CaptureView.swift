@@ -282,6 +282,30 @@ struct CaptureView: View {
         .accessibilityLabel(Text("Add \(phrase) to your line"))
     }
 
+    /// Whether joining these two runs needs a space.
+    ///
+    /// Only when the character either side of the join belongs to a script that
+    /// writes with spaces. Two CJK runs join directly; "朝の音" + "雨" is "朝の音雨",
+    /// not "朝の音 雨".
+    static func needsSpaceBetween(_ left: String, _ right: String) -> Bool {
+        guard let last = left.unicodeScalars.last,
+              let first = right.unicodeScalars.first else { return false }
+        return !isCJK(last) || !isCJK(first)
+    }
+
+    private static func isCJK(_ scalar: Unicode.Scalar) -> Bool {
+        switch scalar.value {
+        case 0x3040...0x30FF,   // Hiragana, Katakana
+             0x3400...0x4DBF,   // CJK Unified Ideographs Extension A
+             0x4E00...0x9FFF,   // CJK Unified Ideographs
+             0xF900...0xFAFF,   // CJK Compatibility Ideographs
+             0xFF66...0xFF9F:   // Halfwidth Katakana
+            return true
+        default:
+            return false
+        }
+    }
+
     /// Append rather than replace: a guess must never eat something the user wrote.
     private func acceptSuggestion(_ phrase: String) {
         let existing = viewModel.note.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -289,7 +313,13 @@ struct CaptureView: View {
             // Sentence-start capitalisation in languages that have it; a no-op in ja/zh.
             viewModel.note = phrase.prefix(1).localizedUppercase + phrase.dropFirst()
         } else {
-            viewModel.note = existing + " " + phrase
+            // No space between two CJK runs. Japanese and Chinese do not separate
+            // words, so an ASCII space here reads as a typo in two of the three
+            // languages this feature ships in — on the exact path the release notes
+            // advertise. The join is spaced only when either side is a script that
+            // uses spaces.
+            let separator = Self.needsSpaceBetween(existing, phrase) ? " " : ""
+            viewModel.note = existing + separator + phrase
         }
     }
 
