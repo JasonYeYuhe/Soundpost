@@ -553,6 +553,13 @@ tells the user it "applies on every device you use Soundpost on".
       schema into Production and verifies it afterwards.
 - [ ] Only then archive and submit a build containing this entity.
 
+**The step is now a gate, not a reminder.** `build-upload-asc.sh` runs
+`cloudkit-schema.sh status` before an upload and refuses when Production is behind,
+because remembering demonstrably did not work: M9 did the promotion by hand and wrote
+it down, M15 added an entity and nobody carried it forward, and this plan's own
+"adding an entity is additive" line was about SwiftData's *local* migration. Override
+with `CK_SKIP_SCHEMA_CHECK=yes`, which prints what you are choosing to ship without.
+
 `scripts/cloudkit-schema.sh` derives the expected record types from
 `Schema([...])` in source rather than a hard-coded list, so the next entity cannot
 slip past the same way this one did. Run `status` as part of release prep; it is the

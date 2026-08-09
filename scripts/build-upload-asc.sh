@@ -30,6 +30,31 @@ if [ ! -f "$API_KEY_PATH" ]; then
   exit 1
 fi
 
+# CloudKit schema gate (M15 §11B-i). An uploaded build talks to the CloudKit
+# **Production** environment, and a record type that exists only in Development is
+# not there — the client cannot create it, nothing throws, and the feature simply
+# stops syncing while the UI keeps promising it works.
+#
+# This is here because remembering did not work: M9 performed the promotion by hand
+# and wrote it down, M15 added an entity and nobody carried the step forward, and the
+# plan's own note ("adding an entity is additive") was about SwiftData's *local*
+# migration. A checklist is not a gate. This is.
+#
+# Set CK_SKIP_SCHEMA_CHECK=yes to upload anyway — deliberately awkward, and it prints
+# what you are choosing to ship without.
+if [ "$MODE" = "upload" ] && [ "${CK_SKIP_SCHEMA_CHECK:-}" != "yes" ]; then
+  echo "==> CloudKit schema check (Production must know every record type this build ships)"
+  if ! "$PROJECT_DIR/scripts/cloudkit-schema.sh" status; then
+    echo
+    echo "ERROR: refusing to upload — the CloudKit Production schema is behind this build."
+    echo "       A shipped build talks to Production. A record type missing there does not"
+    echo "       error; it silently does not sync, which is how an in-app promise becomes"
+    echo "       false. See docs/M15-DEVPLAN.md §11B-i for the two steps."
+    echo "       To upload regardless: CK_SKIP_SCHEMA_CHECK=yes $0 $MODE"
+    exit 1
+  fi
+fi
+
 if [ "$MODE" = "upload" ]; then
   EXPORT_PLIST="$PROJECT_DIR/ExportOptions-upload.plist"
 else
