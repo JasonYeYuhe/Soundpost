@@ -281,15 +281,7 @@ enum SoundSummaryWriter {
     }
 
     static func containsCJK(_ string: String) -> Bool {
-        string.unicodeScalars.contains { scalar in
-            switch scalar.value {
-            case 0x3040...0x30FF, 0x3400...0x4DBF, 0x4E00...0x9FFF,
-                 0xF900...0xFAFF, 0xFF66...0xFF9F, 0x20000...0x3134F:
-                return true
-            default:
-                return false
-            }
-        }
+        ScriptHeuristics.containsCJK(string)
     }
 
     /// Is the sentence written in the same kind of script as the facts?

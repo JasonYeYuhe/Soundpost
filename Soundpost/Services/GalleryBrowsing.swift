@@ -85,13 +85,27 @@ enum GalleryFilter {
     /// "a train", which *contains* "rain". Searching for rain would then surface every
     /// capsule of a passing train — wrong answers about someone's own memories.
     ///
-    /// Trade-off, stated honestly: this also means a query must start at a word, so in
-    /// Japanese and Chinese — which have no spaces — matching is effectively
-    /// "prefix of the phrase" rather than "anywhere inside it". Typing 车流 finds
-    /// 车流声; typing 流声 does not. Predictable, and far better than confidently
-    /// showing the wrong memory.
+    /// **The boundary rule applies to scripts that have boundaries.** It used to apply
+    /// to everything, and the honest note here said so: in Japanese and Chinese it
+    /// degraded to "prefix of the phrase", so さえずり found nothing against
+    /// 鳥のさえずり and 流声 found nothing against 车流声. That is not a stricter rule
+    /// for those languages, it is a broken one — on the feature 1.6.0 leads with.
+    ///
+    /// The trade it was protecting against does not exist there. `rain`/`train` is an
+    /// orthographic accident of Latin script: a train is not a kind of rain. Checked
+    /// against the actual shipped vocabulary, every containment among the 52 Japanese
+    /// phrases is **morphological, and semantically right**:
+    ///
+    ///     雨 ⊂ 雨だれ, 雷雨     風 ⊂ 風に揺れる葉     猫 ⊂ 猫がのどを鳴らす音
+    ///     虫 ⊂ 虫の音          笑い声 ⊂ 赤ちゃんの笑い声
+    ///
+    /// Searching 雨 and finding thunderstorms is the right answer, not a wrong one.
+    /// So an ideographic query matches anywhere; a Latin one still has to begin a word.
     static func matches(phrase: String, query: String) -> Bool {
         guard !query.isEmpty else { return false }
+        if ScriptHeuristics.containsCJK(query) {
+            return phrase.range(of: query, options: [.caseInsensitive, .diacriticInsensitive]) != nil
+        }
         var searchRange = phrase.startIndex..<phrase.endIndex
         while let found = phrase.range(of: query,
                                        options: [.caseInsensitive, .diacriticInsensitive],

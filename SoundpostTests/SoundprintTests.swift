@@ -450,11 +450,39 @@ struct SoundPhraseMatchingTests {
         #expect(!GalleryFilter.matches(phrase: "birdsong", query: ""))
     }
 
-    @Test func cjkPhrasesMatchFromTheStart() {
-        // No word boundaries in ja/zh, so matching is prefix-shaped — documented.
+    /// The boundary rule applies to scripts that have boundaries. Requiring one in
+    /// ja/zh degraded matching to "prefix of the phrase" — not a stricter rule, a
+    /// broken one, on the feature 1.6.0 leads with (§11I).
+    @Test func cjkQueriesMatchAnywhereInThePhrase() {
         #expect(GalleryFilter.matches(phrase: "车流声", query: "车流"))
         #expect(GalleryFilter.matches(phrase: "鳥のさえずり", query: "鳥"))
-        #expect(!GalleryFilter.matches(phrase: "车流声", query: "流声"))
+        // These are the ones that used to fail.
+        #expect(GalleryFilter.matches(phrase: "鳥のさえずり", query: "さえずり"),
+                "a Japanese user searching the word they remember must find the phrase")
+        #expect(GalleryFilter.matches(phrase: "车流声", query: "流声"))
+        #expect(GalleryFilter.matches(phrase: "猫がのどを鳴らす音", query: "のど"))
+    }
+
+    /// Every containment among the 52 shipped Japanese phrases is morphological, so
+    /// substring matching there returns *more right* answers, not wrong ones.
+    @Test func cjkContainmentIsSemanticallyRight() {
+        #expect(GalleryFilter.matches(phrase: "雷雨", query: "雨"), "thunderstorm is a kind of rain")
+        #expect(GalleryFilter.matches(phrase: "雨だれ", query: "雨"))
+        #expect(GalleryFilter.matches(phrase: "風に揺れる葉", query: "風"))
+        #expect(GalleryFilter.matches(phrase: "赤ちゃんの笑い声", query: "笑い声"))
+    }
+
+    /// Loosening CJK must not loosen Latin: `rain`/`train` is an orthographic
+    /// accident, and a train is not a kind of rain.
+    @Test func looseningCJKDoesNotLoosenLatin() {
+        #expect(!GalleryFilter.matches(phrase: "a train", query: "rain"))
+        #expect(!GalleryFilter.matches(phrase: "a crackling fire", query: "ire"))
+    }
+
+    /// A mixed query still takes the CJK path — the point is the script the user is
+    /// typing in, and a query containing kana is not a Latin query.
+    @Test func aMixedScriptQueryTakesTheCJKPath() {
+        #expect(GalleryFilter.matches(phrase: "Wi-Fiの音", query: "Fiの"))
     }
 }
 

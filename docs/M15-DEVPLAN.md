@@ -13,7 +13,7 @@
 
 > ## Status: **S1–S7 IMPLEMENTED — 1.6.0 (build 12) submitted 2026-08-07**
 >
-> **392 tests / 0 warnings / i18n EN·JA·ZH-Hans 100% / 52 sound labels translated /
+> **395 tests / 0 warnings / i18n EN·JA·ZH-Hans 100% / 52 sound labels translated /
 > zero new third-party deps**, CI green, deployment target still **iOS 17.0**.
 >
 > | Step | Commit | What it turned out to be about |
@@ -440,7 +440,7 @@ the release for; the first two are the ones with a user-visible promise attached
 | ~~4~~ | ~~**"Search 'rain'" is eventually true, not immediately true.**~~ **Fixed — §11H.** Classification is async and `save()` persists whatever exists at that moment; the backfill does 20 capsules once per launch. A 300-capsule library needs ~15 launches, with no indication indexing is in progress | Either surface progress, or re-run the backfill within a session |
 | ~~5~~ | ~~**The data export omits `soundprintRaw`.**~~ **Fixed** — the manifest now carries `soundsHeard` as display phrases. Derived personal data, synced to the user's iCloud, absent from the data-subject export. The Settings copy enumerates what is included, so it is incomplete rather than false | Add the field to `CapsuleBulkExporter`'s manifest |
 | ~~6~~ | ~~**The "never auto-applies" regression guard is vacuous.**~~ **Fixed** — it now drives `save(using:)` with a soundprint present. `aSoundprintNeverAppliesItself` asserts nothing changed in a scenario where nothing *could* change — it never lands a soundprint. A future change that pre-seeded the note would pass | Drive `save(using:)` with a soundprint present and assert `note == nil` |
-| 7 | In ja/zh, search matches only the phrase-*leading* token (CJK has no spaces, and `matches(phrase:query:)` requires a word boundary), so さえずり finds nothing against 鳥のさえずり | Substring match for scripts without word boundaries |
+| ~~7~~ | ~~In ja/zh, search matches only the phrase-*leading* token~~ **Fixed — §11I.** (CJK has no spaces, and `matches(phrase:query:)` requires a word boundary), so さえずり finds nothing against 鳥のさえずり | Substring match for scripts without word boundaries |
 | ~~8~~ | ~~Accepting a suggestion joins with an ASCII space~~ **Fixed.**, which is typographically wrong between CJK runs | Join without a space when neither side is Latin |
 | ~~9~~ | ~~The 52 runtime-looked-up sound keys carry no `extractionState`~~ **Fixed** — all 52 marked `manual`., so a future Xcode cleanup can mark them stale and offer 52 hand-authored translations for removal. The four `push.*` keys already use `"manual"` for exactly this | Mark them `"manual"` |
 | ~~10~~ | ~~`accessibilityLabel("Restore purchases")`~~ **Fixed** — both keys added and translated. / `("Manage subscription")` are absent from the catalog, so VoiceOver reads English on ja/zh. Pre-existing, not M15 | Add the two keys |
@@ -815,3 +815,34 @@ Both passes now drain: batch, yield, repeat until nothing is left.
 | `maximumBatches` is a **runaway guard, not a quota** | Hitting it logs "stopped at the batch ceiling with work remaining" rather than returning as if the library were settled. A silent cap reads as completion, which is the failure this milestone kept finding elsewhere |
 | The remediation drain counts **touched**, not reopened | A library whose gate-1 labels all still stand touches capsules on every batch and reopens none. A loop keyed on reopenings alone would never decide it was finished — it is pinned by a test |
 | Cancellation is honoured | The launch task can go away; a drain that ignored that would keep working for a screen nobody is looking at |
+
+
+### 11I. Search works in Japanese and Chinese (2026-08-11)
+
+Closes §11A#7, on the feature 1.6.0 leads with.
+
+`GalleryFilter.matches` required a match to begin a word. In scripts without spaces
+that degrades to "must begin the phrase", so a Japanese user searching さえずり found
+nothing against 鳥のさえずり, and 流声 found nothing against 车流声. The doc comment
+called this an honest trade-off. It was not a trade-off — it was the rule failing to
+apply, described as if it had.
+
+What the rule protects against does not exist in those scripts. `rain`/`train` is an
+orthographic accident of Latin: a train is not a kind of rain. Checked against the
+**actual shipped vocabulary** rather than assumed — every containment among the 52
+Japanese phrases is morphological and semantically right:
+
+    雨 ⊂ 雨だれ, 雷雨      風 ⊂ 風に揺れる葉      猫 ⊂ 猫がのどを鳴らす音
+    虫 ⊂ 虫の音           笑い声 ⊂ 赤ちゃんの笑い声
+
+Searching 雨 and finding thunderstorms is the right answer. So an ideographic query
+matches anywhere in the phrase; a Latin query still has to begin a word, and a test
+pins that loosening one did not loosen the other.
+
+**One definition of "is this CJK".** Three had accumulated — the capture-suggestion
+join, the summary writer's fact anchors, and now search — each written for its own
+case and each slightly different. They are branching on the same fact and should
+agree about it. `ScriptHeuristics` holds both variants the codebase genuinely needs,
+with the difference stated: the join counts CJK punctuation (「朝の音、」 wants no
+space after it), while deciding *which script something is written in* does not treat
+a full stop as evidence.
