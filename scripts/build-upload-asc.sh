@@ -10,8 +10,11 @@ set -euo pipefail
 #   ./scripts/build-upload-asc.sh            # archive + UPLOAD to App Store Connect
 #   ./scripts/build-upload-asc.sh archive    # archive + local .ipa export only (no upload)
 #
-# ASC API creds come from env (exported in ~/.zshrc) with sensible defaults:
+# ASC API creds come from env with sensible defaults baked in below:
 #   ASC_API_KEY_ID, ASC_API_ISSUER, ASC_API_KEY_PATH
+# Because those defaults exist, this script runs fine in a shell that never sourced
+# ~/.zshrc — which is why a missing SENTRY_AUTH_TOKEN used to go unnoticed. Export
+# the SENTRY_* vars from ~/.zshenv (read by every zsh, not just interactive ones).
 
 MODE="${1:-upload}"
 PROJECT_DIR="/Users/jason/Documents/Soundpost"
@@ -35,6 +38,41 @@ if [ "$MODE" = "upload" ]; then
 else
   EXPORT_PLIST="$PROJECT_DIR/ExportOptions.plist"
 fi
+
+# --- dSYM upload preflight -------------------------------------------------
+# The ASC_API_* vars above have hardcoded fallbacks, so a release run from a shell
+# that never sourced the user's profile still archives, signs and uploads perfectly —
+# while the Sentry step silently no-ops for want of a token. That asymmetry is how
+# 1.6.0 build 12 reached App Store Connect with no symbols on Sentry. Check the
+# preconditions BEFORE the ~10-minute archive, not after.
+DSYM_STATUS_FILE="$(mktemp -t soundpost-dsym-status)"
+export DSYM_STATUS_FILE
+printf 'not-run\n' > "$DSYM_STATUS_FILE"
+trap 'rm -f "$DSYM_STATUS_FILE"' EXIT
+
+DSYM_PREFLIGHT="ok"
+if ! command -v sentry-cli >/dev/null 2>&1; then
+  DSYM_PREFLIGHT="sentry-cli is not installed (brew install getsentry/tools/sentry-cli)"
+elif [ -z "${SENTRY_AUTH_TOKEN:-}" ]; then
+  DSYM_PREFLIGHT="SENTRY_AUTH_TOKEN is not set in this shell"
+fi
+
+if [ "$DSYM_PREFLIGHT" != "ok" ]; then
+  echo ""
+  echo "########################################################################"
+  echo "# PREFLIGHT WARNING: dSYMs will NOT reach Sentry this run."
+  echo "#   $DSYM_PREFLIGHT"
+  echo "#"
+  echo "# Release crashes for this build will show raw addresses, not symbols."
+  echo "# ~/.zshrc is read by INTERACTIVE zsh only — a run from an agent, cron,"
+  echo "# 'zsh -c' or CI never sees it. Put the SENTRY_* exports in ~/.zshenv."
+  echo "#"
+  echo "# Ctrl-C now to fix it, or let the build run and backfill afterwards with:"
+  echo "#   ./scripts/upload-dsyms.sh build/${SCHEME}.xcarchive"
+  echo "########################################################################"
+  echo ""
+fi
+# ---------------------------------------------------------------------------
 
 # Passed to BOTH archive and export so automatic signing can talk to ASC and
 # create/refresh the distribution cert + provisioning profile as needed.
@@ -80,3 +118,44 @@ if [ "$MODE" = "upload" ]; then
 else
   echo "Done — local .ipa at: $EXPORT_PATH"
 fi
+
+# --- Release summary: did symbols actually ship? ----------------------------
+# Printed last, on purpose. exportArchive's output is thousands of lines long and
+# buries a WARN from step 1.5 completely; this is the line that has to be true.
+DSYM_STATUS="$(cat "$DSYM_STATUS_FILE" 2>/dev/null || echo unknown)"
+echo ""
+case "$DSYM_STATUS" in
+  uploaded)
+    echo "======================================================================"
+    echo " dSYM upload to Sentry: OK — symbols are on"
+    echo " ${SENTRY_ORG:-jason-yeyuhe}/${SENTRY_PROJECT:-soundpost}."
+    echo " Release crashes for this build will symbolicate."
+    echo "======================================================================"
+    ;;
+  *)
+    echo "######################################################################"
+    case "$DSYM_STATUS" in
+      skipped-no-token) REASON="SENTRY_AUTH_TOKEN was not set in this shell" ;;
+      skipped-no-cli)   REASON="sentry-cli is not installed" ;;
+      failed)           REASON="the upload ran but FAILED" ;;
+      not-run)          REASON="the upload step never ran" ;;
+      *)                REASON="status unknown ('$DSYM_STATUS')" ;;
+    esac
+    echo "# dSYM upload to Sentry: DID NOT HAPPEN — $REASON."
+    echo "#"
+    echo "# THIS BUILD'S RELEASE CRASHES WILL NOT SYMBOLICATE."
+    if [ "$MODE" = "upload" ]; then
+      echo "# The App Store Connect upload above still succeeded; only symbols are"
+      echo "# missing. Fix the cause, then backfill this exact archive with:"
+    else
+      echo "# The archive/export above still succeeded; only symbols are missing."
+      echo "# Fix the cause, then backfill this exact archive with:"
+    fi
+    echo "#"
+    echo "#   ./scripts/upload-dsyms.sh $ARCHIVE_PATH"
+    echo "#"
+    echo "# (The archive is overwritten by the next run — backfill before then.)"
+    echo "######################################################################"
+    exit 3
+    ;;
+esac
