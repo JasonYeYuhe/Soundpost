@@ -145,16 +145,40 @@ final class CaptureViewModel {
             ?? reference.addingTimeInterval(TimeInterval(days) * 86_400)
     }
 
+    /// How a finished recording becomes a soundprint. Swappable **only** so a test
+    /// can drive the real arrival path.
+    ///
+    /// A review pointed out that setting `soundprint` directly from a test proves
+    /// nothing about this method: a regression that added `note = …` or `mood = …`
+    /// *inside* the completion below would pass every suggestion test. That is the
+    /// rule the release notes state outright — "nothing is ever filled in for you" —
+    /// so the seam belongs where the assignment happens, not beside it.
+    typealias Classifying = @Sendable (URL, TimeInterval, Float) async -> Soundprint?
+    var classify: Classifying = { url, duration, peak in
+        await SoundprintService.soundprint(forClipAt: url, duration: duration, peak: peak).soundprint
+    }
+
     /// Classify off the critical path (M15 §4K). Never blocks capture, never
     /// throws into it, and is cancelled if the user discards or re-records.
     private func startClassifying(clipAt url: URL, duration: TimeInterval, peak: Float) {
         classificationTask?.cancel()
         soundprint = nil
+        let classify = self.classify
         classificationTask = Task { [weak self] in
-            let outcome = await SoundprintService.soundprint(forClipAt: url, duration: duration, peak: peak)
+            let result = await classify(url, duration, peak)
             guard !Task.isCancelled else { return }
-            await MainActor.run { self?.soundprint = outcome.soundprint }
+            await MainActor.run {
+                // The one assignment. A guess lands here and nowhere else — not on
+                // `note`, not on `mood`.
+                self?.soundprint = result
+            }
         }
+    }
+
+    /// Test seam: wait for the in-flight classification to land, so a test can assert
+    /// on what the *real* completion did rather than on a value it set itself.
+    func awaitClassificationForTesting() async {
+        await classificationTask?.value
     }
 
     func discard() {
@@ -247,14 +271,6 @@ extension CaptureViewModel {
         self.duration = duration
         self.waveform = waveform
         self.phase = .review
-    }
-
-    /// Test seam: land a classification result without running the classifier, so
-    /// the rule that matters — a guess never writes the note or the mood by itself —
-    /// can be proved against `save(using:)` rather than asserted about an empty
-    /// view model that had nothing to apply in the first place.
-    func setSoundprintForTesting(_ soundprint: Soundprint?) {
-        self.soundprint = soundprint
     }
 
     /// Test seam: drive the finalize path (shared by manual stop and the

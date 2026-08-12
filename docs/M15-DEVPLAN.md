@@ -444,7 +444,7 @@ the release for; the first two are the ones with a user-visible promise attached
 | ~~8~~ | ~~Accepting a suggestion joins with an ASCII space~~ **Fixed.**, which is typographically wrong between CJK runs | Join without a space when neither side is Latin |
 | ~~9~~ | ~~The 52 runtime-looked-up sound keys carry no `extractionState`~~ **Fixed** — all 52 marked `manual`., so a future Xcode cleanup can mark them stale and offer 52 hand-authored translations for removal. The four `push.*` keys already use `"manual"` for exactly this | Mark them `"manual"` |
 | ~~10~~ | ~~`accessibilityLabel("Restore purchases")`~~ **Fixed** — both keys added and translated. / `("Manage subscription")` are absent from the catalog, so VoiceOver reads English on ja/zh. Pre-existing, not M15 | Add the two keys |
-| 11 | The "no label can reach Sentry" guarantee is convention on a `String` parameter, not a type. All 14 call sites pass literals today; `CaptureView` does put a sound phrase in an `accessibilityLabel`, and automatic breadcrumb tracking is left at its default | A type that only accepts static strings would make it structural |
+| ~~11~~ | ~~The "no label can reach Sentry" guarantee is convention on a `String` parameter, not a type.~~ **Fixed — §11J.** All 14 call sites pass literals today; `CaptureView` does put a sound phrase in an `accessibilityLabel`, and automatic breadcrumb tracking is left at its default | A type that only accepts static strings would make it structural |
 | 12 | The ASC privacy nutrition label was asserted unchanged, but nothing in the repo can verify server-side state and `asc.py` has no read path for it | One manual check in ASC — the exact failure mode the re-audit existed to correct |
 
 ## 12. Review record (2026-08-02)
@@ -846,3 +846,42 @@ agree about it. `ScriptHeuristics` holds both variants the codebase genuinely ne
 with the difference stated: the join counts CJK punctuation (「朝の音、」 wants no
 space after it), while deciding *which script something is written in* does not treat
 a full stop as evidence.
+
+
+### 11J. Wrap-up (2026-08-12) — 1.6.0 is live
+
+**1.6.0 (build 12) released to the App Store.** `READY_FOR_SALE`, verified against
+App Store Connect rather than assumed.
+
+Two closing repairs, both turning a promise into something a compiler or a test can
+hold to account.
+
+**The Sentry guarantee is now a type.** `Diagnostics.info/notice` and
+`SentryBootstrap.capture` took `String` with a doc comment asking callers to pass only
+static, non-PII text. An audit checked all fourteen call sites, found them clean, and
+correctly noted that one future interpolating call site would leak with nothing
+beneath it. M15 sharpened that: the app now derives sound labels from someone's
+recording, and `CaptureView` puts one into an `accessibilityLabel`. They take
+`StaticString` now — the compiler will only build one from a literal, so an
+interpolation or anything derived from a capsule does not compile. The single caller
+that wanted dynamic detail (a CloudKit error *code*) got its own `notice(_:code:)`
+door, kept narrow rather than widening the general case back to `String`, which is how
+a rule like this usually dies.
+
+**The capture-suggestion tests now drive the real arrival path.** They set
+`soundprint` through a seam and asserted on `save(using:)`, which proves nothing about
+the classification completion — a regression writing `note = …` *inside* it passed
+every one of them. The seam moved to where the assignment actually happens
+(`CaptureViewModel.classify`), and `awaitClassificationForTesting` lets a test assert
+on what the completion did. Verified by negative control: injecting an auto-fill into
+the completion fails the test in two places, where before it would have passed
+silently. That rule — "nothing is ever filled in for you" — is stated outright in the
+shipped release notes, so it deserved a guard that could fail.
+
+**Left open, deliberately, with reasons rather than silence:**
+
+| # | Item | Why it is not closed |
+|---|---|---|
+| §11D#1 | Window confidences are averaged over *all* windows, so a sound occupying part of a capsule is diluted | Mechanically certain from the code; I could not demonstrate harm. Synthetic probes cannot isolate it — the quiet part of a tonal test signal still reads as tonal, and `mean(present)` equalled `mean(all)` at every occupancy I tried. Switching to `max` without a real-audio corpus trades dilution for one-window false positives, which is not obviously the better trade |
+| §11A#12 | The ASC privacy nutrition label was asserted unchanged, never verified | Server-side state no test or script here can read. It needs one human look in App Store Connect. The in-repo reasoning is sound — labels are user content in the user's own private database — but "probably right" is exactly what this milestone kept finding was not enough |
+| §11B-i | `CD_ListeningConsent` exists in neither CloudKit environment | The device run was skipped. It is no longer a thing to remember: `build-upload-asc.sh` refuses to upload while Production is behind the shipping schema |

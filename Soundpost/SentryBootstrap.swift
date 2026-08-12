@@ -41,11 +41,24 @@ enum SentryBootstrap {
 
     /// Surface a notable, non-fatal condition (a durability fallback rung, an
     /// unrecoverable backfill source) as a Sentry message. No-op in DEBUG / under
-    /// tests / when sentry-cocoa isn't linked. Pass only static, non-PII strings —
-    /// never a capsule's note, place, or audio.
-    static func capture(message: String) {
+    /// tests / when sentry-cocoa isn't linked.
+    ///
+    /// `StaticString`, not `String`: the compiler will only build one from a literal,
+    /// so a capsule's note, place or sound label cannot reach here by accident. This
+    /// used to be a sentence in a doc comment asking callers to be careful, which is
+    /// a guarantee only for as long as everyone reads it.
+    static func capture(message: StaticString) {
         #if canImport(Sentry) && !DEBUG
-        SentrySDK.capture(message: message)
+        SentrySDK.capture(message: "\(message)")
+        #endif
+    }
+
+    /// The numeric-detail variant. An `Int` from a framework error cannot carry user
+    /// content, so this is the one place dynamic detail is allowed through — kept
+    /// narrow on purpose rather than widening `capture` to `String`.
+    static func capture(message: StaticString, code: Int) {
+        #if canImport(Sentry) && !DEBUG
+        SentrySDK.capture(message: "\(message) (code \(code))")
         #endif
     }
 }

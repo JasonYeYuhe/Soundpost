@@ -291,13 +291,21 @@ struct SoundSuggestionTests {
     /// scenario where nothing *could* have changed. It passed identically against an
     /// implementation that pre-filled the note from a guess. This one drives the
     /// actual save path with a classification present.
-    @Test func aSoundprintNeverAppliesItself() throws {
+    @Test func aSoundprintNeverAppliesItself() async throws {
         let store = try TestSupport.freshStore()
         let vm = CaptureViewModel()
-        vm.setReviewStateForTesting(fileName: "abc.m4a", duration: 7, waveform: [0.5])
-        vm.setSoundprintForTesting(
+        // Drive the REAL arrival path: the classification completion is where a
+        // regression would write the note, and setting `soundprint` from the test
+        // would step right over it.
+        vm.classify = { _, _, _ in
             Soundprint(classifier: "version1",
-                       labels: [Soundprint.Label(identifier: "rain", confidence: 0.91)]))
+                       labels: [Soundprint.Label(identifier: "rain", confidence: 0.91)])
+        }
+        vm.finishRecordingForTesting(fileName: "abc.m4a", duration: 7)
+        await vm.awaitClassificationForTesting()
+        #expect(vm.soundprint != nil, "the classification must actually have landed")
+        #expect(vm.note.isEmpty, "and the completion must not have written the user's line")
+        #expect(vm.mood == nil)
 
         let capsule = try #require(try vm.save(using: store))
 
@@ -308,14 +316,16 @@ struct SoundSuggestionTests {
 
     /// Declining is the other half: the user typed their own line, the classifier
     /// heard something else, and what they wrote survives untouched.
-    @Test func decliningTheSuggestionLeavesTheUsersOwnWords() throws {
+    @Test func decliningTheSuggestionLeavesTheUsersOwnWords() async throws {
         let store = try TestSupport.freshStore()
         let vm = CaptureViewModel()
-        vm.setReviewStateForTesting(fileName: "abc.m4a", duration: 7, waveform: [0.5])
-        vm.note = "the storm broke"
-        vm.setSoundprintForTesting(
+        vm.classify = { _, _, _ in
             Soundprint(classifier: "version1",
-                       labels: [Soundprint.Label(identifier: "rain", confidence: 0.91)]))
+                       labels: [Soundprint.Label(identifier: "rain", confidence: 0.91)])
+        }
+        vm.finishRecordingForTesting(fileName: "abc.m4a", duration: 7)
+        vm.note = "the storm broke"
+        await vm.awaitClassificationForTesting()
 
         let capsule = try #require(try vm.save(using: store))
         #expect(capsule.note == "the storm broke")

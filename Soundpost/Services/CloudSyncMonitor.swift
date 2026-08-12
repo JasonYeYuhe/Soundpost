@@ -91,7 +91,7 @@ final class CloudSyncMonitor {
             } else {
                 // Transient/other error: log scrubbed, never surface, and keep the
                 // prior state so a blip doesn't flip honest copy back and forth.
-                Diagnostics.notice("CloudKit sync error (code \((error as NSError).code)), not surfaced")
+                Diagnostics.notice("CloudKit sync error, not surfaced", code: (error as NSError).code)
             }
         } else if finished {
             state = .ok
