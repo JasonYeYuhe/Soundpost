@@ -11,10 +11,22 @@
 
 ---
 
-> ## Status: **S1–S7 IMPLEMENTED — 1.6.0 (build 12) submitted 2026-08-07**
+> ## Status: **M15 CLOSED — 1.6.0 (build 12) LIVE on the App Store, 2026-08-12**
 >
 > **395 tests / 0 warnings / i18n EN·JA·ZH-Hans 100% / 52 sound labels translated /
 > zero new third-party deps**, CI green, deployment target still **iOS 17.0**.
+>
+> **What shipped in 1.6.0 is build 12 = `8ef7f29`.** Everything from `b4c72a0`
+> onward — account-wide consent, gate versioning and remediation, the amplitude
+> gate's real peak, the AI sentence's language handling, CJK search, the drained
+> backfill — is on `master` for the next version and is **not** in the live app. In
+> particular 1.6.0 still carries the amplitude-gate defect described in §11C; §11E is
+> what reopens the capsules it wrote off, and that only helps once the next version
+> ships.
+>
+> **Before the next release:** `CD_ListeningConsent` must reach CloudKit Production
+> (§11B-i). `build-upload-asc.sh` refuses to upload until it does, so this is a gate
+> rather than something to remember.
 >
 > | Step | Commit | What it turned out to be about |
 > |---|---|---|
