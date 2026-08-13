@@ -1,3 +1,5 @@
-• Soundpost can now recognise everyday sounds — rain, birdsong, a train — so a capsule is easier to find months later. Search "rain" and your rainy mornings come back.
-• After a recording, it offers what it heard as a suggestion for your one line. Take it or ignore it; nothing is ever filled in for you.
-• The listening happens on your device — no audio is sent away to be analysed, and what it hears stays with the capsule, syncing only to your own private iCloud. You can turn listening off in Settings, which also erases what it already heard.
+• Listening now follows your iCloud account instead of one phone. Turn it off anywhere and it is off everywhere — and what it had already heard is erased everywhere too.
+• Quiet recordings the last version wrote off as silent get another listen. A dawn rain that went unlabelled can be found again.
+• Searching in Japanese and Chinese now matches anywhere in a phrase, not only at the beginning.
+• Your older capsules are recognised in one go, instead of a few at a time over many launches.
+• Your data export now includes the sounds Soundpost heard, in the same words it showed you.

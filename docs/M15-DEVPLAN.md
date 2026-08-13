@@ -897,3 +897,31 @@ shipped release notes, so it deserved a guard that could fail.
 | §11D#1 | Window confidences are averaged over *all* windows, so a sound occupying part of a capsule is diluted | Mechanically certain from the code; I could not demonstrate harm. Synthetic probes cannot isolate it — the quiet part of a tonal test signal still reads as tonal, and `mean(present)` equalled `mean(all)` at every occupancy I tried. Switching to `max` without a real-audio corpus trades dilution for one-window false positives, which is not obviously the better trade |
 | §11A#12 | The ASC privacy nutrition label was asserted unchanged, never verified | Server-side state no test or script here can read. It needs one human look in App Store Connect. The in-repo reasoning is sound — labels are user content in the user's own private database — but "probably right" is exactly what this milestone kept finding was not enough |
 | §11B-i | `CD_ListeningConsent` exists in neither CloudKit environment | The device run was skipped. It is no longer a thing to remember: `build-upload-asc.sh` refuses to upload while Production is behind the shipping schema |
+
+
+### 11K. 1.7.0 prepared, and stopped at its own gate (2026-08-13)
+
+Everything for 1.7.0 is ready except the one step that cannot be taken from here.
+
+Version 1.7.0 / build 13. Five bullets in three languages, 1.6.0's notes archived as
+`release_notes-1.6.0.txt`. Clean build: **395 tests / 0 warnings / i18n 100% /
+52 labels**. A Release archive builds and signs.
+
+**Why it is not uploaded.** `build-upload-asc.sh` refuses while CloudKit Production is
+behind the shipping schema, and `CD_ListeningConsent` exists in **neither**
+environment. That gate is not incidental to this release — 1.7.0 is the release whose
+headline is *"turn it off anywhere and it is off everywhere"*, and shipping it without
+the record type in Production makes exactly that sentence false, silently, in the way
+this milestone has spent its whole length learning to distrust.
+
+Three ways past it were considered and rejected:
+
+| Option | Why not |
+|---|---|
+| `CK_SKIP_SCHEMA_CHECK=yes` and upload | Ships a claim known to be false. The override exists for a human who has weighed it, not for an agent working around its own gate |
+| Hand-author `CD_ListeningConsent` and import it | `CD_Capsule`'s export makes the conventions legible (UUID→STRING, Date→TIMESTAMP), so it is *probably* right — but it cannot be verified without the same device run it is trying to avoid, and Production never gives a record type back |
+| Cut `ListeningConsent` from this release | The release then ships the amplitude-gate remediation and the CJK search fix without the consent work — defensible, but it means reverting a feature that was asked for, unwound across six files, while nobody is around to say whether that trade is wanted |
+
+**The single unblocking step**, unchanged: run a development-signed build on a device
+signed into iCloud, toggle Listening once, then `cloudkit-schema.sh promote` and
+`build-upload-asc.sh`. All devices read `unavailable` today.
