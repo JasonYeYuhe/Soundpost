@@ -925,3 +925,45 @@ Three ways past it were considered and rejected:
 **The single unblocking step**, unchanged: run a development-signed build on a device
 signed into iCloud, toggle Listening once, then `cloudkit-schema.sh promote` and
 `build-upload-asc.sh`. All devices read `unavailable` today.
+
+
+### 11L. 1.6.1 — the consent carve-out (2026-08-15)
+
+**Decided under time pressure, and explicitly open for review when Jason is back.**
+
+1.6.0 ships a defect that is permanent *per capsule*: §11C's amplitude gate wrote
+quiet-but-audible recordings off as silent, terminally. §11E reopens them, but only
+once a version carrying it reaches users — and that version was blocked on something
+with no relation to it, the CloudKit promotion that account-wide consent needs
+(§11B-i).
+
+So consent was carved out and **1.6.1 ships from `release/1.6.1`** with the fixes and
+without the feature. `master` keeps it whole at 1.7.0.
+
+| | 1.6.1 (branch) | 1.7.0 (`master`) |
+|---|---|---|
+| §11C amplitude gate + §11E remediation | yes | yes |
+| §11I CJK search | yes | yes |
+| §11H one-launch backfill | yes | yes |
+| §11F AI sentence language | yes | yes |
+| Account-wide listening consent | **no** | yes |
+| Needs CloudKit promotion first | no | **yes** |
+
+**The copy moved with the code, in both directions.** The Settings footer says the
+switch covers this device; the account-wide bullet is out of the release notes, in
+three languages. Shipping the smaller behaviour under the larger promise is the exact
+failure this milestone spent its length removing.
+
+**Known asymmetry, stated rather than hidden:** in 1.6.1 the *erase* still travels
+between devices — `soundprintRaw` lives on the CloudKit-mirrored `Capsule` — while
+the *decision* does not, so another device with listening on re-analyses. The copy
+describes the switch, which is accurate; the effect is simply broader than the
+switch's stated reach. Closing that gap is what the held-back feature is for.
+
+**To settle when Jason is back:**
+- Whether shipping twice was right, or whether waiting to do the device run and ship
+  1.7.0 whole would have been better.
+- What happens to `release/1.6.1` after 1.7.0 — its changes are all already on
+  `master`, so it can most likely just be abandoned, but nobody has decided.
+- Whether the erase/decision asymmetry needs saying out loud in the 1.6.1 copy, or
+  whether describing the switch is enough.
