@@ -1339,18 +1339,6 @@ struct CodexReviewGuardTests {
                                                           text: "A rainy afternoon."))
     }
 
-    // MARK: Consent ordering
-
-    /// A device whose clock runs fast could otherwise pin listening on: every
-    /// correctly dated answer after it would lose to a future-dated grant.
-    @Test func aFutureDatedAnswerIsClampedToNow() {
-        let now = Date(timeIntervalSince1970: 1_000_000)
-        let future = now.addingTimeInterval(86_400 * 365)
-        #expect(ListeningConsentStore.effectiveDate(future, now: now) == now)
-        #expect(ListeningConsentStore.effectiveDate(now.addingTimeInterval(-60), now: now)
-                == now.addingTimeInterval(-60))
-    }
-
     // MARK: Re-judging labelled results, not only empty ones
 
     /// The floor exists *because* measured `waterfall` labels at 0.30–0.38 were wrong

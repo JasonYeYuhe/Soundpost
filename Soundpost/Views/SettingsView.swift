@@ -20,16 +20,14 @@ struct SettingsView: View {
     /// Consent for on-device listening (M15 §4I). Default on — see
     /// `SoundAnalysisPreferences` for why this one is not opt-in.
     ///
-    /// Read-only here: the switch writes through `listeningBinding`, which records
-    /// the account-wide answer FIRST and only moves this mirror if that write lands.
-    /// `ListeningConsentStore.applyToDevice` refreshes it at launch and on every
-    /// remote merge, so a change made on another device shows up here.
+    /// The device's answer. `listeningBinding` writes it and runs the erase; the
+    /// account-wide record that would make this travel between devices is held back
+    /// for the next version (§11B-i).
     @AppStorage(SoundAnalysisPreferences.enabledKey) private var listeningEnabled = true
 
     @State private var showingPaywall = false
     @State private var confirmingCloudDelete = false
     @State private var cloudDeleteFailed = false
-    @State private var consentWriteFailed = false
     @State private var eraseFailed = false
     @State private var restoreMessage: String?
     @State private var confirmingExport = false
@@ -75,11 +73,6 @@ struct SettingsView: View {
                 Button("OK", role: .cancel) { }
             } message: {
                 Text("Listening is off, but Soundpost couldn't remove the sounds it had already recognised. Please try again.")
-            }
-            .alert("Couldn't change that setting", isPresented: $consentWriteFailed) {
-                Button("OK", role: .cancel) { }
-            } message: {
-                Text("Soundpost couldn't save your listening choice, so nothing was changed. Please try again.")
             }
             .alert("Couldn't delete cloud data", isPresented: $cloudDeleteFailed) {
                 Button("OK", role: .cancel) { }
@@ -177,39 +170,22 @@ struct SettingsView: View {
 
     // MARK: - Listening (M15)
 
-    /// The switch writes **through the record**, and the mirror moves only if that
-    /// write lands.
+    /// **Per-device in 1.6.1.** The account-wide version of this switch (a synced
+    /// `ListeningConsent` record) is finished on `master` and held back only because
+    /// it adds a CloudKit record type that has not been promoted to Production —
+    /// see §11B-i. Shipping it unpromoted would make the footer's promise silently
+    /// false, so this release keeps the honest smaller behaviour and says so in the
+    /// copy: the switch governs this device.
     ///
-    /// Binding the toggle straight to `@AppStorage` and recording afterwards looked
-    /// equivalent and is not: `@AppStorage` moves the mirror the instant the user
-    /// flips it, so a failed write left the device acting on an answer that was never
-    /// stored. The dangerous direction is turning listening back **on**: the mirror
-    /// says yes, capsules recorded in that session get labelled, and then the next
-    /// launch resolves the surviving "off" record and erases them. A failed write
-    /// would have destroyed data the user had every reason to expect.
-    ///
-    /// `ListeningConsentStore.set` writes the mirror only after `context.save()`
-    /// returns, so on failure the mirror is untouched and the switch springs back —
-    /// which is the honest thing for it to do — and the alert says so.
+    /// The erase still happens, and still propagates: `soundprintRaw` lives on the
+    /// CloudKit-mirrored `Capsule`, so clearing it here clears it everywhere. What
+    /// does not travel is the *decision* — another device with listening on will
+    /// re-analyse. That asymmetry is exactly what the next version removes.
     private var listeningBinding: Binding<Bool> {
         Binding(
             get: { listeningEnabled },
             set: { enabled in
-                do {
-                    // Record the answer account-wide, not just here. This switch used
-                    // to be a per-device `UserDefaults` flag while its effect — the
-                    // erase — was account-wide, so a second device with listening
-                    // still on would re-analyse the cleared capsules and sync the
-                    // labels back (M15 §4I, revised).
-                    try ListeningConsentStore.set(enabled, in: modelContext)
-                } catch {
-                    // Leave no half-applied insert/delete on the shared main context
-                    // for the next unrelated save to commit.
-                    modelContext.rollback()
-                    consentWriteFailed = true
-                    Diagnostics.notice("Listening consent could not be recorded; the switch was left unchanged")
-                    return
-                }
+                listeningEnabled = enabled
                 // Turning it off FORGETS rather than hides. A switch that stopped
                 // future analysis while quietly keeping past results would be the
                 // dishonest version of this control.
@@ -238,7 +214,7 @@ struct SettingsView: View {
             // rather than the stronger "no audio is ever uploaded", which this app
             // cannot claim: `Capsule.audioData` rides the CloudKit-mirrored schema to
             // the user's private database, as the iCloud row in this same screen says.
-            Text("Soundpost can recognise everyday sounds — rain, birdsong, a train — so your capsules are easier to find later. The listening happens on your device; no audio is sent away to be analysed. What it hears is stored with the capsule and, like your recordings, syncs only to your own private iCloud. This setting follows your iCloud account, so it applies on every device you use Soundpost on — and turning it off erases what it has already heard, everywhere.")
+            Text("Soundpost can recognise everyday sounds — rain, birdsong, a train — so your capsules are easier to find later. The listening happens on your device; no audio is sent away to be analysed. What it hears is stored with the capsule and, like your recordings, syncs only to your own private iCloud. This switch covers this device, and turning it off erases what it has already heard.")
         }
     }
 

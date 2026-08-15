@@ -2564,18 +2564,18 @@
         }
       }
     },
-    "Soundpost can recognise everyday sounds — rain, birdsong, a train — so your capsules are easier to find later. The listening happens on your device; no audio is sent away to be analysed. What it hears is stored with the capsule and, like your recordings, syncs only to your own private iCloud. This setting follows your iCloud account, so it applies on every device you use Soundpost on — and turning it off erases what it has already heard, everywhere.": {
+    "Soundpost can recognise everyday sounds — rain, birdsong, a train — so your capsules are easier to find later. The listening happens on your device; no audio is sent away to be analysed. What it hears is stored with the capsule and, like your recordings, syncs only to your own private iCloud. This switch covers this device, and turning it off erases what it has already heard.": {
       "localizations": {
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "雨、鳥のさえずり、電車といった日常の音を認識して、あとからカプセルを探しやすくします。聴き取りはこの端末の中で行われ、分析のために音声がどこかへ送られることはありません。聴き取った内容はカプセルとともに、録音と同じように、あなた自身のプライベートな iCloud にのみ同期されます。この設定は iCloud アカウントに従うため、Soundpost を使うすべての端末に適用されます。オフにすると、すでに聴き取った内容もすべての端末から消去されます。"
+            "value": "雨、鳥のさえずり、電車といった日常の音を認識して、あとからカプセルを探しやすくします。聴き取りはこの端末の中で行われ、分析のために音声がどこかへ送られることはありません。聴き取った内容はカプセルとともに、録音と同じように、あなた自身のプライベートな iCloud にのみ同期されます。このスイッチはこの端末に適用され、オフにすると、すでに聴き取った内容も消去されます。"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Soundpost 可以识别日常声音——雨声、鸟鸣、火车——让你以后更容易找到胶囊。聆听在你的设备上完成，不会为了分析而把音频发往别处。识别到的内容与胶囊一起保存，并和你的录音一样，只同步到你自己的私人 iCloud。此设置跟随你的 iCloud 账户，因此对你使用 Soundpost 的所有设备生效；关闭后，已经识别到的内容也会在所有设备上被抹除。"
+            "value": "Soundpost 可以识别日常声音——雨声、鸟鸣、火车——让你以后更容易找到胶囊。聆听在你的设备上完成，不会为了分析而把音频发往别处。识别到的内容与胶囊一起保存，并和你的录音一样，只同步到你自己的私人 iCloud。此开关作用于本设备，关闭后也会抹除已经识别到的内容。"
           }
         }
       }

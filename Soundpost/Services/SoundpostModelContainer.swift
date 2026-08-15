@@ -50,10 +50,15 @@ enum SoundpostModelContainer {
     /// CONTINGENCY (docs/M9-DEVPLAN.md §S3 / risks): SwiftData maps `[Float]` to a
     /// transformable; some CloudKit-backed stores reject a schema-level default for
     /// it. If that ever throws a schema-validation error, make `waveformSamples` an
-    /// optional `[Float]?`. `ListeningConsent` joins on the same terms (M15 §4I,
-    /// revised): no unique attribute, every property defaulted, and adding an entity
-    /// is purely additive so an existing store migrates lightly.
-    static var productionSchema: Schema { Schema([Capsule.self, ListeningConsent.self]) }
+    /// optional `[Float]?`.
+    ///
+    /// **1.6.1 deliberately ships one entity.** Account-wide listening consent adds a
+    /// `ListeningConsent` model, and a new entity is a new CloudKit record type that
+    /// only exists in Production once it has been promoted by hand (§11B-i). That
+    /// promotion needs a device run nobody could do in time, and this release exists
+    /// to get the §11C amplitude-gate remediation to users sooner rather than to wait
+    /// on it. The feature is intact on `master` for the version that follows.
+    static var productionSchema: Schema { Schema([Capsule.self]) }
 
     static func makeProductionContainer() -> ProductionStore {
         let schema = productionSchema

@@ -40,12 +40,11 @@ struct CloudKitSchemaTests {
         #expect(container.schema.entities.count == schema.entities.count)
     }
 
-    /// Both entities are present and named as expected — so a schema that silently
-    /// lost one cannot pass the load test above by loading less.
-    @Test func theShippingSchemaContainsBothEntities() {
+    /// The entity is present and named as expected — so a schema that silently lost
+    /// it cannot pass the load test above by loading less.
+    @Test func theShippingSchemaContainsItsEntities() {
         let names = Set(SoundpostModelContainer.productionSchema.entities.map(\.name))
         #expect(names.contains("Capsule"))
-        #expect(names.contains("ListeningConsent"))
     }
 
     /// The CloudKit rules the schema comment claims, checked rather than asserted in
@@ -66,14 +65,4 @@ struct CloudKitSchemaTests {
         }
     }
 
-    /// `ListeningConsent` is the entity this suite was added for — pin its shape
-    /// directly, since a change to it is what would break consent syncing.
-    @Test func listeningConsentIsShapedTheWayCloudKitNeeds() throws {
-        let entity = try #require(
-            SoundpostModelContainer.productionSchema.entities.first { $0.name == "ListeningConsent" })
-        let attributes = Set(entity.attributes.map(\.name))
-        #expect(attributes.isSuperset(of: ["id", "enabled", "changedAt"]))
-        #expect(entity.uniquenessConstraints.isEmpty,
-                "id must not be unique — CloudKit forbids it, and duplicates are resolved by changedAt instead")
-    }
 }

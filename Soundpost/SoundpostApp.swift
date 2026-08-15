@@ -144,11 +144,6 @@ private struct RootView: View {
                     // backfill below gates on that mirror, so a withdrawal made on
                     // another device has to land here first — otherwise this launch
                     // would re-label the very capsules the user cleared elsewhere.
-                    do {
-                        _ = try ListeningConsentStore.applyToDevice(in: store.container.mainContext)
-                    } catch {
-                        Diagnostics.notice("Could not read account-wide listening consent at launch; using this device's answer")
-                    }
                     // Hand back the capsules an older generation of gates wrote off,
                     // before the backfill runs — reopening sets `soundprintRaw` to
                     // nil, which is exactly what the backfill below looks for, so

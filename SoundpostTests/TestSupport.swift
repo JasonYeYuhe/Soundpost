@@ -12,7 +12,7 @@ import AVFoundation
 enum TestSupport {
     static let container: ModelContainer = {
         try! ModelContainer(
-            for: Capsule.self, ListeningConsent.self,
+            for: Capsule.self,
             // `cloudKitDatabase: .none`: the default is `.automatic`, which — because
             // the app carries the CloudKit entitlement — makes even this in-memory
             // store spin up a mirroring delegate that then fails with
@@ -30,9 +30,6 @@ enum TestSupport {
     static func freshStore() throws -> CapsuleStore {
         let context = ModelContext(container)
         try context.delete(model: Capsule.self)
-        // ListeningConsent too, or a row written by one test resolves for the next
-        // one and silently decides its consent for it.
-        try context.delete(model: ListeningConsent.self)
         try context.save()
         return CapsuleStore(context: context)
     }
@@ -69,7 +66,7 @@ enum TestSupport {
     static func isolatedStore() throws -> CapsuleStore {
         // `ModelContext` retains its container, so the store keeps it alive.
         let container = try ModelContainer(
-            for: Capsule.self, ListeningConsent.self,
+            for: Capsule.self,
             configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         )
         return CapsuleStore(context: ModelContext(container))
