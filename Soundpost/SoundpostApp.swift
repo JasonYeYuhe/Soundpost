@@ -109,6 +109,13 @@ private struct RootView: View {
                 Color.clear.task { await AudioSelfTest.run() }   // headless audio-pipeline check
             } else if AppEnvironment.isVideoSelfTest {
                 VideoSelfTestView()                              // M13 §5 S2 device smoke test
+            } else if AppEnvironment.isCloudKitSchemaSeed {
+                // Materialise the CloudKit Development schema for any entity the app
+                // has added since the last promotion (§11B-i). Uses the production
+                // container on purpose — the point is the real CloudKit export.
+                Color.clear.task {
+                    if let store { await CloudKitSchemaSeed.run(in: store.container) }
+                }
             } else if AppEnvironment.isDemoSeed {
                 ContentView().modelContainer(DemoData.container) // screenshots skip onboarding
             } else {
@@ -197,6 +204,14 @@ enum AppEnvironment {
     /// (each of which uses its own store).
     static var usesProductionContainer: Bool {
         !isRunningUnderTests && !isDemoSeed && !isAudioSelfTest && !isVideoSelfTest
+    }
+
+    /// Debug-only: write one row per entity so CloudKit's Development environment
+    /// materialises the record types, then clean up (§11B-i). Needs the production
+    /// container, so it is deliberately absent from `usesProductionContainer`'s
+    /// exclusions.
+    static var isCloudKitSchemaSeed: Bool {
+        CommandLine.arguments.contains("-initializeCloudKitSchema")
     }
 
     /// Debug screenshot/demo mode: in-memory store pre-seeded with sample capsules.

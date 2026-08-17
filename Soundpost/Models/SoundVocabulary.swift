@@ -125,6 +125,7 @@ enum SoundVocabulary {
         "chopping_wood": "chopping wood",
         "knock": "a knock",
         "writing": "writing",
+        "door_slam": "a slamming door",
     ]
 
     /// Sounds we **refuse to name**, even when the classifier is certain.
@@ -170,8 +171,6 @@ enum SoundVocabulary {
         "snicker",
         // not a sound in the room
         "silence", "wind_noise_microphone",
-        // a slammed door is far likelier to be an argument than a keepsake
-        "door_slam",
     ]
 
     /// Whether this label may ever be shown. The allow-list is the whole answer;

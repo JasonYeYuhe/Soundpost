@@ -1444,12 +1444,23 @@ struct VocabularyExpansionTests {
         }
     }
 
-    /// Two labels that describe a *judgement about people* rather than a sound: a
-    /// snicker imputes derision, and a slammed door is far likelier to be an argument
-    /// than a keepsake.
+    /// `snicker` describes a *judgement about people* rather than a sound — it
+    /// imputes derision to someone in the room.
     @Test func judgementsAboutPeopleAreRefused() {
         #expect(SoundVocabulary.denied.contains("snicker"))
-        #expect(SoundVocabulary.denied.contains("door_slam"))
+    }
+
+    /// `door_slam` was refused in §11M and is named again (§11O). The refusal rested
+    /// on "a slammed door is far likelier to be an argument than a keepsake" — which
+    /// is a conclusion about the person in the room, and concluding about the person
+    /// is the thing §1.2 forbids. The deny list's categories are distress, bodily,
+    /// alarming, animal distress, artefacts, and judgements about people; a door
+    /// closing hard belongs to none of them. It is named neutrally — "a slamming
+    /// door" describes the sound and infers nothing about why.
+    @Test func aSoundIsNotRefusedForWhatWeImagineCausedIt() {
+        #expect(SoundVocabulary.isAllowed("door_slam"))
+        #expect(!SoundVocabulary.denied.contains("door_slam"))
+        #expect(SoundVocabulary.displayName(for: "door_slam")?.isEmpty == false)
     }
 
     /// Taxonomy parents stay out: `bird`, `dog`, `cat`, `water`, `fire`, `engine` are

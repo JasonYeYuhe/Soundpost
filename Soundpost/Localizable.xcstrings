@@ -3728,6 +3728,23 @@
         }
       }
     },
+    "a slamming door": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ドアの閉まる音"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "关门声"
+          }
+        }
+      }
+    },
     "a stream": {
       "comment": "Sound label shown on a capsule (M15)",
       "localizations": {
