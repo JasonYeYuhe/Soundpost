@@ -211,9 +211,17 @@ struct SoundVocabularyTests {
 
     /// The curated list is the *whole* answer to "may we show this?", so it must be
     /// deliberate: big enough to be useful, small enough to stay translated.
+    ///
+    /// §4D originally set 40–60. Raised to 40–90 when the vocabulary went from 52 to
+    /// 74 (§11M) — a deliberate revision, not a test bent to fit. The bound exists to
+    /// stop the list drifting toward "everything the classifier knows", and the real
+    /// cost it stands for is three hand-written translations per label plus the gate
+    /// that keeps them honest. 74 does not strain that; 303 would. The upper bound
+    /// stays *below* the taxonomy so exceeding it always requires this argument to be
+    /// made again.
     @Test func theVocabularyIsCuratedNotExhaustive() {
         let count = SoundVocabulary.displayNames.count
-        #expect(count >= 40 && count <= 60, "\(count) labels — §4D targets a curated 40–60")
+        #expect(count >= 40 && count <= 90, "\(count) labels — §4D/§11M targets a curated 40–90")
         #expect(SoundVocabulary.allowedIdentifiers.count == count)
         for (identifier, phrase) in SoundVocabulary.displayNames {
             #expect(!identifier.isEmpty)
@@ -1390,5 +1398,77 @@ struct CodexReviewGuardTests {
         let (outcome, stored) = SoundprintRemediation.rejudge(current)
         #expect(outcome == .revalidated)
         #expect(stored == current)
+    }
+}
+
+// MARK: - The vocabulary expansion (M15 §11M)
+
+/// The 22 labels added in §11M, and the principles that decided them. Each of these
+/// is a claim about what Soundpost is willing to say, so each gets an assertion
+/// rather than living only in a commit message.
+struct VocabularyExpansionTests {
+
+    @Test func theAddedLabelsAreAllNamedAndTranslatable() {
+        let added = ["thunder", "wind_chime", "pigeon_dove_coo", "duck_quack", "rooster_crow",
+                     "cow_moo", "sheep_bleat", "horse_clip_clop", "cello", "flute", "saxophone",
+                     "trumpet", "harmonica", "accordion", "harp", "ukulele", "orchestra",
+                     "choir_singing", "bicycle_bell", "train_whistle", "sewing_machine", "typewriter"]
+        for identifier in added {
+            #expect(SoundVocabulary.isAllowed(identifier), "\(identifier) should be named")
+            let phrase = SoundVocabulary.displayName(for: identifier)
+            #expect(phrase?.isEmpty == false, "\(identifier) has no localized phrase")
+        }
+    }
+
+    /// The absence of sound is not a sound. "Your memory was silence" is the plainest
+    /// possible version of telling someone their memory was something it wasn't, and
+    /// the gates already say *stay quiet* rather than name the nothing — so this is a
+    /// refusal, not merely an omission. Left unset it could be added back by someone
+    /// reading the list as "sounds we have not got to yet".
+    @Test func theAbsenceOfSoundIsRefusedNotMerelyUnnamed() {
+        #expect(SoundVocabulary.denied.contains("silence"))
+        #expect(!SoundVocabulary.isAllowed("silence"))
+    }
+
+    /// Microphone buffeting describes our equipment, not the room someone recorded.
+    @Test func aRecordingArtefactIsNotAMemory() {
+        #expect(SoundVocabulary.denied.contains("wind_noise_microphone"))
+    }
+
+    /// The distress rule is about the animals in someone's life too — a dog whimpering
+    /// is the same kind of caption as a person crying.
+    @Test func animalDistressIsRefusedOnTheSameTermsAsHumanDistress() {
+        for identifier in ["dog_growl", "dog_whimper", "dog_howl", "coyote_howl", "lion_roar"] {
+            #expect(SoundVocabulary.denied.contains(identifier), "\(identifier) should be refused")
+            #expect(!SoundVocabulary.isAllowed(identifier))
+        }
+    }
+
+    /// Two labels that describe a *judgement about people* rather than a sound: a
+    /// snicker imputes derision, and a slammed door is far likelier to be an argument
+    /// than a keepsake.
+    @Test func judgementsAboutPeopleAreRefused() {
+        #expect(SoundVocabulary.denied.contains("snicker"))
+        #expect(SoundVocabulary.denied.contains("door_slam"))
+    }
+
+    /// Taxonomy parents stay out: `bird`, `dog`, `cat`, `water`, `fire`, `engine` are
+    /// umbrella nodes over labels already named more precisely, and naming both would
+    /// put two phrases on one capsule for the same sound.
+    @Test func umbrellaCategoriesAreNotNamedAlongsideTheirChildren() {
+        for parent in ["bird", "dog", "cat", "water", "fire", "engine", "drum", "truck"] {
+            #expect(!SoundVocabulary.isAllowed(parent),
+                    "\(parent) is a parent category — its specific children are what get named")
+        }
+    }
+
+    /// Sports labels name an activity *inferred from* sound rather than the sound
+    /// itself, which is the §1.2 line: describe the room, do not conclude about the
+    /// person in it.
+    @Test func activitiesInferredFromSoundAreNotNamed() {
+        for activity in ["playing_tennis", "playing_hockey", "playing_squash",
+                         "playing_volleyball", "playing_badminton", "playing_table_tennis"] {
+            #expect(!SoundVocabulary.isAllowed(activity))
+        }
     }
 }

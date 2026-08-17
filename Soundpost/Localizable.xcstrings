@@ -3242,6 +3242,23 @@
       },
       "extractionState": "manual"
     },
+    "a bicycle bell": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自転車のベル"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自行车铃"
+          }
+        }
+      }
+    },
     "a cat": {
       "comment": "Sound label shown on a capsule (M15)",
       "localizations": {
@@ -3259,6 +3276,40 @@
         }
       },
       "extractionState": "manual"
+    },
+    "a cello": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "チェロ"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "大提琴"
+          }
+        }
+      }
+    },
+    "a choir": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "合唱"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "合唱"
+          }
+        }
+      }
     },
     "a crackling fire": {
       "comment": "Sound label shown on a capsule (M15)",
@@ -3314,6 +3365,23 @@
       },
       "extractionState": "manual"
     },
+    "a flute": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "フルート"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "长笛"
+          }
+        }
+      }
+    },
     "a guitar": {
       "comment": "Sound label shown on a capsule (M15)",
       "localizations": {
@@ -3331,6 +3399,40 @@
         }
       },
       "extractionState": "manual"
+    },
+    "a harmonica": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ハーモニカ"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "口琴"
+          }
+        }
+      }
+    },
+    "a harp": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ハープ"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "竖琴"
+          }
+        }
+      }
     },
     "a helicopter": {
       "comment": "Sound label shown on a capsule (M15)",
@@ -3404,6 +3506,23 @@
       },
       "extractionState": "manual"
     },
+    "a rooster": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ニワトリ"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "公鸡"
+          }
+        }
+      }
+    },
     "a running tap": {
       "comment": "Sound label shown on a capsule (M15)",
       "localizations": {
@@ -3421,6 +3540,40 @@
         }
       },
       "extractionState": "manual"
+    },
+    "a saxophone": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "サックス"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "萨克斯"
+          }
+        }
+      }
+    },
+    "a sewing machine": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ミシン"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "缝纫机"
+          }
+        }
+      }
     },
     "a stream": {
       "comment": "Sound label shown on a capsule (M15)",
@@ -3494,6 +3647,74 @@
       },
       "extractionState": "manual"
     },
+    "a train whistle": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "汽笛"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "火车汽笛"
+          }
+        }
+      }
+    },
+    "a trumpet": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "トランペット"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "小号"
+          }
+        }
+      }
+    },
+    "a typewriter": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "タイプライター"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打字机"
+          }
+        }
+      }
+    },
+    "a ukulele": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ウクレレ"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "尤克里里"
+          }
+        }
+      }
+    },
     "a vacuum": {
       "comment": "Sound label shown on a capsule (M15)",
       "localizations": {
@@ -3547,6 +3768,40 @@
         }
       },
       "extractionState": "manual"
+    },
+    "an accordion": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "アコーディオン"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "手风琴"
+          }
+        }
+      }
+    },
+    "an orchestra": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "オーケストラ"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "管弦乐"
+          }
+        }
+      }
     },
     "an owl": {
       "comment": "Sound label shown on a capsule (M15)",
@@ -3692,6 +3947,23 @@
       },
       "extractionState": "manual"
     },
+    "cows": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "牛"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "牛"
+          }
+        }
+      }
+    },
     "crickets": {
       "comment": "Sound label shown on a capsule (M15)",
       "localizations": {
@@ -3764,6 +4036,40 @@
       },
       "extractionState": "manual"
     },
+    "doves": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "鳩"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "鸽子"
+          }
+        }
+      }
+    },
+    "ducks": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "カモ"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "鸭子"
+          }
+        }
+      }
+    },
     "frogs": {
       "comment": "Sound label shown on a capsule (M15)",
       "localizations": {
@@ -3799,6 +4105,23 @@
         }
       },
       "extractionState": "manual"
+    },
+    "hoofbeats": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "蹄の音"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "马蹄声"
+          }
+        }
+      }
     },
     "humming": {
       "comment": "Sound label shown on a capsule (M15)",
@@ -4070,6 +4393,23 @@
       },
       "extractionState": "manual"
     },
+    "sheep": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "羊"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "羊"
+          }
+        }
+      }
+    },
     "singing": {
       "comment": "Sound label shown on a capsule (M15)",
       "localizations": {
@@ -4159,6 +4499,23 @@
         }
       },
       "extractionState": "manual"
+    },
+    "thunder": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "雷"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "雷声"
+          }
+        }
+      }
     },
     "traffic": {
       "comment": "Sound label shown on a capsule (M15)",
@@ -4267,6 +4624,23 @@
         }
       },
       "extractionState": "manual"
+    },
+    "wind chimes": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "風鈴"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "风铃"
+          }
+        }
+      }
     },
     "“%@” — %lld days ago. Listen back.": {
       "comment": "Personalized echo notification (opt-in); %@ is the user's own one-line or place",

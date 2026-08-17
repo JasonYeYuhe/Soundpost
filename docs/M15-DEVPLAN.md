@@ -925,3 +925,62 @@ Three ways past it were considered and rejected:
 **The single unblocking step**, unchanged: run a development-signed build on a device
 signed into iCloud, toggle Listening once, then `cloudkit-schema.sh promote` and
 `build-upload-asc.sh`. All devices read `unavailable` today.
+
+
+### 11M. The vocabulary, doubled where it was safe to (2026-08-17)
+
+52 → **74 named labels**, 44 → **54 refused**. Apple's taxonomy has 303; 207 had never
+been considered at all, which meant a great many ordinary sounds someone records had
+no name, could not be searched, and could not be said.
+
+**Method, because the method is the finding.** I wrote my own verdict on all 207
+**before** reading any model's, precisely so the comparison would mean something —
+the last external review caught a piece of my reasoning that was internally
+consistent and wrong, and that only works if there is an independent position to
+knock down. Then Gemini 3.7 Flash was asked the same question twice.
+
+Three judgements converged on the same **22 labels**, and those are what shipped:
+
+    thunder  wind_chime  pigeon_dove_coo  duck_quack  rooster_crow  cow_moo
+    sheep_bleat  horse_clip_clop  cello  flute  saxophone  trumpet  harmonica
+    accordion  harp  ukulele  orchestra  choir_singing  bicycle_bell
+    train_whistle  sewing_machine  typewriter
+
+**The two Gemini runs disagreed with each other**, which is the most useful thing
+that happened. Run 1 recommended 44, run 2 recommended 28 — a strict subset — and
+`lawn_mower` was recommended by one and explicitly refused by the other. `silence`
+moved between "leave unset" and "refuse". So a single run's list is not a result; the
+stable core is. That is now the rule: unanimous → take it, split → I decide and write
+down why, appears once → not this release.
+
+**What I refused, including one I changed my mind about.**
+
+| Refused | Why |
+|---|---|
+| `silence` | The plainest possible way to tell someone their memory was something it wasn't. Left *unset* it reads as "not got to yet" and could be added back; refused, it cannot |
+| `wind_noise_microphone` | Describes our equipment, not their room |
+| `dog_growl`, `dog_whimper`, `dog_howl`, `coyote_howl`, `lion_roar` | The distress rule applies to the animals in someone's life too |
+| `snicker` | Imputes derision to a person in the room |
+| `door_slam` | **I had this in my recommend list.** A slammed door is far likelier to be an argument than a keepsake, and "a capsule is a keepsake, not surveillance" decides it |
+
+**What I declined to take from the review.** Gemini proposed per-label confidence
+floors (0.45 / 0.48 / 0.52) and safeguards like "require harmonic water modulation",
+"multi-frame confirmation", "cross-check the confidence delta against `owl_hoot`".
+The pipeline has a floor and an allow-list and none of that machinery, and the
+numbers were reasoned rather than measured — `waterfall`'s 0.45 came from 14 levels ×
+12 trials. §11C says do not add entries by intuition, measure them first; that applies
+to me. So the acoustically fragile candidates — the `liquid_*` family, fans, air
+conditioners, short transients like `click`/`tap`/`squeak` — are **not** in this pass.
+
+**The size bound moved, deliberately.** §4D set 40–60 and a test enforced it. 74
+breaks that, so the bound is now 40–90 with the reason recorded rather than the test
+quietly edited: the cost the bound stands for is three hand-written translations per
+label, which 74 does not strain and 303 would. It stays below the taxonomy so
+exceeding it always costs an argument.
+
+**Codex could not be obtained.** Two runs died at exit 144 with no answer, and the
+transcript shows the second was reading the vocabulary *while I was editing it* — 11
+mentions of labels added mid-run. Even a completed answer would no longer have been
+independent. Its one surviving headline ("7 recommendations, 30 refusals") is not
+used anywhere here: I never saw the reasoning behind it, and citing a number whose
+argument you have not read is not much better than inventing one.
