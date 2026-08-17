@@ -212,16 +212,16 @@ struct SoundVocabularyTests {
     /// The curated list is the *whole* answer to "may we show this?", so it must be
     /// deliberate: big enough to be useful, small enough to stay translated.
     ///
-    /// §4D originally set 40–60. Raised to 40–90 when the vocabulary went from 52 to
-    /// 74 (§11M) — a deliberate revision, not a test bent to fit. The bound exists to
-    /// stop the list drifting toward "everything the classifier knows", and the real
-    /// cost it stands for is three hand-written translations per label plus the gate
-    /// that keeps them honest. 74 does not strain that; 303 would. The upper bound
-    /// stays *below* the taxonomy so exceeding it always requires this argument to be
-    /// made again.
+    /// §4D originally set 40–60. Raised twice, each time as a deliberate revision
+    /// rather than a test bent to fit: to 40–90 at 74 labels (§11M), then to 40–120
+    /// at 92 (§11N, after measurement cleared a batch that intuition had held back).
+    /// The bound exists to stop the list drifting toward "everything the classifier
+    /// knows", and the cost it stands for is three hand-written translations per
+    /// label plus the gate that keeps them honest. It stays *well below* the
+    /// taxonomy's 303 so exceeding it always costs this argument again.
     @Test func theVocabularyIsCuratedNotExhaustive() {
         let count = SoundVocabulary.displayNames.count
-        #expect(count >= 40 && count <= 90, "\(count) labels — §4D/§11M targets a curated 40–90")
+        #expect(count >= 40 && count <= 120, "\(count) labels — §4D/§11N targets a curated 40–120")
         #expect(SoundVocabulary.allowedIdentifiers.count == count)
         for (identifier, phrase) in SoundVocabulary.displayNames {
             #expect(!identifier.isEmpty)
@@ -1469,6 +1469,39 @@ struct VocabularyExpansionTests {
         for activity in ["playing_tennis", "playing_hockey", "playing_squash",
                          "playing_volleyball", "playing_badminton", "playing_table_tennis"] {
             #expect(!SoundVocabulary.isAllowed(activity))
+        }
+    }
+}
+
+// MARK: - Measured, not assumed (M15 §11N)
+
+/// The batch §11M held back for being "acoustically fragile", then measured: 80 quiet
+/// rooms (low-passed tone and broadband hiss, rms 0.003–0.020) against the real
+/// classifier. **Zero of the 42 fired.** `waterfall`, carried as a control, fired
+/// 8/80 at a peak of 0.38 — reproducing its earlier measurement and proving the probe
+/// could see a false positive when there was one to see.
+struct MeasuredVocabularyTests {
+
+    @Test func theMeasuredSafeCandidatesAreNamed() {
+        for identifier in ["liquid_dripping", "liquid_trickle_dribble", "mechanical_fan",
+                           "hair_dryer", "blender", "microwave_oven", "printer", "door_bell",
+                           "drawer_open_close", "keys_jangling", "glass_clink", "coin_dropping",
+                           "zipper", "scissors", "crumpling_crinkling", "chopping_wood",
+                           "knock", "writing"] {
+            #expect(SoundVocabulary.isAllowed(identifier), "\(identifier) measured clean, should be named")
+            #expect(SoundVocabulary.displayName(for: identifier)?.isEmpty == false)
+        }
+    }
+
+    /// `waterfall` remains the only label with a raised floor, because it remains the
+    /// only one measured to need it. Adding more by intuition is what §11C forbids.
+    @Test func onlyMeasuredLabelsCarryARaisedFloor() {
+        #expect(SoundVocabulary.elevatedConfidenceFloors.keys.sorted() == ["waterfall"])
+        for identifier in ["liquid_dripping", "mechanical_fan", "knock"] {
+            #expect(SoundVocabulary.confidenceFloor(for: identifier,
+                                                    default: SoundprintService.confidenceFloor)
+                    == SoundprintService.confidenceFloor,
+                    "\(identifier) measured clean — it must not carry an invented floor")
         }
     }
 }

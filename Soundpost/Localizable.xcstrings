@@ -3259,6 +3259,23 @@
         }
       }
     },
+    "a blender": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ミキサー"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "搅拌机"
+          }
+        }
+      }
+    },
     "a cat": {
       "comment": "Sound label shown on a capsule (M15)",
       "localizations": {
@@ -3365,6 +3382,74 @@
       },
       "extractionState": "manual"
     },
+    "a doorbell": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "インターホン"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "门铃"
+          }
+        }
+      }
+    },
+    "a drawer": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "引き出し"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "抽屉"
+          }
+        }
+      }
+    },
+    "a dropped coin": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "硬貨の落ちる音"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "硬币落地"
+          }
+        }
+      }
+    },
+    "a fan": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "扇風機"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "风扇"
+          }
+        }
+      }
+    },
     "a flute": {
       "extractionState": "manual",
       "localizations": {
@@ -3399,6 +3484,23 @@
         }
       },
       "extractionState": "manual"
+    },
+    "a hairdryer": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ドライヤー"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "吹风机"
+          }
+        }
+      }
     },
     "a harmonica": {
       "extractionState": "manual",
@@ -3451,6 +3553,40 @@
         }
       },
       "extractionState": "manual"
+    },
+    "a knock": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ノックの音"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "敲门声"
+          }
+        }
+      }
+    },
+    "a microwave": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "電子レンジ"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "微波炉"
+          }
+        }
+      }
     },
     "a passing car": {
       "comment": "Sound label shown on a capsule (M15)",
@@ -3505,6 +3641,23 @@
         }
       },
       "extractionState": "manual"
+    },
+    "a printer": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "プリンター"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打印机"
+          }
+        }
+      }
     },
     "a rooster": {
       "extractionState": "manual",
@@ -3769,6 +3922,23 @@
       },
       "extractionState": "manual"
     },
+    "a zip": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ファスナー"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "拉链"
+          }
+        }
+      }
+    },
     "an accordion": {
       "extractionState": "manual",
       "localizations": {
@@ -3929,6 +4099,23 @@
       },
       "extractionState": "manual"
     },
+    "chopping wood": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "薪割り"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "劈柴声"
+          }
+        }
+      }
+    },
     "church bells": {
       "comment": "Sound label shown on a capsule (M15)",
       "localizations": {
@@ -3946,6 +4133,23 @@
         }
       },
       "extractionState": "manual"
+    },
+    "clinking glasses": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "グラスの触れ合う音"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "碰杯声"
+          }
+        }
+      }
     },
     "cows": {
       "extractionState": "manual",
@@ -3981,6 +4185,23 @@
         }
       },
       "extractionState": "manual"
+    },
+    "crinkling paper": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "紙のくしゃくしゃ音"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "纸张窸窣"
+          }
+        }
+      }
     },
     "crows": {
       "comment": "Sound label shown on a capsule (M15)",
@@ -4049,6 +4270,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "鸽子"
+          }
+        }
+      }
+    },
+    "dripping": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "水のしたたり"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "滴水声"
           }
         }
       }
@@ -4174,6 +4412,23 @@
         }
       },
       "extractionState": "manual"
+    },
+    "keys": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "鍵の音"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "钥匙声"
+          }
+        }
+      }
     },
     "laughter": {
       "comment": "Sound label shown on a capsule (M15)",
@@ -4393,6 +4648,23 @@
       },
       "extractionState": "manual"
     },
+    "scissors": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "はさみ"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "剪刀"
+          }
+        }
+      }
+    },
     "sheep": {
       "extractionState": "manual",
       "localizations": {
@@ -4535,6 +4807,23 @@
       },
       "extractionState": "manual"
     },
+    "trickling water": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "せせらぎ"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "细流水声"
+          }
+        }
+      }
+    },
     "typing": {
       "comment": "Sound label shown on a capsule (M15)",
       "localizations": {
@@ -4638,6 +4927,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "风铃"
+          }
+        }
+      }
+    },
+    "writing": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "書く音"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "书写声"
           }
         }
       }

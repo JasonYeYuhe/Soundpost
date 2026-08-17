@@ -35,6 +35,8 @@ enum SoundVocabulary {
         "fire_crackle": "a crackling fire",
         "thunder": "thunder",
         "wind_chime": "wind chimes",
+        "liquid_dripping": "dripping",
+        "liquid_trickle_dribble": "trickling water",
 
         // — Birds, animals, insects ------------------------------------------
         "bird_chirp_tweet": "birdsong",
@@ -107,6 +109,22 @@ enum SoundVocabulary {
         "vacuum_cleaner": "a vacuum",
         "sewing_machine": "a sewing machine",
         "typewriter": "a typewriter",
+        "mechanical_fan": "a fan",
+        "hair_dryer": "a hairdryer",
+        "blender": "a blender",
+        "microwave_oven": "a microwave",
+        "printer": "a printer",
+        "door_bell": "a doorbell",
+        "drawer_open_close": "a drawer",
+        "keys_jangling": "keys",
+        "glass_clink": "clinking glasses",
+        "coin_dropping": "a dropped coin",
+        "zipper": "a zip",
+        "scissors": "scissors",
+        "crumpling_crinkling": "crinkling paper",
+        "chopping_wood": "chopping wood",
+        "knock": "a knock",
+        "writing": "writing",
     ]
 
     /// Sounds we **refuse to name**, even when the classifier is certain.

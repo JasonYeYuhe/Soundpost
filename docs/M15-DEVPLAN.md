@@ -984,3 +984,40 @@ mentions of labels added mid-run. Even a completed answer would no longer have b
 independent. Its one surviving headline ("7 recommendations, 30 refusals") is not
 used anywhere here: I never saw the reasoning behind it, and citing a number whose
 argument you have not read is not much better than inventing one.
+
+
+### 11N. Measured, and my caution was wrong (2026-08-17)
+
+§11M held 42 candidates back for being "acoustically fragile — close to quiet room
+tone": the whole `liquid_*` family, fans, air conditioners, hairdryers, and short
+transients like `click`, `knock`, `zipper`. That judgement came from one case —
+`waterfall` firing at 0.30–0.38 on room tone — generalised to a whole shape of sound.
+
+Measured instead. 80 quiet-room clips (one-pole low-passed tone **and** broadband
+hiss, rms 0.003–0.020, eight trials each) against the real `.version1` classifier:
+
+| | fired on a quiet room | peak |
+|---|---|---|
+| `waterfall` *(control)* | **8 / 80** | 0.38 |
+| all 42 candidates | **0 / 80** | — |
+
+**The generalisation was wrong.** `waterfall` is not the first member of a risky
+family; it is a one-off. Eighteen of the candidates are now named — dripping,
+trickling water, a fan, a hairdryer, a blender, a microwave, a printer, a doorbell, a
+drawer, keys, clinking glasses, a dropped coin, a zip, scissors, crinkling paper,
+chopping wood, a knock, writing — and the vocabulary stands at **92**.
+
+**The control is the reason the result is usable.** Forty-two labels firing zero times
+looks exactly like a probe whose classifier call returns nothing. Carrying `waterfall`
+in the watched set — a label already known to fire on this stimulus — is what
+distinguishes "measured clean" from "measured nothing". It reproduced its earlier
+8/80 at 0.38, so the probe could see a false positive when there was one.
+
+`waterfall` remains **the only** label with a raised floor, and a test now pins that:
+the others were measured clean and must not acquire invented thresholds. §11C's rule
+— do not add entries by intuition, measure them — turned out to cut both ways. It
+stopped a bad floor being invented, and it also showed that a cautious *exclusion* was
+just as unmeasured as a careless inclusion.
+
+Size bound raised a second time, 40–90 → 40–120, again with the reason recorded rather
+than the test quietly edited. Still far below the taxonomy's 303.
