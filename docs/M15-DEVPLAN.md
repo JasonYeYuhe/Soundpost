@@ -967,3 +967,98 @@ switch's stated reach. Closing that gap is what the held-back feature is for.
   `master`, so it can most likely just be abandoned, but nobody has decided.
 - Whether the erase/decision asymmetry needs saying out loud in the 1.6.1 copy, or
   whether describing the switch is enough.
+
+### 11M. The vocabulary, doubled where it was safe to (2026-08-17)
+
+52 → **74 named labels**, 44 → **54 refused**. Apple's taxonomy has 303; 207 had never
+been considered at all, which meant a great many ordinary sounds someone records had
+no name, could not be searched, and could not be said.
+
+**Method, because the method is the finding.** I wrote my own verdict on all 207
+**before** reading any model's, precisely so the comparison would mean something —
+the last external review caught a piece of my reasoning that was internally
+consistent and wrong, and that only works if there is an independent position to
+knock down. Then Gemini 3.7 Flash was asked the same question twice.
+
+Three judgements converged on the same **22 labels**, and those are what shipped:
+
+    thunder  wind_chime  pigeon_dove_coo  duck_quack  rooster_crow  cow_moo
+    sheep_bleat  horse_clip_clop  cello  flute  saxophone  trumpet  harmonica
+    accordion  harp  ukulele  orchestra  choir_singing  bicycle_bell
+    train_whistle  sewing_machine  typewriter
+
+**The two Gemini runs disagreed with each other**, which is the most useful thing
+that happened. Run 1 recommended 44, run 2 recommended 28 — a strict subset — and
+`lawn_mower` was recommended by one and explicitly refused by the other. `silence`
+moved between "leave unset" and "refuse". So a single run's list is not a result; the
+stable core is. That is now the rule: unanimous → take it, split → I decide and write
+down why, appears once → not this release.
+
+**What I refused, including one I changed my mind about.**
+
+| Refused | Why |
+|---|---|
+| `silence` | The plainest possible way to tell someone their memory was something it wasn't. Left *unset* it reads as "not got to yet" and could be added back; refused, it cannot |
+| `wind_noise_microphone` | Describes our equipment, not their room |
+| `dog_growl`, `dog_whimper`, `dog_howl`, `coyote_howl`, `lion_roar` | The distress rule applies to the animals in someone's life too |
+| `snicker` | Imputes derision to a person in the room |
+| `door_slam` | **I had this in my recommend list.** A slammed door is far likelier to be an argument than a keepsake, and "a capsule is a keepsake, not surveillance" decides it |
+
+**What I declined to take from the review.** Gemini proposed per-label confidence
+floors (0.45 / 0.48 / 0.52) and safeguards like "require harmonic water modulation",
+"multi-frame confirmation", "cross-check the confidence delta against `owl_hoot`".
+The pipeline has a floor and an allow-list and none of that machinery, and the
+numbers were reasoned rather than measured — `waterfall`'s 0.45 came from 14 levels ×
+12 trials. §11C says do not add entries by intuition, measure them first; that applies
+to me. So the acoustically fragile candidates — the `liquid_*` family, fans, air
+conditioners, short transients like `click`/`tap`/`squeak` — are **not** in this pass.
+
+**The size bound moved, deliberately.** §4D set 40–60 and a test enforced it. 74
+breaks that, so the bound is now 40–90 with the reason recorded rather than the test
+quietly edited: the cost the bound stands for is three hand-written translations per
+label, which 74 does not strain and 303 would. It stays below the taxonomy so
+exceeding it always costs an argument.
+
+**Codex could not be obtained.** Two runs died at exit 144 with no answer, and the
+transcript shows the second was reading the vocabulary *while I was editing it* — 11
+mentions of labels added mid-run. Even a completed answer would no longer have been
+independent. Its one surviving headline ("7 recommendations, 30 refusals") is not
+used anywhere here: I never saw the reasoning behind it, and citing a number whose
+argument you have not read is not much better than inventing one.
+
+
+### 11N. Measured, and my caution was wrong (2026-08-17)
+
+§11M held 42 candidates back for being "acoustically fragile — close to quiet room
+tone": the whole `liquid_*` family, fans, air conditioners, hairdryers, and short
+transients like `click`, `knock`, `zipper`. That judgement came from one case —
+`waterfall` firing at 0.30–0.38 on room tone — generalised to a whole shape of sound.
+
+Measured instead. 80 quiet-room clips (one-pole low-passed tone **and** broadband
+hiss, rms 0.003–0.020, eight trials each) against the real `.version1` classifier:
+
+| | fired on a quiet room | peak |
+|---|---|---|
+| `waterfall` *(control)* | **8 / 80** | 0.38 |
+| all 42 candidates | **0 / 80** | — |
+
+**The generalisation was wrong.** `waterfall` is not the first member of a risky
+family; it is a one-off. Eighteen of the candidates are now named — dripping,
+trickling water, a fan, a hairdryer, a blender, a microwave, a printer, a doorbell, a
+drawer, keys, clinking glasses, a dropped coin, a zip, scissors, crinkling paper,
+chopping wood, a knock, writing — and the vocabulary stands at **92**.
+
+**The control is the reason the result is usable.** Forty-two labels firing zero times
+looks exactly like a probe whose classifier call returns nothing. Carrying `waterfall`
+in the watched set — a label already known to fire on this stimulus — is what
+distinguishes "measured clean" from "measured nothing". It reproduced its earlier
+8/80 at 0.38, so the probe could see a false positive when there was one.
+
+`waterfall` remains **the only** label with a raised floor, and a test now pins that:
+the others were measured clean and must not acquire invented thresholds. §11C's rule
+— do not add entries by intuition, measure them — turned out to cut both ways. It
+stopped a bad floor being invented, and it also showed that a cautious *exclusion* was
+just as unmeasured as a careless inclusion.
+
+Size bound raised a second time, 40–90 → 40–120, again with the reason recorded rather
+than the test quietly edited. Still far below the taxonomy's 303.

@@ -33,6 +33,10 @@ enum SoundVocabulary {
         "stream_burbling": "a stream",
         "waterfall": "a waterfall",
         "fire_crackle": "a crackling fire",
+        "thunder": "thunder",
+        "wind_chime": "wind chimes",
+        "liquid_dripping": "dripping",
+        "liquid_trickle_dribble": "trickling water",
 
         // — Birds, animals, insects ------------------------------------------
         "bird_chirp_tweet": "birdsong",
@@ -45,6 +49,12 @@ enum SoundVocabulary {
         "cat_purr": "purring",
         "bee_buzz": "bees",
         "insect": "insects",
+        "pigeon_dove_coo": "doves",
+        "duck_quack": "ducks",
+        "rooster_crow": "a rooster",
+        "cow_moo": "cows",
+        "sheep_bleat": "sheep",
+        "horse_clip_clop": "hoofbeats",
 
         // — People, warm only (see `denied`) ----------------------------------
         "laughter": "laughter",
@@ -64,6 +74,16 @@ enum SoundVocabulary {
         "piano": "a piano",
         "guitar": "a guitar",
         "violin_fiddle": "a violin",
+        "cello": "a cello",
+        "flute": "a flute",
+        "saxophone": "a saxophone",
+        "trumpet": "a trumpet",
+        "harmonica": "a harmonica",
+        "accordion": "an accordion",
+        "harp": "a harp",
+        "ukulele": "a ukulele",
+        "orchestra": "an orchestra",
+        "choir_singing": "a choir",
 
         // — Getting around -----------------------------------------------------
         "traffic_noise": "traffic",
@@ -72,6 +92,8 @@ enum SoundVocabulary {
         "subway_metro": "the subway",
         "aircraft": "a plane overhead",
         "helicopter": "a helicopter",
+        "bicycle_bell": "a bicycle bell",
+        "train_whistle": "a train whistle",
         "church_bell": "church bells",
 
         // — Home ---------------------------------------------------------------
@@ -85,6 +107,25 @@ enum SoundVocabulary {
         "typing_computer_keyboard": "typing",
         "clock": "a ticking clock",
         "vacuum_cleaner": "a vacuum",
+        "sewing_machine": "a sewing machine",
+        "typewriter": "a typewriter",
+        "mechanical_fan": "a fan",
+        "hair_dryer": "a hairdryer",
+        "blender": "a blender",
+        "microwave_oven": "a microwave",
+        "printer": "a printer",
+        "door_bell": "a doorbell",
+        "drawer_open_close": "a drawer",
+        "keys_jangling": "keys",
+        "glass_clink": "clinking glasses",
+        "coin_dropping": "a dropped coin",
+        "zipper": "a zip",
+        "scissors": "scissors",
+        "crumpling_crinkling": "crinkling paper",
+        "chopping_wood": "chopping wood",
+        "knock": "a knock",
+        "writing": "writing",
+        "door_slam": "a slamming door",
     ]
 
     /// Sounds we **refuse to name**, even when the classifier is certain.
@@ -105,6 +146,11 @@ enum SoundVocabulary {
     ///  * **distress** — someone's worst day is not a caption.
     ///  * **bodily** — private, and nobody wants it attached to a memory.
     ///  * **alarming** — violence and emergencies; a resurfacing should never startle.
+    ///  * **animal distress** — the same principle, for the animals in someone's life.
+    ///  * **not a sound in the room** — an artefact of our recording, or the absence
+    ///    of sound. Naming these describes our equipment or nothing at all, and
+    ///    "your memory was silence" is the plainest possible version of telling
+    ///    someone their memory was something it wasn't.
     static let denied: Set<String> = [
         // distress
         "crying_sobbing", "baby_crying", "screaming", "shout", "yell",
@@ -119,6 +165,12 @@ enum SoundVocabulary {
         "eruption", "firecracker", "air_horn", "snake_hiss", "snake_rattle",
         "siren", "police_siren", "ambulance_siren", "fire_engine_siren",
         "civil_defense_siren", "emergency_vehicle", "smoke_detector", "alarm_clock",
+        // animal distress
+        "dog_growl", "dog_whimper", "dog_howl", "coyote_howl", "lion_roar",
+        // interpersonal judgement — "a snicker" imputes derision to someone in the room
+        "snicker",
+        // not a sound in the room
+        "silence", "wind_noise_microphone",
     ]
 
     /// Whether this label may ever be shown. The allow-list is the whole answer;

@@ -211,9 +211,17 @@ struct SoundVocabularyTests {
 
     /// The curated list is the *whole* answer to "may we show this?", so it must be
     /// deliberate: big enough to be useful, small enough to stay translated.
+    ///
+    /// §4D originally set 40–60. Raised twice, each time as a deliberate revision
+    /// rather than a test bent to fit: to 40–90 at 74 labels (§11M), then to 40–120
+    /// at 92 (§11N, after measurement cleared a batch that intuition had held back).
+    /// The bound exists to stop the list drifting toward "everything the classifier
+    /// knows", and the cost it stands for is three hand-written translations per
+    /// label plus the gate that keeps them honest. It stays *well below* the
+    /// taxonomy's 303 so exceeding it always costs this argument again.
     @Test func theVocabularyIsCuratedNotExhaustive() {
         let count = SoundVocabulary.displayNames.count
-        #expect(count >= 40 && count <= 60, "\(count) labels — §4D targets a curated 40–60")
+        #expect(count >= 40 && count <= 120, "\(count) labels — §4D/§11N targets a curated 40–120")
         #expect(SoundVocabulary.allowedIdentifiers.count == count)
         for (identifier, phrase) in SoundVocabulary.displayNames {
             #expect(!identifier.isEmpty)
@@ -1378,5 +1386,115 @@ struct CodexReviewGuardTests {
         let (outcome, stored) = SoundprintRemediation.rejudge(current)
         #expect(outcome == .revalidated)
         #expect(stored == current)
+    }
+}
+
+// MARK: - The vocabulary expansion (M15 §11M)
+
+/// The 22 labels added in §11M, and the principles that decided them. Each of these
+/// is a claim about what Soundpost is willing to say, so each gets an assertion
+/// rather than living only in a commit message.
+struct VocabularyExpansionTests {
+
+    @Test func theAddedLabelsAreAllNamedAndTranslatable() {
+        let added = ["thunder", "wind_chime", "pigeon_dove_coo", "duck_quack", "rooster_crow",
+                     "cow_moo", "sheep_bleat", "horse_clip_clop", "cello", "flute", "saxophone",
+                     "trumpet", "harmonica", "accordion", "harp", "ukulele", "orchestra",
+                     "choir_singing", "bicycle_bell", "train_whistle", "sewing_machine", "typewriter"]
+        for identifier in added {
+            #expect(SoundVocabulary.isAllowed(identifier), "\(identifier) should be named")
+            let phrase = SoundVocabulary.displayName(for: identifier)
+            #expect(phrase?.isEmpty == false, "\(identifier) has no localized phrase")
+        }
+    }
+
+    /// The absence of sound is not a sound. "Your memory was silence" is the plainest
+    /// possible version of telling someone their memory was something it wasn't, and
+    /// the gates already say *stay quiet* rather than name the nothing — so this is a
+    /// refusal, not merely an omission. Left unset it could be added back by someone
+    /// reading the list as "sounds we have not got to yet".
+    @Test func theAbsenceOfSoundIsRefusedNotMerelyUnnamed() {
+        #expect(SoundVocabulary.denied.contains("silence"))
+        #expect(!SoundVocabulary.isAllowed("silence"))
+    }
+
+    /// Microphone buffeting describes our equipment, not the room someone recorded.
+    @Test func aRecordingArtefactIsNotAMemory() {
+        #expect(SoundVocabulary.denied.contains("wind_noise_microphone"))
+    }
+
+    /// The distress rule is about the animals in someone's life too — a dog whimpering
+    /// is the same kind of caption as a person crying.
+    @Test func animalDistressIsRefusedOnTheSameTermsAsHumanDistress() {
+        for identifier in ["dog_growl", "dog_whimper", "dog_howl", "coyote_howl", "lion_roar"] {
+            #expect(SoundVocabulary.denied.contains(identifier), "\(identifier) should be refused")
+            #expect(!SoundVocabulary.isAllowed(identifier))
+        }
+    }
+
+    /// `snicker` describes a *judgement about people* rather than a sound.
+    @Test func judgementsAboutPeopleAreRefused() {
+        #expect(SoundVocabulary.denied.contains("snicker"))
+    }
+
+    /// `door_slam` was refused in §11M and is named again (§11O): the refusal rested
+    /// on "far likelier to be an argument than a keepsake", which is a conclusion
+    /// about the person in the room — the thing §1.2 forbids. Named neutrally.
+    @Test func aSoundIsNotRefusedForWhatWeImagineCausedIt() {
+        #expect(SoundVocabulary.isAllowed("door_slam"))
+        #expect(!SoundVocabulary.denied.contains("door_slam"))
+    }
+
+    /// Taxonomy parents stay out: `bird`, `dog`, `cat`, `water`, `fire`, `engine` are
+    /// umbrella nodes over labels already named more precisely, and naming both would
+    /// put two phrases on one capsule for the same sound.
+    @Test func umbrellaCategoriesAreNotNamedAlongsideTheirChildren() {
+        for parent in ["bird", "dog", "cat", "water", "fire", "engine", "drum", "truck"] {
+            #expect(!SoundVocabulary.isAllowed(parent),
+                    "\(parent) is a parent category — its specific children are what get named")
+        }
+    }
+
+    /// Sports labels name an activity *inferred from* sound rather than the sound
+    /// itself, which is the §1.2 line: describe the room, do not conclude about the
+    /// person in it.
+    @Test func activitiesInferredFromSoundAreNotNamed() {
+        for activity in ["playing_tennis", "playing_hockey", "playing_squash",
+                         "playing_volleyball", "playing_badminton", "playing_table_tennis"] {
+            #expect(!SoundVocabulary.isAllowed(activity))
+        }
+    }
+}
+
+// MARK: - Measured, not assumed (M15 §11N)
+
+/// The batch §11M held back for being "acoustically fragile", then measured: 80 quiet
+/// rooms (low-passed tone and broadband hiss, rms 0.003–0.020) against the real
+/// classifier. **Zero of the 42 fired.** `waterfall`, carried as a control, fired
+/// 8/80 at a peak of 0.38 — reproducing its earlier measurement and proving the probe
+/// could see a false positive when there was one to see.
+struct MeasuredVocabularyTests {
+
+    @Test func theMeasuredSafeCandidatesAreNamed() {
+        for identifier in ["liquid_dripping", "liquid_trickle_dribble", "mechanical_fan",
+                           "hair_dryer", "blender", "microwave_oven", "printer", "door_bell",
+                           "drawer_open_close", "keys_jangling", "glass_clink", "coin_dropping",
+                           "zipper", "scissors", "crumpling_crinkling", "chopping_wood",
+                           "knock", "writing"] {
+            #expect(SoundVocabulary.isAllowed(identifier), "\(identifier) measured clean, should be named")
+            #expect(SoundVocabulary.displayName(for: identifier)?.isEmpty == false)
+        }
+    }
+
+    /// `waterfall` remains the only label with a raised floor, because it remains the
+    /// only one measured to need it. Adding more by intuition is what §11C forbids.
+    @Test func onlyMeasuredLabelsCarryARaisedFloor() {
+        #expect(SoundVocabulary.elevatedConfidenceFloors.keys.sorted() == ["waterfall"])
+        for identifier in ["liquid_dripping", "mechanical_fan", "knock"] {
+            #expect(SoundVocabulary.confidenceFloor(for: identifier,
+                                                    default: SoundprintService.confidenceFloor)
+                    == SoundprintService.confidenceFloor,
+                    "\(identifier) measured clean — it must not carry an invented floor")
+        }
     }
 }
