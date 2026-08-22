@@ -1,5 +1,3 @@
-• Listening now follows your iCloud account instead of one phone. Turn it off anywhere and it is off everywhere — and what it had already heard is erased everywhere too.
-• Quiet recordings the last version wrote off as silent get another listen. A dawn rain that went unlabelled can be found again.
-• Searching in Japanese and Chinese now matches anywhere in a phrase, not only at the beginning.
-• Your older capsules are recognised in one go, instead of a few at a time over many launches.
-• Your data export now includes the sounds Soundpost heard, in the same words it showed you.
+• The listening setting now follows your iCloud account instead of a single phone. Turn it off anywhere and it is off on every device you use — and what Soundpost had already heard is erased everywhere too, not just where you switched it off.
+• On iPhones with Apple Intelligence, the sentence on a resurfaced capsule is now written in the language you read the app in, or not written at all.
+• Searching in Japanese and Chinese now matches anywhere in a word, not only at its start.
