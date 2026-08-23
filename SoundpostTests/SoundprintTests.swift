@@ -404,6 +404,24 @@ struct SoundSearchTests {
         #expect(results.first === rainy)
     }
 
+    /// With listening off, a label that has not been erased yet is still not findable.
+    ///
+    /// Normally the erase removes these, so this looks like dead code — it is not. A
+    /// merge can arrive while the app is backgrounded, and the erase itself can fail;
+    /// the app ships an alert saying exactly that. In the gap, an unguarded search
+    /// would surface a capsule *by the sound Soundpost heard* on a device where the
+    /// user had turned listening off, which is what the Settings footer promises it
+    /// will not do.
+    @Test func withListeningOffASoundIsNotSearchableEvenBeforeTheEraseCatchesUp() throws {
+        let rainy = try captured(soundLabels: ["rain"])
+        #expect(GalleryFilter.apply([rainy], .init(searchText: "rain"), listening: true).count == 1)
+        #expect(GalleryFilter.apply([rainy], .init(searchText: "rain"), listening: false).isEmpty)
+        // The rest of search is untouched — this must not silently disable finding
+        // capsules by the words the user wrote themselves.
+        rainy.note = "a rainy morning"
+        #expect(GalleryFilter.apply([rainy], .init(searchText: "rainy"), listening: false).count == 1)
+    }
+
     /// The trap the classifier's own vocabulary sets: it contains both `rain` and
     /// `train`. Matching the shown phrase (not the raw blob) keeps them apart.
     @Test func searchingForRainDoesNotMatchATrain() throws {

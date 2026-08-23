@@ -1184,3 +1184,90 @@ The repair is the step 1.7.0 is already blocked on. One dev-signed run with
 defect and unblocks the release. Afterwards, confirm with `status` **and** by watching
 `device_tokens` gain rows — the emptiness of those tables is the only reason anyone
 noticed, and it is the only end-to-end proof.
+
+---
+
+### §11Q — the library pass, and standing to run it (2026-08-23)
+
+A judge panel over three independent designs for one problem, and the panel's most
+useful output was that **none of the three closed it**.
+
+**The problem.** `resolve()` is `winner(in:)?.enabled ?? mirror`. "No row" has two
+causes it cannot tell apart: nobody ever touched the switch, or the row has not been
+imported yet. A phone set up as new and signed into iCloud has an empty `UserDefaults`
+— so the mirror is back to its default of ON — while the library streams in from
+CloudKit. The launch backfill then analyses the whole imported library of somebody who
+had opted out.
+
+And the ordering is adversarial rather than merely unlucky: `CKFetchRecordZoneChangesOperation`
+returns a zone's changes in roughly modification order, so **the user who opted out most
+recently has their answer sorted last, behind every capsule it applies to.** The person
+whose withdrawal is freshest is the one whose answer arrives last.
+
+**What the designs proposed, and where each broke.** One gated on CloudKit
+quiescence — a completed import, then a grace period with nothing in flight and no
+remote-change traffic. It had the best-targeted evidence and the best single piece of
+research (`NSPersistentCloudKitContainerEvent.h`: there is no initial-import flag,
+`.setup` completes *before* records are fetched, and a completed `.import` means one
+import activity finished, not that the zone has arrived). It broke on persistence: one
+throttled 30-second gap on launch 1 permanently authorised the full drain on every
+later launch. One gated on the first completed `.import`, whose protection window is
+therefore "launch → first import activity" — precisely the window in which nothing
+needed protecting. One gated on whether this device had ever recorded anything.
+
+**What we shipped, and why it is the third one.** The deciding argument came from the
+third design and nobody else made it: **`soundprintRaw` syncs with the capsule.** The
+backfill is therefore per-*library* work, not per-device — a device with no history
+running it is redundant as well as unsafe, because the labels arrive on their own from
+whichever device already did the work.
+
+So the retrospective drains now require *standing*: a `ListeningConsent` row exists
+(the account has answered outright), or `SoundAnalysisPreferences.hasRecordedHere`.
+That second flag looks like it is asking about recording history. It is really asking
+**is the mirror an answer, or its default?** — and the correlation that makes it sound
+is that *the mirror is only untrustworthy when `UserDefaults` was wiped, and the same
+wipe clears the flag*. A restore from backup brings the preferences along, so an
+opted-out user's `false` comes back and there is nothing to defend against; a device
+set up as new brings the library without the preferences, which is exactly the
+dangerous case. Installs predating the flag inherit standing from
+`hasCompletedOnboarding`, which has the same wipe semantics.
+
+It needs no CloudKit event plumbing, no timer, no clock, and has no state that can be
+wrong in a way that persists.
+
+**What it costs, stated plainly rather than argued away.** A user who sets up a phone
+as new, signs in, imports a library containing *unanalysed* capsules, and never records
+anything on that phone will not get those capsules labelled until they record once or
+the account's answer arrives. Most of the library is unaffected, because analysed
+capsules bring their labels with them. Capture-time analysis is deliberately **not**
+gated: onboarding has a Skip button on page 0, so gating it would give real new users a
+silent, label-less first capsule, and that is the product.
+
+**Also fixed in this pass, each verified against the code first:**
+
+- The launch path caught a throwing `applyToDevice`, logged "using this device's
+  answer", and then ran both drains anyway — on the very mirror whose staleness is the
+  reason the call exists. It now fails closed for that launch only, writing nothing.
+- The launch path never re-synced notifications after applying consent, though both
+  other sites do. A withdrawal landing while the app was closed left an already-scheduled
+  lock-screen body still quoting what Soundpost heard; `contentVersion` folds listening
+  in precisely to invalidate those, and only works if something re-syncs.
+- The merge path discarded every consent error with a bare `try?` and then rebuilt the
+  notification bodies regardless. Now logged with its code. The sync still runs on
+  failure — this observer exists so a capsule made on another device gets a local
+  notification at all, and skipping it would trade a copy defect for a durability one.
+- `GalleryFilter.soundMatches` had no consent check. Not dead code: the erase can lag
+  or fail, and the app ships an alert saying so. In that gap search would surface a
+  capsule by the sound Soundpost heard, on a device where listening is off.
+- Both container rungs discarded the bound `error`, so the one signal that a new entity
+  broke the CloudKit rung carried no cause.
+- `deleteCloudData` called `registrar.signOut()` *before* checking whether the purge
+  succeeded, so a failed delete still pruned the token while the alert said "Your cloud
+  data hasn't been changed."
+
+**And one finding correctly rejected.** `SoundprintRemediation` was reported as running
+forever with no end date. It already has one, and the marker is per-row inside the data
+it repairs: the pass is defined by a `soundprintRaw` prefix predicate, so every capsule
+it touches leaves the candidate set permanently. A device-local completion flag would
+have been a *regression* — capsules arrive from other devices at arbitrary times,
+including from a device still on 1.6.0, and a flag would have stopped repairing them.

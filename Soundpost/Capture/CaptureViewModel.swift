@@ -238,6 +238,11 @@ final class CaptureViewModel {
         // needed to explain it. `applyToDevice` keeps this mirror current, so asking
         // it at the moment of writing is the check that matches when the data lands.
         capsule.soundprintRaw = SoundAnalysisPreferences.isEnabled ? soundprint?.stored : nil
+        // This install has now recorded something, so its listening preference is a
+        // real answer rather than an untouched default — which is what gives the
+        // launch backfill standing to analyse the rest of the library. See
+        // `SoundAnalysisPreferences.hasRecordedHere`.
+        SoundAnalysisPreferences.hasRecordedHere = true
         let trimmed = note.trimmingCharacters(in: .whitespacesAndNewlines)
         capsule.note = trimmed.isEmpty ? nil : trimmed
         capsule.place = includePlace ? place : nil

@@ -65,7 +65,13 @@ enum SoundpostModelContainer {
             Diagnostics.info("Durability: container on CloudKit rung")
             return ProductionStore(container: container, rung: .cloudKit)
         } catch {
-            Diagnostics.notice("Durability: CloudKit container unavailable, using local rung")
+            // The code matters: this is the only signal that would tell us a newly
+            // added entity broke the CloudKit rung, and without a cause it cannot be
+            // told apart from an ordinary signed-out launch. `Diagnostics.notice`
+            // takes a `StaticString` so no PII can reach Sentry; the `code:` overload
+            // exists for exactly this, and `CloudSyncMonitor` already uses it.
+            Diagnostics.notice("Durability: CloudKit container unavailable, using local rung",
+                               code: (error as NSError).code)
         }
 
         // Rung 2 — local-only on-disk store. Offline-first still fully works.
@@ -83,7 +89,8 @@ enum SoundpostModelContainer {
             Diagnostics.info("Durability: container on local rung")
             return ProductionStore(container: container, rung: .local)
         } catch {
-            Diagnostics.notice("Durability: local container failed, using in-memory rung")
+            Diagnostics.notice("Durability: local container failed, using in-memory rung",
+                               code: (error as NSError).code)
         }
 
         // Rung 3 — in-memory last-ditch so the app still launches this session.

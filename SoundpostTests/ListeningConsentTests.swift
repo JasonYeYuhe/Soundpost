@@ -217,6 +217,45 @@ struct ListeningConsentTests {
         }
     }
 
+    // MARK: Standing to analyse the existing library
+
+    /// The account has answered, so there is nothing to infer.
+    @Test func anExistingRowIsAnAnswer() throws {
+        try withMirror(true) { store in
+            #expect(try !ListeningConsentStore.hasAnswer(in: store.context))
+            record(store, enabled: false, at: Date(timeIntervalSince1970: 9_000))
+            try store.save()
+            #expect(try ListeningConsentStore.hasAnswer(in: store.context))
+        }
+    }
+
+    /// A fresh install has no standing: its mirror reads the default, not an answer.
+    ///
+    /// This is the distinction the launch backfill turns on. A phone set up as new and
+    /// signed into iCloud imports the library well before the consent row — CloudKit
+    /// returns a zone's changes in roughly modification order, so the most recent
+    /// withdrawal sorts behind every capsule it applies to.
+    @Test func afreshInstallHasNoStandingUntilItRecordsSomething() throws {
+        try TestSupport.withIsolatedListeningPreference(true) {
+            #expect(!SoundAnalysisPreferences.hasRecordedHere)
+            SoundAnalysisPreferences.hasRecordedHere = true
+            #expect(SoundAnalysisPreferences.hasRecordedHere)
+        }
+    }
+
+    /// An install that predates the key still has standing — its preferences survived,
+    /// so its mirror is whatever the user last chose, including a deliberate "off".
+    @Test func anUpgradedInstallInheritsStandingFromOnboarding() throws {
+        try TestSupport.withIsolatedListeningPreference(false) {
+            #expect(!SoundAnalysisPreferences.hasRecordedHere, "no history and no onboarding")
+            SoundAnalysisPreferences.defaults.set(true, forKey: "hasCompletedOnboarding")
+            #expect(
+                SoundAnalysisPreferences.hasRecordedHere,
+                "the wipe that would make the mirror untrustworthy clears onboarding too"
+            )
+        }
+    }
+
     // MARK: A clock that runs fast
 
     /// The flip that settling exists to stop.

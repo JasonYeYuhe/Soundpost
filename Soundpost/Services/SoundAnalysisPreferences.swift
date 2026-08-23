@@ -59,4 +59,36 @@ enum SoundAnalysisPreferences {
         }
         set { defaults.set(newValue, forKey: enabledKey) }
     }
+
+    static let localHistoryKey = "sound.hasRecordedHere"
+
+    /// Has **this install** ever been the device that recorded a capsule?
+    ///
+    /// It exists to answer a different question than it appears to: *is the mirror
+    /// above a real answer, or merely its default?*
+    ///
+    /// `isEnabled` cannot tell you. It reads `true` both for someone who wants
+    /// listening on and for a brand-new install that has never been told anything —
+    /// and on a phone set up as new, signed into iCloud, the library arrives from
+    /// CloudKit long before the `ListeningConsent` row does. (Worse than "before":
+    /// CloudKit returns a zone's changes in roughly modification order, so the person
+    /// who opted out *most recently* has their answer sorted behind every capsule.)
+    /// The launch backfill would then analyse the whole imported library of somebody
+    /// who had said no — the exact failure account-wide consent exists to prevent.
+    ///
+    /// The correlation that makes this work: **the mirror is only untrustworthy when
+    /// `UserDefaults` was wiped, and the same wipe clears this key.** A restore from
+    /// backup brings `UserDefaults` with it, so an opted-out user's `false` comes back
+    /// too and there is nothing to protect against; a device set up as new brings the
+    /// library without the preferences, which is precisely the dangerous case.
+    ///
+    /// Seeded from `hasCompletedOnboarding` for installs that predate the key — the
+    /// same wipe semantics, so it cannot resurrect standing that a wipe removed.
+    static var hasRecordedHere: Bool {
+        get {
+            if defaults.object(forKey: localHistoryKey) as? Bool == true { return true }
+            return defaults.object(forKey: "hasCompletedOnboarding") as? Bool == true
+        }
+        set { defaults.set(newValue, forKey: localHistoryKey) }
+    }
 }

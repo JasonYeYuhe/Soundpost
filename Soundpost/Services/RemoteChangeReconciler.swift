@@ -52,8 +52,22 @@ final class RemoteChangeReconciler {
             // may be carrying a withdrawal made on another device, and the bodies
             // built below consult the soundprints this call may be about to erase
             // (M15 §4I). `applyToDevice` also refreshes the mirror the copy reads.
-            _ = try? ListeningConsentStore.applyToDevice(in: container.mainContext)
+            do {
+                _ = try ListeningConsentStore.applyToDevice(in: container.mainContext)
+            } catch {
+                // Logged, not swallowed. This was a bare `try?`, so a merge carrying a
+                // withdrawal could fail to apply it and fail to erase, and the rebuild
+                // below would then bake the surviving labels into fresh lock-screen
+                // bodies — with nothing anywhere to say it had happened.
+                Diagnostics.notice("Could not apply account-wide listening consent on a remote merge",
+                                   code: (error as NSError).code)
+            }
             guard let notifications else { return }
+            // The sync still runs on failure. This observer exists so a capsule created
+            // on another device gets a local notification at all (M9 §S4); skipping it
+            // would trade a copy defect for a durability one. `contentVersion` reads the
+            // mirror, so a failed apply means the bodies are rebuilt against the answer
+            // this device already had — the same position the launch path takes.
             let capsules = (try? CapsuleStore(context: container.mainContext).all()) ?? []
             await notifications.sync(capsules: capsules)
         }, center: center)

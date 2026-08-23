@@ -116,6 +116,18 @@ enum ListeningConsentStore {
         try winner(in: context)?.enabled ?? SoundAnalysisPreferences.isEnabled
     }
 
+    /// Whether the account has actually answered, as opposed to this device falling
+    /// back to its own default.
+    ///
+    /// `resolve` deliberately collapses the two — every gate wants a `Bool` and the
+    /// default is the right one to act on. But the retrospective library pass wants
+    /// the distinction: "no row" means either "nobody ever touched the switch" or
+    /// "the row has not been imported yet", and only one of those is safe to analyse a
+    /// whole imported library on.
+    static func hasAnswer(in context: ModelContext) throws -> Bool {
+        try !context.fetch(FetchDescriptor<ListeningConsent>()).isEmpty
+    }
+
     /// Record a deliberate answer from this device and mirror it locally.
     ///
     /// **Every answer is a new row. Nothing is ever edited in place** — and that is the

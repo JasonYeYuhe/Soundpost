@@ -23,18 +23,24 @@ enum GalleryFilter {
         }
     }
 
-    static func apply(_ capsules: [Capsule], _ criteria: Criteria, now: Date = .now) -> [Capsule] {
+    /// `listening` is threaded rather than read inside `soundMatches`, for two
+    /// reasons: this type documents itself as pure and metadata-only, and a
+    /// `UserDefaults` read down there would be one hit per capsule per keystroke over
+    /// the whole library. Every other M15 gate uses the same defaulted-parameter seam.
+    static func apply(_ capsules: [Capsule], _ criteria: Criteria, now: Date = .now,
+                      listening: Bool = SoundAnalysisPreferences.isEnabled) -> [Capsule] {
         let query = criteria.searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        return capsules.filter { matches($0, criteria, query: query, now: now) }
+        return capsules.filter { matches($0, criteria, query: query, now: now, listening: listening) }
     }
 
-    static func matches(_ capsule: Capsule, _ criteria: Criteria, query: String, now: Date) -> Bool {
+    static func matches(_ capsule: Capsule, _ criteria: Criteria, query: String, now: Date,
+                        listening: Bool = SoundAnalysisPreferences.isEnabled) -> Bool {
         if !criteria.moods.isEmpty {
             guard let mood = capsule.mood, criteria.moods.contains(mood) else { return false }
         }
         if criteria.sealedOnly && !isSealedLineage(capsule) { return false }
         guard !query.isEmpty else { return true }
-        return searchMatches(capsule, query: query, now: now)
+        return searchMatches(capsule, query: query, now: now, listening: listening)
     }
 
     static func isSealedLineage(_ capsule: Capsule) -> Bool {
@@ -44,7 +50,8 @@ enum GalleryFilter {
         }
     }
 
-    static func searchMatches(_ capsule: Capsule, query: String, now: Date) -> Bool {
+    static func searchMatches(_ capsule: Capsule, query: String, now: Date,
+                              listening: Bool = SoundAnalysisPreferences.isEnabled) -> Bool {
         // Hidden words — only when the capsule's content is visible (§4D P1).
         if capsule.isContentVisible(now: now) {
             if capsule.note?.localizedCaseInsensitiveContains(query) == true { return true }
@@ -53,7 +60,14 @@ enum GalleryFilter {
             // capsule's sound is as hidden as its note, so this sits INSIDE the
             // visibility check. Searching "rain" must never reveal that an unopened
             // capsule is a rainy one.
-            if soundMatches(capsule, query: query) { return true }
+            // Guarded on consent, not only on the erase having run. The erase is
+            // what normally removes these, but it can lag — a merge arriving while
+            // the app is backgrounded, or the erase itself failing, both of which the
+            // app has shipped copy for. Until it catches up, an unguarded search would
+            // surface a capsule *by the sound Soundpost heard* on a device where the
+            // user has turned listening off, which is the promise in the Settings
+            // footer, not a detail.
+            if listening, soundMatches(capsule, query: query) { return true }
         }
         // Non-sensitive, always searchable (mood label shows even on locked cards).
         if capsule.mood?.label.localizedCaseInsensitiveContains(query) == true { return true }

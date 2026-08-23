@@ -151,10 +151,55 @@ private struct RootView: View {
                     // backfill below gates on that mirror, so a withdrawal made on
                     // another device has to land here first — otherwise this launch
                     // would re-label the very capsules the user cleared elsewhere.
+                    let mayListen: Bool
                     do {
-                        _ = try ListeningConsentStore.applyToDevice(in: store.container.mainContext)
+                        mayListen = try ListeningConsentStore.applyToDevice(in: store.container.mainContext)
                     } catch {
-                        Diagnostics.notice("Could not read account-wide listening consent at launch; using this device's answer")
+                        // Fail CLOSED, and only for this launch. The old comment said
+                        // "using this device's answer" and then ran both drains anyway
+                        // — but the whole reason this call exists is that the device's
+                        // answer may be a stale default, so proceeding on it is exactly
+                        // the case it was written to prevent. Nothing is written to the
+                        // mirror here: this is a local decision to do no retrospective
+                        // work until we can read the account, not a new answer.
+                        mayListen = false
+                        Diagnostics.notice("Could not read account-wide listening consent at launch; skipping this launch's analysis")
+                    }
+                    // Re-sync after consent is applied, as the merge path already does.
+                    // A withdrawal that landed while the app was closed erases the
+                    // stored labels, but an already-scheduled lock-screen body has its
+                    // text baked in and the scheduler skips identifiers it has already
+                    // scheduled — so without this the phrase Soundpost heard keeps
+                    // firing on the lock screen after the switch was turned off.
+                    // `NotificationPreferences.contentVersion` folds listening in for
+                    // exactly this; it only works if something re-syncs.
+                    await notifications.sync(capsules: (try? CapsuleStore(context: store.container.mainContext).all()) ?? [])
+                    // Does this device have standing to analyse the EXISTING library?
+                    //
+                    // Distinct from "may we listen", and the distinction is the whole
+                    // point. A phone set up as new and signed into iCloud imports the
+                    // library long before the `ListeningConsent` row — CloudKit returns
+                    // a zone's changes in roughly modification order, so the person who
+                    // opted out most recently has their answer sorted behind every
+                    // capsule they own. With no row yet, the mirror reads its default
+                    // (on), and these two drains would analyse the entire library of
+                    // somebody who had said no.
+                    //
+                    // A row settles it outright. Failing that, `hasRecordedHere` asks
+                    // whether the mirror is an answer or a default — see its doc; the
+                    // wipe that makes the mirror untrustworthy clears it too.
+                    //
+                    // Nothing is lost by waiting. A genuinely new user has no library
+                    // to backfill, and capture-time analysis is deliberately NOT gated,
+                    // so their first capsule is labelled as always. And because
+                    // `soundprintRaw` syncs with the capsule, this pass is per-library
+                    // work rather than per-device: a device that skips it is usually
+                    // skipping work another device has already done.
+                    let answered = (try? ListeningConsentStore.hasAnswer(in: store.container.mainContext)) ?? false
+                    let mayScanLibrary = mayListen && (answered || SoundAnalysisPreferences.hasRecordedHere)
+                    guard mayScanLibrary else {
+                        Diagnostics.info("No standing to analyse the existing library yet — deferring until the account's answer arrives")
+                        return
                     }
                     // Hand back the capsules an older generation of gates wrote off,
                     // before the backfill runs — reopening sets `soundprintRaw` to

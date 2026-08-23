@@ -351,8 +351,13 @@ struct SettingsView: View {
     private func deleteCloudData() {
         Task {
             let purged = await notifications.sealDelivery?.deleteAllCloudData() ?? false
-            await registrar.signOut()
+            // `signOut()` moved below the guard. It used to run first, so a failed
+            // purge still pruned the token and cleared the registrar — the alert then
+            // said "Your cloud data hasn't been changed" while this device had just
+            // changed some of it. On the success path nothing moves; only the failure
+            // path stops lying.
             guard purged else { cloudDeleteFailed = true; return }
+            await registrar.signOut()
             cloudOptedOut = true
             let capsuleStore = CapsuleStore(context: modelContext)
             for capsule in (try? capsuleStore.all()) ?? [] where capsule.serverJobSyncedAt != nil {
