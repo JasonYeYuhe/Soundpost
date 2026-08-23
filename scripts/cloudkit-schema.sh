@@ -139,11 +139,36 @@ cmd_promote() {
   fetch development "$WORK/dev.ckdb"
   fetch production  "$WORK/prod.ckdb"
 
+  # Which expected types Development cannot supply yet.
+  local absent=""
   while read -r t; do
     [ -z "$t" ] && continue
-    types_in "$WORK/dev.ckdb" | grep -qx "$t" \
-      || die "$t is not in Development yet — nothing to promote. Run the app on an iCloud-signed-in device and exercise the feature first."
+    types_in "$WORK/dev.ckdb" | grep -qx "$t" || absent="$absent$t"$'\n'
   done < <(expected_types)
+
+  # Refusing by default is right: promoting while an expected type is missing from
+  # Development is how you come to believe a feature shipped when it cannot work.
+  #
+  # But refusing *unconditionally* couples unrelated repairs to whichever type is
+  # furthest behind, and that had a real cost. `DeliveryIdentity` sat ready in
+  # Development for months while this gate declined to act because a different,
+  # newer type was absent — so cloud-backed far-future delivery stayed broken for
+  # every live user, waiting on a release it has nothing to do with. Promotion is
+  # additive: carrying a ready type across cannot harm a type that is not there.
+  #
+  # So it is still refused, and now it is refusable *knowingly*.
+  if [ -n "$absent" ]; then
+    printf '\033[33m! Not in Development, so NOT included in this promotion:\033[0m\n'
+    printf '%s' "$absent" | sed 's/^/  - /'
+    echo
+    if [ "${CK_ALLOW_PARTIAL:-}" != "yes" ]; then
+      die "Refusing a partial promotion by default.
+    To promote only what Development already has, re-run with CK_ALLOW_PARTIAL=yes.
+    To include the types above, run the app on an iCloud-signed-in device or
+    simulator with -initializeCloudKitSchema, then re-run \`$0 status\`."
+    fi
+    printf '\033[33m  CK_ALLOW_PARTIAL=yes — proceeding without them.\033[0m\n\n'
+  fi
 
   echo "Development -> Production would add:"
   local added
@@ -163,12 +188,25 @@ cmd_promote() {
     --environment production --validate --file "$WORK/dev.ckdb" \
     || die "import into Production failed"
 
+  # Verify what this run was actually able to promote — the types Development held.
+  # Checking the full expectation here would report a *successful* partial promotion
+  # as a failure, which is the worst way to be wrong: it reads as "the import broke"
+  # when the import worked and the remaining type was never in scope.
   fetch production "$WORK/prod-after.ckdb"
   while read -r t; do
     [ -z "$t" ] && continue
+    types_in "$WORK/dev.ckdb" | grep -qx "$t" || continue
     types_in "$WORK/prod-after.ckdb" | grep -qx "$t" || die "$t still missing from Production after import"
   done < <(expected_types)
-  ok "Production now has every record type the app's schema implies."
+
+  if [ -n "$absent" ]; then
+    ok "Production now has everything Development could supply."
+    printf '\033[33m! Still missing (never in Development):\033[0m\n'
+    printf '%s' "$absent" | sed 's/^/  - /'
+    printf '\033[33m  The features that need them still do not work. Re-run status after seeding.\033[0m\n'
+  else
+    ok "Production now has every record type the app's schema implies."
+  fi
 }
 
 case "${1:-status}" in

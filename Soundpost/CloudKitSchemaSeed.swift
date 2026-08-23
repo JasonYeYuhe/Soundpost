@@ -1,5 +1,6 @@
 import Foundation
 import SwiftData
+import CloudKit
 
 #if DEBUG
 /// Debug-only: write one row of every entity the schema declares, so CloudKit's
@@ -36,6 +37,25 @@ enum CloudKitSchemaSeed {
         let context = container.mainContext
         let entities = container.schema.entities.map(\.name).sorted()
         print("SCHEMA-SEED entities in schema: \(entities)")
+
+        // Without an iCloud account there is no export, so no record type is created —
+        // and every other line below still prints exactly as it does on a good run.
+        // That is worth failing loudly for: this seed was verified on a simulator with
+        // no account signed in, and it reported a clean run that had accomplished
+        // nothing. The whole release is gated on this step; it must not be possible to
+        // walk away from it believing it worked.
+        let status = try? await CKContainer(identifier: SoundpostModelContainer.cloudKitContainerID)
+            .accountStatus()
+        guard status == .available else {
+            print("""
+                SCHEMA-SEED ✗ iCloud is not available on this device (accountStatus: \
+                \(status.map(String.init(describing:)) ?? "unreadable")). Nothing can be \
+                exported, so NO record type will be created. Sign in to iCloud in \
+                Settings — a Simulator signed into iCloud is enough, a physical device \
+                is not required — and run this again.
+                """)
+            return
+        }
 
         // Driven off the schema, not a hard-coded list. The previous version seeded
         // exactly one entity while its own doc promised it would keep working "for
