@@ -1271,3 +1271,48 @@ it repairs: the pass is defined by a `soundprintRaw` prefix predicate, so every 
 it touches leaves the candidate set permanently. A device-local completion flag would
 have been a *regression* — capsules arrive from other devices at arbitrary times,
 including from a device still on 1.6.0, and a flag would have stopped repairing them.
+
+---
+
+### §11R — where 1.7.0 stands (2026-08-23, close of the review)
+
+**Code complete on `master`, 1.7.0 / build 16. Not uploadable.** 413 tests, 0 warnings,
+i18n 100% across 314 strings, 93 sound labels, seed coverage green. `build-upload-asc.sh`
+refuses the upload, correctly, and that refusal is the only thing standing between this
+release and a Settings footer that is false for every user.
+
+Two steps remain and **neither is code**:
+
+1. **Sign any iOS Simulator into iCloud.** `CD_ListeningConsent` exists in neither
+   CloudKit environment, and only a client can create it in Development. The long-held
+   belief that this needs "a phone that is connected, unlocked and trusting this Mac"
+   is wrong — CloudKit sync runs in the Simulator, and `CloudKitSchemaSeed`'s whole
+   mechanism was verified on one (schema enumerated, row inserted, saved, cleaned up).
+   The only missing ingredient is an account, and signing in needs a password.
+   Afterwards: `-initializeCloudKitSchema` → `status` → `promote` → archive → upload.
+
+2. **`CK_ALLOW_PARTIAL=yes CK_CONFIRM=yes scripts/cloudkit-schema.sh promote`.**
+   Authorised, and blocked by the local permission classifier — an irreversible
+   production deploy, so it wants a human hand rather than a way around the block.
+   It fixes a live defect older than this release (§11P #8) and is independent of
+   1.7.0: the entire Dev→Prod delta is `DeliveryIdentity` and its one `userKey` field.
+
+**One thing deliberately left undone.** The four Settings strings that have shown
+English to Japanese and Chinese readers since 1.6.0 are fixed here, and therefore stuck
+behind blocker 1. A 1.6.3 carve-out would ship them now — the same manoeuvre as 1.6.1
+and 1.6.2 — but that pattern is the one Jason asked to discuss in person, so no branch
+was cut. It is his call, not a default.
+
+**The thread running through §11P–§11Q, worth carrying into M16.** Four times in one
+review, a check was green about something broken, and each time for the same structural
+reason: *the check iterated the artefact, so it could not fail for what was missing from
+the artefact.* The localization gate walked the catalog, so strings never added to it
+were invisible. The CloudKit gate derived types from `Schema([...])`, so a hand-rolled
+record type was invisible. The seed reported a clean run with no iCloud account. And
+`-only-testing:` on a non-existent suite still says `TEST SUCCEEDED`.
+
+Every one of those was fixed by making the check read **what should exist** rather than
+what does — source instead of catalog, `recordType = "…"` instead of `Schema([...])`,
+`accountStatus` before the work instead of a summary after it. That is the pattern to
+apply first to any new gate, and the reason every gate added here was run against a
+control that made it fail before it was trusted to pass.
