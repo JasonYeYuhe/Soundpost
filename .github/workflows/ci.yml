@@ -47,6 +47,15 @@ jobs:
       - name: Sound-vocabulary gate (M15 labels translated)
         run: ./scripts/check-sound-vocabulary.sh
 
+      # Offline half of the CloudKit gate. `status`/`promote` need a management token
+      # and the network, so CI cannot run them — which is why the one check standing
+      # between a release and a silently non-syncing feature lived only in
+      # build-upload-asc.sh, behind a CK_SKIP_SCHEMA_CHECK escape, on a path an Xcode
+      # Organizer upload skips entirely. This part needs neither, and catches the
+      # drift when it is introduced rather than whenever someone next runs the seed.
+      - name: CloudKit seed coverage (every entity can be created in Development)
+        run: ./scripts/cloudkit-schema.sh check-seed
+
       - name: Select an available iPhone simulator
         id: sim
         run: |

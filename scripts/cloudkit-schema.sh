@@ -209,8 +209,40 @@ cmd_promote() {
   fi
 }
 
+# Offline check, safe for CI: every entity the app ships must have a seed row, or its
+# record type can never be created and the feature that needs it will fail the way all
+# the others did — silently, in Production only.
+#
+# `status` and `promote` both need a CloudKit management token and the network, so CI
+# cannot run them; this needs neither. It catches the drift at the moment it is
+# introduced rather than whenever somebody next runs the seed by hand.
+cmd_check_seed() {
+  require_expected_types
+  local seed="$PROJECT_DIR/Soundpost/CloudKitSchemaSeed.swift"
+  [ -f "$seed" ] || die "CloudKitSchemaSeed.swift not found — this check cannot verify anything."
+
+  local missing=""
+  while read -r t; do
+    [ -z "$t" ] && continue
+    case "$t" in CD_*) ;; *) continue ;; esac      # hand-rolled types are not seeded here
+    local entity="${t#CD_}"
+    [ "$entity" = "Capsule" ] && continue          # deliberately excluded; see the seed's doc
+    grep -q "case \"$entity\"" "$seed" || missing="$missing$entity"$'\n'
+  done < <(expected_types)
+
+  if [ -n "$missing" ]; then
+    printf '\033[31m✗ Entities in the shipping schema with no seed row:\033[0m\n' >&2
+    printf '%s' "$missing" | sed 's/^/  - /' >&2
+    die "Add a case to CloudKitSchemaSeed.seedRow(for:) for each.
+    Without one, its CD_ record type is never created in CloudKit Development, so it
+    can never be promoted, and the feature silently does not sync in Production."
+  fi
+  ok "Seed covers every entity in the shipping schema."
+}
+
 case "${1:-status}" in
-  status)  cmd_status ;;
-  promote) cmd_promote ;;
-  *) die "usage: $0 [status|promote]" ;;
+  status)      cmd_status ;;
+  promote)     cmd_promote ;;
+  check-seed)  cmd_check_seed ;;
+  *) die "usage: $0 [status|promote|check-seed]" ;;
 esac
