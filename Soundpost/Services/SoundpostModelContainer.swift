@@ -69,8 +69,16 @@ enum SoundpostModelContainer {
         }
 
         // Rung 2 — local-only on-disk store. Offline-first still fully works.
+        //
+        // `cloudKitDatabase: .none` is load-bearing, not tidiness. The parameter
+        // defaults to `.automatic`, and because the app carries the iCloud
+        // entitlement SwiftData then spins up a mirroring delegate here too — so
+        // omitting it made this rung a second CloudKit-backed store, identical to
+        // rung 1 in every respect that could have made rung 1 throw. The ladder read
+        // as a fallback and was a retry. `TestSupport` already passes `.none` for
+        // exactly this reason; production had not.
         do {
-            let config = ModelConfiguration(schema: schema)
+            let config = ModelConfiguration(schema: schema, cloudKitDatabase: .none)
             let container = try ModelContainer(for: schema, configurations: config)
             Diagnostics.info("Durability: container on local rung")
             return ProductionStore(container: container, rung: .local)
@@ -80,7 +88,7 @@ enum SoundpostModelContainer {
 
         // Rung 3 — in-memory last-ditch so the app still launches this session.
         do {
-            let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+            let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true, cloudKitDatabase: .none)
             let container = try ModelContainer(for: schema, configurations: config)
             return ProductionStore(container: container, rung: .inMemory)
         } catch {

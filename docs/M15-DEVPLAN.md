@@ -1021,3 +1021,166 @@ just as unmeasured as a careless inclusion.
 
 Size bound raised a second time, 40–90 → 40–120, again with the reason recorded rather
 than the test quietly edited. Still far below the taxonomy's 303.
+
+---
+
+### §11P — 1.7.0 release review: what the gates could not see (2026-08-23)
+
+Three independent reviews of the 1.7.0 candidate (Codex, Gemini 3.7 Flash, and an
+internal five-lens adversarial pass). The findings that survived verification are
+below, with the two that did not, because a review is only useful if its misses are
+recorded alongside its hits.
+
+**1. Four user-facing strings shipped untranslated, and the localization gate could
+not fail for it.**
+
+`check-localization.sh` iterates the String Catalog and asserts every key is
+translated into ja and zh-Hans. It has passed on every commit of M15. Meanwhile four
+strings in `SettingsView` — both listening-error alerts and their messages — were
+never *in* the catalog, so the gate never looked at them. Two shipped to users in
+1.6.1 and 1.6.2; Japanese and Chinese readers saw English.
+
+This is the M15 pattern again, in a new place: **a gate that iterates the artefact
+cannot fail for something missing from the artefact.** It is the same shape as
+`-only-testing:` on a suite that does not exist reporting `TEST SUCCEEDED` over
+`Executed 0 tests`, and as `check-warnings.sh` passing on an incremental build that
+recompiled nothing. Each time, silence read as success.
+
+So the gate now reads the **source** rather than the catalog: every literal in a
+localizing position (`Text`, `Button`, `.alert`, `String(localized:)`, …) must exist
+as a catalog key, or the gate fails with a file:line. `Text(verbatim:)` is the
+opt-out, which is what that spelling already meant. Confirmed against a control —
+deleting one of the four keys turns the gate red and names
+`SettingsView.swift:79`. A gate that has never been seen to fail is not evidence.
+
+**2. A grant from a fast clock could undo a later withdrawal, minutes after the fact.**
+
+`effectiveDate` clamps a future-dated `changedAt` to now, so a device whose clock runs
+fast cannot pin listening on with a timestamp from next year. The clamp is computed at
+read time, and that turns out to be the whole problem: it **expires**. Device A's clock
+is five minutes fast and grants at its 12:05; at true 12:02 the user withdraws on
+device B. Until 12:05 the clamp makes them tie and the tie-break honours off, exactly
+as designed. At 12:06 the grant is no longer in the future, 12:05 beats 12:02, and the
+next launch or merge turns listening back on by itself — and the backfill re-labels
+the capsules the user had just cleared. The user switched it off, watched it go off,
+and it came back.
+
+The obvious fix is wrong and worth recording as such: **rewriting the future date down
+to `now` makes it worse**, because "now" at the moment of noticing (12:02-and-a-bit) is
+*later* than B's honest 12:02, so the grant wins sooner rather than never. Any single
+timestamp we invent hands the record an ordering it has not earned.
+
+So `settleFutureDatedAnswers` stops trying to order it. A device that dates an answer
+into the future has told us its clock is unusable, and no later reading will make the
+two orderable — which is precisely the case §1.2 already has a rule for: when two
+answers cannot be ordered, take the one that says stop. It writes a single trustworthy
+"off", making permanent the answer the tie-break was already giving before the clamp
+expired. When every answer agrees there is nothing to arbitrate and only the date comes
+back to the present.
+
+The regression test was checked against a control: with settling stubbed out it fails
+on exactly the assertion that matters (`winner(now: +1h)` returns the grant), and
+`honestlyDatedAnswersAreNotTouched` stays green, so this did not quietly become an
+off-latch.
+
+**3. An adoption marked itself done even when its write had failed.**
+
+`adoptPreAccountWithdrawal` set its one-shot flag in a `defer`, so a throwing
+`context.save()` left the flag set and the record unwritten. The device itself still
+honoured the local mirror, so nothing looked wrong — but the opt-out would never be
+carried across on any later launch, and the next device the user added would find no
+record, default to on, and analyse the library they had opted out of. That is the
+exact failure the function exists to prevent, arriving through the function meant to
+prevent it. The flag now means "the record was written", not "we tried".
+
+**4. Chinese store metadata had drifted from the app's own standard.**
+
+The app's 303 zh-Hans strings use full-width punctuation without a single exception.
+The store metadata, which is edited outside the catalog, had seven half-width marks in
+the 1.7.0 notes; 1.6.2 shipped with three. To a Chinese reader a half-width comma reads
+as a listing nobody proof-read. Now gated, with `keywords.txt` excluded (its commas are
+syntax App Store Connect parses) and archived `release_notes-<version>.txt` excluded —
+correcting those would make the archive say something that was never true.
+
+**Not confirmed.** Two findings did not survive checking, and both were plausible:
+
+- *"`RemoteChangeReconciler` touches `mainContext` from a background thread."* It does
+  not. The class is `@MainActor`, the observer registers with `queue: .main`, and the
+  handler hops through `Task { @MainActor in … }`.
+- *"The schema-seed `.task` sees a nil `store`."* `store` is a `let` on the view,
+  assigned synchronously in `SoundpostApp.init`. There is no window in which it is nil.
+
+A third was real in mechanism but wrong about the harm: an `eraseAll` failure does
+leave the switch off with the labels still present, but `applyToDevice` erases
+unconditionally whenever consent resolves off, so the next launch or merge repairs it.
+The defect there is the copy, which asks the user to retry something the app will
+retry by itself.
+
+**5. One shared row meant CloudKit, not this code, decided which answer won.**
+
+The largest correctness hole, and invisible from inside the type. `set` kept a single
+row and updated it. Once that row has synced, both devices are editing the *same*
+CKRecord, and `NSPersistentCloudKitContainer` resolves the conflict with its own
+last-writer-wins before either version reaches `winner()`. The losing version is gone.
+A device that was offline holding a stale "on" exports after a newer "off" has landed;
+CloudKit keeps the "on" as the latest write to that record; the withdrawal disappears
+with nothing left for `changedAt` to compare. Every careful line above it — the clamp,
+the tie-break, the deterministic id ordering — was reasoning about a set of records
+that, in the one case that matters, had already been reduced to one by someone else.
+
+**An answer is now a row, and rows are never edited.** Separate records never conflict,
+so each device's answer survives and `winner()` gets the full set. This also deleted
+the collapse logic and, with it, the race where two devices picked different keepers
+from an unordered fetch and deleted each other's rows — which could leave the account
+with *no* consent record at all, falling back to precisely the per-device flag this
+entity exists to replace. Rows stay bounded because an answer supersedes everything
+strictly older; a newer answer from elsewhere is a newer row, which that never touches.
+
+Worth noting the fields did not change, so this cost nothing against the pending
+promotion — and would have cost a second one if found a week later.
+
+**6. Two of the three release-note bullets described work that shipped in 1.6.1.**
+
+`SoundSummaryWriter.swift` and `GalleryBrowsing.swift` do not appear in
+`git diff release/1.6.2..master` at all. The Apple Intelligence language bullet and the
+CJK search bullet were both already live and both already announced. Only the consent
+bullet is new in 1.7.0. Announcing shipped work as new is the same category of untrue
+statement as the privacy claims this project keeps correcting; the notes now say what
+the build contains, including that a device applies the change on its next launch and
+that a device still on an older version will not know about it.
+
+**7. The App Store description contradicted itself, in all three languages.**
+
+Line 12 said "your sounds stay on your device" while line 15 said capsules back up to
+iCloud and sync across devices. The first is the same false claim already fixed in the
+Settings footer and the release notes for 1.6.1 — it simply had not been fixed in the
+listing, where far more people read it.
+
+**8. And the finding that outranks everything above, which is not about 1.7.0 at all.**
+
+`DeliveryIdentity` — a hand-rolled `CKRecord` type, not a SwiftData entity — exists in
+CloudKit **Development but not Production**. Production is read-only from the client,
+so in every App Store build since M10 the write fails, `currentUserKey()` returns nil,
+and the app reads that as "signed out, use the local path" and says nothing. No APNs
+token and no far-future seal job has ever reached the server from a shipped build.
+
+Corroborated independently in the backend rather than inferred: `device_tokens` = 0
+rows, `notification_jobs` = 0 rows, while `m10_send_due_notifications` has been running
+every minute finding nothing. "Seal a capsule to open in five years" has therefore been
+resting on a local notification — the 64-pending cap, lost on uninstall — which is the
+exact durability risk M10 was written to remove. It is also why "Delete my cloud data"
+fails for signed-in users with a misleading "check your connection".
+
+**`cloudkit-schema.sh` could not have caught it.** It derived expected types only from
+`Schema([...])`, prefixed `CD_`, so a record type the app builds with CloudKit's own
+API was structurally outside what it checked — and it reported everything present for
+months. That is the fourth instance of one shape in this review: *the gate iterates the
+thing, so it cannot fail for what is missing from the thing.* It now also reads
+`recordType = "…"` from source, and says `MISSING in Production: DeliveryIdentity`.
+
+The repair is the step 1.7.0 is already blocked on. One dev-signed run with
+`-initializeCloudKitSchema` then `promote` carries `DeliveryIdentity` and
+`CD_ListeningConsent` together: a single device run fixes a months-old production
+defect and unblocks the release. Afterwards, confirm with `status` **and** by watching
+`device_tokens` gain rows — the emptiness of those tables is the only reason anyone
+noticed, and it is the only end-to-end proof.

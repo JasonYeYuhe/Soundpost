@@ -26,8 +26,13 @@ import SwiftData
 ///
 /// **No record means nobody has ever touched the switch**, and the default (on)
 /// applies. Deliberate: seeding a row at launch would have every device racing to
-/// create one, and a seeded row carries no user intent to preserve. The row is
+/// create one, and a seeded row carries no user intent to preserve. A row is
 /// written only by a deliberate toggle.
+///
+/// **A row is an answer, not a setting.** Each toggle inserts a new one and nothing
+/// is ever edited in place, so two devices never contend for the same CKRecord —
+/// see `ListeningConsentStore.set` for why editing one shared row silently loses
+/// whichever answer CloudKit's own conflict resolution decides came second.
 @Model
 final class ListeningConsent {
     /// Not a `.unique` key — CloudKit forbids those. Used only to break ties

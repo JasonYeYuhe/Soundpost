@@ -230,7 +230,14 @@ final class CaptureViewModel {
             waveformSamples: waveform
         )
         capsule.mood = mood
-        capsule.soundprintRaw = soundprint?.stored
+        // Consent is checked again here, not only where the classifier ran. The two
+        // are separated by an `await`, and consent is account-wide now: the user can
+        // withdraw on another device while this clip is still being classified, the
+        // merge erases every stored label, and then this save would write a fresh one
+        // straight back — a label appearing after a withdrawal, with no later merge
+        // needed to explain it. `applyToDevice` keeps this mirror current, so asking
+        // it at the moment of writing is the check that matches when the data lands.
+        capsule.soundprintRaw = SoundAnalysisPreferences.isEnabled ? soundprint?.stored : nil
         let trimmed = note.trimmingCharacters(in: .whitespacesAndNewlines)
         capsule.note = trimmed.isEmpty ? nil : trimmed
         capsule.place = includePlace ? place : nil

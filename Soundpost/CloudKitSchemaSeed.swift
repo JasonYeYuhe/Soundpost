@@ -27,30 +27,83 @@ enum CloudKitSchemaSeed {
     /// The record **type** survives the deletion — that is the whole point. Schema is
     /// what we are creating; the rows are the means, and leaving them behind would
     /// put a stray consent record into whichever account ran this.
+    ///
+    /// Every step reports what actually happened. This is the tool the release is
+    /// gated on, and a seed that prints "cleaned up" whether or not it worked is a
+    /// false green in the one place we cannot afford one.
     @MainActor
     static func run(in container: ModelContainer) async {
         let context = container.mainContext
-        print("SCHEMA-SEED entities: \(container.schema.entities.map(\.name).sorted())")
+        let entities = container.schema.entities.map(\.name).sorted()
+        print("SCHEMA-SEED entities in schema: \(entities)")
 
-        // One row per entity that is not `Capsule` — a capsule needs audio to be
-        // meaningful, and `CD_Capsule` has existed in both environments since M9.
-        let consent = ListeningConsent(enabled: true, changedAt: .distantPast)
-        context.insert(consent)
+        // Driven off the schema, not a hard-coded list. The previous version seeded
+        // exactly one entity while its own doc promised it would keep working "for
+        // whatever entities the schema grows next" — so the next entity added would
+        // have got no seed at all, and the failure would have looked identical to
+        // this one: a record type missing from Development for no visible reason.
+        // `Capsule` is excluded deliberately: it needs real audio to be meaningful,
+        // and `CD_Capsule` has existed in both environments since M9.
+        var inserted: [any PersistentModel] = []
+        for entity in container.schema.entities where entity.name != "Capsule" {
+            guard let model = seedRow(for: entity.name) else {
+                print("SCHEMA-SEED ✗ no seed row defined for \(entity.name) — add one here or its record type will never be created")
+                continue
+            }
+            context.insert(model)
+            inserted.append(model)
+            print("SCHEMA-SEED inserted \(entity.name)")
+        }
+        guard !inserted.isEmpty else {
+            print("SCHEMA-SEED ✗ nothing to seed; no record types will be created")
+            return
+        }
         do {
             try context.save()
-            print("SCHEMA-SEED inserted + saved; waiting for the CloudKit export")
+            print("SCHEMA-SEED saved \(inserted.count) row(s); waiting for the CloudKit export")
         } catch {
-            print("SCHEMA-SEED save failed: \(error)")
+            print("SCHEMA-SEED ✗ save failed: \(error)")
             return
         }
 
-        // CloudKit exports asynchronously after the save. Give it room; there is no
-        // completion callback to wait on that SwiftData exposes.
-        try? await Task.sleep(for: .seconds(20))
+        // CloudKit exports asynchronously after the save and SwiftData exposes no
+        // completion to await, so this waits. `Task.sleep` throws on cancellation and
+        // that must NOT be swallowed: this runs in a SwiftUI `.task`, which is
+        // cancelled when the view goes away or the app is backgrounded, and a
+        // cancelled sleep returns instantly — the delete would then land before the
+        // export, the two would coalesce, no record type would be created, and the
+        // old `try?` would have printed success anyway. Leave the rows in place and
+        // say so instead; a stray row is recoverable, a silent no-op is not.
+        do {
+            try await Task.sleep(for: .seconds(20))
+        } catch {
+            print("SCHEMA-SEED ✗ interrupted before the export could finish — rows left in place, DO NOT trust this run. Keep the app foregrounded and try again.")
+            return
+        }
 
-        context.delete(consent)
-        try? context.save()
-        print("SCHEMA-SEED cleaned up. Now run: scripts/cloudkit-schema.sh status")
+        for model in inserted { context.delete(model) }
+        do {
+            try context.save()
+            print("SCHEMA-SEED cleaned up. Now run: scripts/cloudkit-schema.sh status")
+        } catch {
+            print("SCHEMA-SEED ✗ cleanup failed: \(error) — a seeded row may remain in this iCloud account; delete it in the CloudKit Console")
+        }
+    }
+
+    /// One throwaway row per entity the seed knows how to create.
+    ///
+    /// A `nil` here is reported loudly rather than skipped quietly, so adding an
+    /// entity without adding its seed row fails visibly instead of leaving a record
+    /// type uncreated.
+    private static func seedRow(for entityName: String) -> (any PersistentModel)? {
+        switch entityName {
+        case "ListeningConsent":
+            // `.distantPast` so that if cleanup ever fails, the stray row loses to
+            // every dated answer and cannot decide consent for whoever ran this.
+            return ListeningConsent(enabled: true, changedAt: .distantPast)
+        default:
+            return nil
+        }
     }
 }
 #endif

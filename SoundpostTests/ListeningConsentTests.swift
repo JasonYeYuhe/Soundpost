@@ -93,9 +93,8 @@ struct ListeningConsentTests {
         }
     }
 
-    /// Two offline devices can each create a record. A later local write collapses
-    /// them, so rows do not accumulate.
-    @Test func writingCollapsesDuplicateRecords() throws {
+    /// A new answer supersedes everything older, so rows do not accumulate.
+    @Test func writingSupersedesOlderRecords() throws {
         try withMirror(true) { store in
             record(store, enabled: true, at: Date(timeIntervalSince1970: 1_000))
             record(store, enabled: false, at: Date(timeIntervalSince1970: 2_000))
@@ -106,6 +105,31 @@ struct ListeningConsentTests {
             let all = try store.context.fetch(FetchDescriptor<ListeningConsent>())
             #expect(all.count == 1)
             #expect(all.first?.enabled == true)
+        }
+    }
+
+    /// An answer is a new row, never an edit to an existing one.
+    ///
+    /// This is the property that keeps the whole ordering scheme meaningful. If both
+    /// devices edited one shared row, CloudKit would resolve the conflict itself and
+    /// `winner()` would only ever see the survivor — a stale "on" exported after a
+    /// newer "off" would win, and the withdrawal would vanish before any of the code
+    /// above got to compare timestamps.
+    @Test func anAnswerNeverEditsAnExistingRecord() throws {
+        try withMirror(true) { store in
+            let existing = ListeningConsent(enabled: true, changedAt: Date(timeIntervalSince1970: 1_000))
+            store.context.insert(existing)
+            try store.save()
+            let existingID = existing.id
+
+            // Dated *after* the existing row, so nothing here is superseded.
+            try ListeningConsentStore.set(false, in: store.context, now: Date(timeIntervalSince1970: 500))
+
+            let all = try store.context.fetch(FetchDescriptor<ListeningConsent>())
+            #expect(all.count == 2, "the new answer is its own row")
+            let untouched = all.first { $0.id == existingID }
+            #expect(untouched?.enabled == true, "the earlier answer is left exactly as it was")
+            #expect(untouched?.changedAt == Date(timeIntervalSince1970: 1_000))
         }
     }
 
@@ -190,6 +214,73 @@ struct ListeningConsentTests {
             let effective = try ListeningConsentStore.applyToDevice(in: store.context)
             #expect(effective)
             #expect(SoundAnalysisPreferences.isEnabled)
+        }
+    }
+
+    // MARK: A clock that runs fast
+
+    /// The flip that settling exists to stop.
+    ///
+    /// Device A's clock is five minutes fast, so its grant is dated ahead of real
+    /// time; device B withdraws two minutes later by an honest clock. Read-time
+    /// clamping gets this right only until A's timestamp stops being in the future —
+    /// after that the grant genuinely looks newer and listening turns itself back on
+    /// with nobody touching the switch.
+    @Test func aFastClocksGrantCannotUndoALaterWithdrawal() throws {
+        try withMirror(true) { store in
+            let now = Date(timeIntervalSince1970: 100_000)
+            record(store, enabled: true, at: now.addingTimeInterval(300))
+            record(store, enabled: false, at: now.addingTimeInterval(120))
+            try store.save()
+
+            // While the grant is still in the future the clamp already handles it.
+            #expect(try ListeningConsentStore.winner(in: store.context, now: now)?.enabled == false)
+
+            #expect(try ListeningConsentStore.settleFutureDatedAnswers(in: store.context, now: now))
+
+            // An hour on, the grant is comfortably in the past — and must still lose.
+            let later = now.addingTimeInterval(3_600)
+            #expect(
+                try ListeningConsentStore.winner(in: store.context, now: later)?.enabled == false,
+                "a withdrawal must not be undone by a clock that was merely fast"
+            )
+        }
+    }
+
+    /// Nothing to arbitrate when every answer agrees: the value is kept and only the
+    /// date comes back to the present, so it cannot sit a year ahead indefinitely.
+    @Test func anUncontestedFutureAnswerKeepsItsValueAndLosesItsFutureDate() throws {
+        try withMirror(true) { store in
+            let now = Date(timeIntervalSince1970: 100_000)
+            record(store, enabled: true, at: now.addingTimeInterval(86_400 * 365))
+            try store.save()
+
+            #expect(try ListeningConsentStore.settleFutureDatedAnswers(in: store.context, now: now))
+
+            let all = try store.context.fetch(FetchDescriptor<ListeningConsent>())
+            #expect(all.count == 1)
+            #expect(all.first?.enabled == true, "an uncontested answer keeps what it says")
+            #expect(all.first?.changedAt == now)
+        }
+    }
+
+    /// And honestly dated answers are left completely alone — this must not quietly
+    /// become an off-latch for everyone whose devices merely disagree.
+    @Test func honestlyDatedAnswersAreNotTouched() throws {
+        try withMirror(true) { store in
+            let now = Date(timeIntervalSince1970: 100_000)
+            record(store, enabled: false, at: now.addingTimeInterval(-600))
+            record(store, enabled: true, at: now.addingTimeInterval(-300))
+            try store.save()
+
+            #expect(try !ListeningConsentStore.settleFutureDatedAnswers(in: store.context, now: now))
+
+            let all = try store.context.fetch(FetchDescriptor<ListeningConsent>())
+            #expect(all.count == 2, "no collapsing, no rewriting")
+            #expect(
+                try ListeningConsentStore.winner(in: store.context, now: now)?.enabled == true,
+                "ordinary last-writer-wins is untouched"
+            )
         }
     }
 

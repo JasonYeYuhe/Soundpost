@@ -1,3 +1,2 @@
-• The listening setting now follows your iCloud account instead of a single phone. Turn it off anywhere and it is off on every device you use — and what Soundpost had already heard is erased everywhere too, not just where you switched it off.
-• On iPhones with Apple Intelligence, the sentence on a resurfaced capsule is now written in the language you read the app in, or not written at all.
-• Searching in Japanese and Chinese now matches anywhere in a word, not only at its start.
+• The listening setting now follows your iCloud account instead of a single phone. Turn it off anywhere and it goes off on your other devices too — and what Soundpost had already heard is erased from them as well, not only where you switched it off. Each device applies it the next time you open it, once it has this update.
+• Two messages in Settings that had been appearing in English now show in your own language.

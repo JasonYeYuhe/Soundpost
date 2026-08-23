@@ -13,7 +13,13 @@ name: CI
 
 on:
   push:
-    branches: [main, master]
+    # `release/**` too: 1.6.1 was built, uploaded and submitted from a release
+    # branch that CI had never once run on, so the only verification behind a
+    # shipped binary was a local run on a loaded machine. A branch we ship from
+    # needs the same evidence master gets. Fixed on `release/1.6.2` and then lost
+    # again here, because the fix was made on the branch and master never got it —
+    # so master's CI was quietly weaker than the branch it ships from.
+    branches: [main, master, 'release/**']
   pull_request:
     branches: [main, master]
 

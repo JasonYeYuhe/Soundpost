@@ -74,7 +74,12 @@ struct SettingsView: View {
             .alert("Couldn't erase what it heard", isPresented: $eraseFailed) {
                 Button("OK", role: .cancel) { }
             } message: {
-                Text("Listening is off, but Soundpost couldn't remove the sounds it had already recognised. Please try again.")
+                // Not "please try again": there is nothing for the user to try. The
+                // switch is off and stays off, and `applyToDevice` erases whenever
+                // consent resolves off — at every launch and every merge — so the app
+                // repairs this by itself. Asking someone to retry a privacy action the
+                // app will retry anyway invites them to think it did not stick.
+                Text("Listening is off. Soundpost couldn't remove the sounds it had already recognised just now, and will try again the next time you open the app.")
             }
             .alert("Couldn't change that setting", isPresented: $consentWriteFailed) {
                 Button("OK", role: .cancel) { }
@@ -213,7 +218,19 @@ struct SettingsView: View {
                 // Turning it off FORGETS rather than hides. A switch that stopped
                 // future analysis while quietly keeping past results would be the
                 // dishonest version of this control.
-                if !enabled { forgetAllSoundprints() }
+                if !enabled {
+                    forgetAllSoundprints()
+                } else {
+                    // And turning it back on has to undo that, in this session.
+                    // Erasing was immediate, so leaving the re-analysis until the next
+                    // cold launch made the switch feel one-way: search stays empty, no
+                    // capsule mentions a sound, and nothing says anything is pending.
+                    // §11H already rejected "one batch per launch" for making the
+                    // release-note promise true only after about fifteen launches;
+                    // this is the same promise failing for the same reason.
+                    let container = modelContext.container
+                    Task { await SoundprintBackfill(modelContainer: container).drain() }
+                }
                 // Erasing the stored labels is necessary but not sufficient: a label
                 // may already be baked into a *pending* lock-screen body, and the
                 // scheduler skips identifiers it has already scheduled. Re-syncing
@@ -238,8 +255,21 @@ struct SettingsView: View {
             // rather than the stronger "no audio is ever uploaded", which this app
             // cannot claim: `Capsule.audioData` rides the CloudKit-mirrored schema to
             // the user's private database, as the iCloud row in this same screen says.
-            Text("Soundpost can recognise everyday sounds — rain, birdsong, a train — so your capsules are easier to find later. The listening happens on your device; no audio is sent away to be analysed. What it hears is stored with the capsule and, like your recordings, syncs only to your own private iCloud. This setting follows your iCloud account, so it applies on every device you use Soundpost on — and turning it off erases what it has already heard, everywhere.")
+            // The account-wide sentence is conditional because the claim is. Stated
+            // flatly it was false for exactly the people who could not check it: a
+            // signed-out user has no iCloud account for the setting to follow, and
+            // the iCloud row two sections above was already saying so on the same
+            // screen. §1.2 does not have an exemption for a promise that will become
+            // true once somebody signs in.
+            Text(listeningFooter)
         }
+    }
+
+    /// The Listening footer, in the two versions the truth actually comes in.
+    private var listeningFooter: LocalizedStringKey {
+        syncMonitor.backup == .iCloud
+            ? "Soundpost can recognise everyday sounds — rain, birdsong, a train — so your capsules are easier to find later. The listening happens on your device; no audio is sent away to be analysed. What it hears is stored with the capsule and, like your recordings, syncs only to your own private iCloud. This setting follows your iCloud account, so it applies on every device you use Soundpost on — and turning it off erases what it has already heard, everywhere. Each device catches up the next time you open it."
+            : "Soundpost can recognise everyday sounds — rain, birdsong, a train — so your capsules are easier to find later. The listening happens on your device; no audio is sent away to be analysed. What it hears is stored with the capsule. This setting applies to this iPhone for now; sign in to iCloud and it will follow your account to your other devices. Turning it off erases what it has already heard."
     }
 
     /// Clear every stored soundprint. The work itself lives in `SoundprintEraser`

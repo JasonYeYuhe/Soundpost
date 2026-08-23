@@ -53,6 +53,20 @@ expected_types() {
   sed -n 's/.*Schema(\[\([^]]*\)\]).*/\1/p' \
     "$PROJECT_DIR/Soundpost/Services/SoundpostModelContainer.swift" \
     | head -1 | tr ',' '\n' | sed 's/\.self//g; s/[[:space:]]//g' | grep -v '^$' | sed 's/^/CD_/' || true
+
+  # Plus every record type the app builds by hand with CloudKit's own API. These
+  # carry no `CD_` prefix because `NSPersistentCloudKitContainer` never sees them,
+  # and deriving the expectation only from `Schema([...])` made them invisible to
+  # this check — which is how `DeliveryIdentity` sat in Development but not
+  # Production while this script reported everything present. Cloud-backed
+  # far-future delivery was inert in every shipped build for months: no App Store
+  # user could write the record, so no device token and no seal job ever reached
+  # the server, and the app read the failure as "signed out" and fell back to the
+  # local path without a word. A gate that only checks the types it happens to know
+  # about is the same silence this project keeps re-learning.
+  grep -rho 'recordType[[:space:]]*=[[:space:]]*"[^"]*"' \
+    "$PROJECT_DIR/Soundpost" --include='*.swift' 2>/dev/null \
+    | sed 's/.*"\(.*\)"/\1/' | sort -u || true
 }
 
 # Never let an empty expectation read as "nothing is missing".
