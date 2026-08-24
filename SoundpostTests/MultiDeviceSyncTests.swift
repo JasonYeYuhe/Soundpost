@@ -54,12 +54,40 @@ struct MultiDeviceSyncTests {
         let item = PlannedNotification(capsuleID: id, fireDate: now.addingTimeInterval(9_000),
                                        timeZoneID: nil, kind: .seal)
         let mock = MockNotificationCenter()
-        mock.pending = [NotificationScheduler.identifier(for: item)] // already scheduled (from device A)
+        // Already scheduled here, with the copy this reconcile will render. From M16
+        // a request's identity includes a fingerprint of its rendered body (§4C), so
+        // "the request for this seal" is only well-defined alongside its words.
+        mock.pending = [NotificationScheduler.identifier(
+            for: item,
+            contentFingerprint: NotificationScheduler.contentFingerprint(title: "t", body: "b")
+        )]
         let scheduler = NotificationScheduler(center: mock)
 
         await scheduler.reconcile(plan: [item], title: "t", body: "b")
 
         #expect(mock.added.isEmpty) // the imported seal is recognised, not re-added
+    }
+
+    /// What an upgrade to M16 does to a request scheduled by an older build: the
+    /// pre-fingerprint identifier reads as stale exactly once, and is replaced by an
+    /// equivalent one carrying the same words. Stated as a test because the
+    /// alternative — treating the legacy form as already satisfying the plan — would
+    /// be the very skip that leaves an edited capsule quoting its old sentence.
+    @Test func aPreM16RequestIsReissuedOnceOnUpgrade() async {
+        let id = UUID()
+        let item = PlannedNotification(capsuleID: id, fireDate: now.addingTimeInterval(9_000),
+                                       timeZoneID: nil, kind: .seal)
+        let mock = MockNotificationCenter()
+        mock.pending = [NotificationScheduler.identifier(for: item, contentVersion: "g1")]
+        let scheduler = NotificationScheduler(center: mock)
+
+        await scheduler.reconcile(plan: [item], contentVersion: "g1") { _ in ("t", "b") }
+        #expect(mock.added.count == 1)
+        #expect(mock.pending.count == 1)
+
+        // ...and only once: the second launch finds its own identifier and stops.
+        await scheduler.reconcile(plan: [item], contentVersion: "g1") { _ in ("t", "b") }
+        #expect(mock.added.count == 1)
     }
 
     // MARK: Remote-change handler

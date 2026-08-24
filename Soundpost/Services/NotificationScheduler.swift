@@ -38,7 +38,7 @@ struct NotificationScheduler {
     /// scheduling *changes* (echo edited, or superseded by a seal) the old
     /// request reads as stale and is replaced — a same-UUID identifier would
     /// silently keep the outdated one. Format: `capsule.<uuid>|<kind>|<epoch>`,
-    /// plus an optional `|<contentVersion>` tag.
+    /// plus an optional `|<contentVersion>` tag and an optional `|c<fingerprint>`.
     ///
     /// The `contentVersion` folds the *body's* identity (personalized vs generic —
     /// §S3) into the request id: a notification's body is baked at schedule time,
@@ -46,10 +46,43 @@ struct NotificationScheduler {
     /// the stale body lingers. Empty (the default, and the legacy v1.0 form) adds
     /// no tag. The capsule prefix (`capsule.<uuid>|seal|`) is unaffected, so the
     /// M10 server-push dedup and the UUID round-trip still hold.
-    static func identifier(for item: PlannedNotification, contentVersion: String = "") -> String {
+    ///
+    /// `contentFingerprint` is the per-capsule half of the same idea, added in M16
+    /// §4C because the global token could not do this job: it moves only when a
+    /// *preference* flips, so editing one capsule's note left its identifier
+    /// unchanged, `reconcile` skipped the request it had already scheduled, and the
+    /// sentence the user had just corrected stayed on the lock screen — for as long
+    /// as the seal, which can be years. Empty (the default) adds no tag, so the
+    /// pure-identifier form and the legacy v1.0 form are both unchanged.
+    static func identifier(
+        for item: PlannedNotification,
+        contentVersion: String = "",
+        contentFingerprint: String = ""
+    ) -> String {
         let kind = item.kind == .seal ? "seal" : "echo"
-        let base = "\(identifierPrefix)\(item.capsuleID.uuidString)|\(kind)|\(Int(item.fireDate.timeIntervalSince1970))"
-        return contentVersion.isEmpty ? base : "\(base)|\(contentVersion)"
+        var identifier = "\(identifierPrefix)\(item.capsuleID.uuidString)|\(kind)|\(Int(item.fireDate.timeIntervalSince1970))"
+        if !contentVersion.isEmpty { identifier += "|\(contentVersion)" }
+        if !contentFingerprint.isEmpty { identifier += "|c\(contentFingerprint)" }
+        return identifier
+    }
+
+    /// A short, **deterministic** token for one notification's rendered copy.
+    ///
+    /// Deliberately not Swift's `Hashable`: `hashValue` is seeded per process, so an
+    /// identifier built from it would differ on every launch and every sync would
+    /// tear down and re-add all 64 requests — while still passing any test that only
+    /// asked whether the identifier had changed. FNV-1a is stable across launches and
+    /// devices, and each field is length-prefixed so ("ab", "c") and ("a", "bc")
+    /// cannot collide.
+    static func contentFingerprint(title: String, body: String) -> String {
+        var hash: UInt64 = 0xcbf2_9ce4_8422_2325
+        for field in [title, body] {
+            for byte in "\(field.utf8.count):\(field)".utf8 {
+                hash ^= UInt64(byte)
+                hash = hash &* 0x0000_0100_0000_01b3
+            }
+        }
+        return String(hash, radix: 36)
     }
 
     /// Recover the capsule UUID from one of our request identifiers (used by
@@ -70,28 +103,56 @@ struct NotificationScheduler {
         contentVersion: String = "",
         content: (PlannedNotification) -> (title: String, body: String)
     ) async {
+        // Render every planned body FIRST and fold it into that request's identity.
+        //
+        // A body is baked at schedule time and the loop below skips any identifier it
+        // has already scheduled, so without this an edited capsule kept its old
+        // sentence on the lock screen (M16 §4C). The fingerprint is taken from the
+        // **rendered copy**, not from a list of the fields the copy happens to read,
+        // and that choice is the M15 §11P lesson applied here: a check derived from a
+        // list cannot fail for what is missing from the list, and this list would have
+        // needed revising every time the copy changed. Hashing what will actually be
+        // shown cannot drift out of step with it. It also invalidates *nothing* when
+        // the words are unchanged — a generic body does not vary with a note, so a
+        // user who never opted into lock-screen previews sees no churn at all — and it
+        // catches two cases a field list would have missed: the device language
+        // changing, and a soundprint erased out from under a body that quoted it.
+        //
+        // `content` is pure (`NotificationCopy.make`), so calling it for the whole
+        // plan rather than only for additions costs at most 64 string lookups.
+        let desired = plan.map { item -> (item: PlannedNotification, copy: (title: String, body: String), id: String) in
+            let copy = content(item)
+            return (
+                item,
+                copy,
+                Self.identifier(
+                    for: item,
+                    contentVersion: contentVersion,
+                    contentFingerprint: Self.contentFingerprint(title: copy.title, body: copy.body)
+                )
+            )
+        }
+
         let existing = await center.pendingRequestIdentifiers()
             .filter { $0.hasPrefix(Self.identifierPrefix) }
         let existingSet = Set(existing)
-        let desiredSet = Set(plan.map { Self.identifier(for: $0, contentVersion: contentVersion) })
+        let desiredSet = Set(desired.map(\.id))
 
         let stale = existing.filter { !desiredSet.contains($0) }
         if !stale.isEmpty {
             center.removePendingRequests(withIdentifiers: stale)
         }
 
-        for item in plan {
-            let id = Self.identifier(for: item, contentVersion: contentVersion)
-            guard !existingSet.contains(id) else { continue } // already scheduled
-            let (title, body) = content(item)
+        for entry in desired {
+            guard !existingSet.contains(entry.id) else { continue } // already scheduled
             let notification = UNMutableNotificationContent()
-            notification.title = title
-            notification.body = body
+            notification.title = entry.copy.title
+            notification.body = entry.copy.body
             notification.sound = .default
             let request = UNNotificationRequest(
-                identifier: id,
+                identifier: entry.id,
                 content: notification,
-                trigger: Self.trigger(for: item)
+                trigger: Self.trigger(for: entry.item)
             )
             try? await center.add(request)
         }
