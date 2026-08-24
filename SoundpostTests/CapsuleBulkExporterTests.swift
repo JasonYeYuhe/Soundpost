@@ -91,9 +91,12 @@ struct CapsuleBulkExporterTests {
     }
 
     @Test func exportProducesANonEmptyZip() async throws {
-        let store = try TestSupport.freshStore()
+        // Its own container, and the exporter reads that one rather than the shared
+        // singleton: an `async` test on the store every other suite resets can have
+        // its capsule deleted mid-`await`, which reads as "the export was empty".
+        let store = try TestSupport.isolatedStore()
         _ = try seed(store, note: "zip me", mood: .nostalgic, blobByte: 0xC3, bytes: 3000)
-        let exporter = CapsuleBulkExporter(modelContainer: TestSupport.container)
+        let exporter = CapsuleBulkExporter(modelContainer: store.context.container)
         let url = try await exporter.export()
         defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
         #expect(url.pathExtension == "zip")

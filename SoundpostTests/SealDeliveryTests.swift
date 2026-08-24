@@ -76,7 +76,7 @@ struct SealDeliveryTests {
     // MARK: Service reconcile
 
     @Test func reconcileUpsertsFarSignedInSealOnceThenIsIdempotent() async throws {
-        let store = try TestSupport.freshStore()
+        let store = try TestSupport.isolatedStore()
         let c = try sealed(offset: 100 * day)
         store.context.insert(c)
         try store.save()
@@ -94,7 +94,7 @@ struct SealDeliveryTests {
     }
 
     @Test func reconcileSkipsNearSealAndEcho() async throws {
-        let store = try TestSupport.freshStore()
+        let store = try TestSupport.isolatedStore()
         let near = try sealed(offset: 60)
         let echo = capturedWithEcho(offset: 100 * day)
         store.context.insert(near)
@@ -109,7 +109,7 @@ struct SealDeliveryTests {
     }
 
     @Test func reconcileNoServerWhenSignedOutOrUnconfigured() async throws {
-        let store = try TestSupport.freshStore()
+        let store = try TestSupport.isolatedStore()
         let c = try sealed(offset: 100 * day)
         store.context.insert(c)
         try store.save()
@@ -129,7 +129,7 @@ struct SealDeliveryTests {
     }
 
     @Test func reconcileCancelsJobWhenUnsealedOrResurfaced() async throws {
-        let store = try TestSupport.freshStore()
+        let store = try TestSupport.isolatedStore()
         // Was server-owned, then unsealed back to captured (no longer desired).
         let unsealed = try sealed(offset: 100 * day, synced: now)
         try unsealed.transition(to: .captured)
@@ -165,7 +165,7 @@ struct SealDeliveryTests {
         // The server tombstone (a sibling device after "Delete my cloud data")
         // makes upsert fail; the client must REVERT serverJobSyncedAt so the local
         // planner keeps the backstop — not silently drop delivery (§S5 cross-device).
-        let store = try TestSupport.freshStore()
+        let store = try TestSupport.isolatedStore()
         let c = try sealed(offset: 100 * day)
         store.context.insert(c)
         try store.save()
@@ -180,7 +180,7 @@ struct SealDeliveryTests {
     }
 
     @Test func reconcileDrainsDurableDeleteCancels() async throws {
-        let store = try TestSupport.freshStore()
+        let store = try TestSupport.isolatedStore()
         let backend = SpyDeliveryBackend(configured: true)
         let service = SealDeliveryService(backend: backend, identity: StubDeliveryIdentity(key: "K"))
         let id = UUID()
@@ -207,7 +207,7 @@ struct SealDeliveryTests {
     }
 
     @Test func optedOutReconcileDoesNothingButDeleteStillWorks() async throws {
-        let store = try TestSupport.freshStore()
+        let store = try TestSupport.isolatedStore()
         let c = try sealed(offset: 100 * day)
         store.context.insert(c)
         try store.save()
@@ -227,7 +227,7 @@ struct SealDeliveryTests {
     // MARK: §S2 — humane-hour normalization re-arms a server-owned seal
 
     @Test func normalizingServerOwnedSealReupsertsTheNewWallClock() async throws {
-        let store = try TestSupport.freshStore()
+        let store = try TestSupport.isolatedStore()
         let tokyo = TimeZone(identifier: "Asia/Tokyo")!
         var cal = Calendar(identifier: .gregorian); cal.timeZone = tokyo
         // A far seal the server already owns, firing at an antisocial 02:47 JST.

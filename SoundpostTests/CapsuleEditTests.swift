@@ -12,8 +12,13 @@ import SwiftData
 @Suite(.serialized)
 @MainActor
 struct CapsuleEditTests {
+    /// Its own container. `freshStore()` is a container-wide `delete(model:)` on the
+    /// one every suite shares, and Swift Testing runs suites in parallel — so a
+    /// synchronous suite that inserts sealed capsules can be observed mid-flight by
+    /// another suite's `await`. Adding this suite is what finally made that fire
+    /// (see the sibling conversions in this commit).
     private func makeStore() throws -> CapsuleStore {
-        try TestSupport.freshStore()
+        try TestSupport.isolatedStore()
     }
 
     @discardableResult

@@ -300,7 +300,7 @@ struct SoundSuggestionTests {
     /// implementation that pre-filled the note from a guess. This one drives the
     /// actual save path with a classification present.
     @Test func aSoundprintNeverAppliesItself() async throws {
-        let store = try TestSupport.freshStore()
+        let store = try TestSupport.isolatedStore()
         let vm = CaptureViewModel()
         // Drive the REAL arrival path: the classification completion is where a
         // regression would write the note, and setting `soundprint` from the test
@@ -325,7 +325,7 @@ struct SoundSuggestionTests {
     /// Declining is the other half: the user typed their own line, the classifier
     /// heard something else, and what they wrote survives untouched.
     @Test func decliningTheSuggestionLeavesTheUsersOwnWords() async throws {
-        let store = try TestSupport.freshStore()
+        let store = try TestSupport.isolatedStore()
         let vm = CaptureViewModel()
         vm.classify = { _, _, _ in
             Soundprint(classifier: "version1",
