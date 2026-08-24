@@ -235,8 +235,8 @@ struct ListeningConsentTests {
     /// signed into iCloud imports the library well before the consent row — CloudKit
     /// returns a zone's changes in roughly modification order, so the most recent
     /// withdrawal sorts behind every capsule it applies to.
-    @Test func afreshInstallHasNoStandingUntilItRecordsSomething() throws {
-        try TestSupport.withIsolatedListeningPreference(true) {
+    @Test func afreshInstallHasNoStandingUntilItRecordsSomething() {
+        TestSupport.withIsolatedListeningPreference(true) {
             #expect(!SoundAnalysisPreferences.hasRecordedHere)
             SoundAnalysisPreferences.hasRecordedHere = true
             #expect(SoundAnalysisPreferences.hasRecordedHere)
@@ -245,8 +245,8 @@ struct ListeningConsentTests {
 
     /// An install that predates the key still has standing — its preferences survived,
     /// so its mirror is whatever the user last chose, including a deliberate "off".
-    @Test func anUpgradedInstallInheritsStandingFromOnboarding() throws {
-        try TestSupport.withIsolatedListeningPreference(false) {
+    @Test func anUpgradedInstallInheritsStandingFromOnboarding() {
+        TestSupport.withIsolatedListeningPreference(false) {
             #expect(!SoundAnalysisPreferences.hasRecordedHere, "no history and no onboarding")
             SoundAnalysisPreferences.defaults.set(true, forKey: "hasCompletedOnboarding")
             #expect(
