@@ -425,6 +425,18 @@ incremental local build recompiles nothing, so `check-warnings.sh` passed
 vacuously. That is the M15 §11P trap in its plainest form, and the fix is not code:
 **push.**
 
+### 13C-ii. And one the milestone flushed out
+
+`TestSupport.freshStore()` is a container-wide `delete(model:)` on the container
+every suite shares. Its own doc says it is safe for synchronous `@MainActor` tests
+and never for an `async` one — and **eleven async tests across four suites were
+using it anyway**. M16's new `CapsuleEditTests` inserts sealed capsules, which was
+enough to change the interleaving and turn
+`SealDeliveryTests.reconcileUpsertsFarSignedInSealOnceThenIsIdempotent` red on a
+count of 2 — reading, convincingly, as "the debounce does not work" rather than as
+"another suite's capsule arrived mid-`await`". Every async caller now owns its
+container; five consecutive full runs are green.
+
 ### 13D. Still needs Jason
 
 1. **The §2 exclusions**, unchanged and unchallenged: `createdAt` immutable, no
