@@ -348,3 +348,95 @@ Acted on immediately rather than deferred: the localization gate did not look at
 `.accessibilityLabel`, so VoiceOver copy could ship untranslated. Extended and
 control-tested the same day; all 12 existing labels were already catalogued, so nothing
 was live.
+
+---
+
+## 13. Build record (2026-08-24)
+
+Shipped as planned: **S0 → S1 → S2**, each compiling, passing and committed before
+the next. Standing bars at close: **440 tests in 56 suites / 0 warnings / i18n
+EN·JA·ZH-Hans 100% across 322 strings / 93 sound labels / CloudKit seed coverage
+green.** No new CloudKit field, no new entity, no promotion — the constraint that
+let this milestone run while 1.7.0 is blocked held all the way through.
+
+### 13A. Where the plan was wrong, and where I departed from it
+
+**§3 said the detail view has a toolbar menu. It has a `Button`.**
+`CapsuleDetailView.swift:54` was a single trash `ToolbarItem`. Edit and Delete now
+share an `ellipsis.circle` menu, which is what §S2 assumed already existed.
+
+**§4C asked for a hash of the fields; S1 hashes the rendered copy.** The plan
+specified "a short stable hash of exactly the fields the body can render (note,
+place name, mood, and the soundprint)". The fingerprint is taken from the title
+and body `NotificationCopy` is about to produce instead. Same intent, and it is
+§11P applied rather than quoted — *a check derived from a list cannot fail for
+what is missing from the list*, and that list would have needed revising every
+time the copy changed. Three things fall out that the field list would not have
+given:
+
+- **No churn when the words did not change.** A generic body does not vary with a
+  note, so a user who never opted into lock-screen previews sees nothing
+  re-issued. Fingerprinting the fields would have torn down and re-added up to 64
+  identical requests every time a soundprint was erased.
+- **A language change invalidates**, because a body rendered in the old language is
+  as stale as one quoting an old note.
+- **`NotificationCoordinator` needed no change at all**, so there is no new wiring
+  between the fix and production that a test cannot reach.
+
+**§9's reuse map lists `LocationProvider` under place; S2 deliberately does not use
+it.** Offering "tag where I am" on an edit sheet would stamp last month's memory
+with where you are standing now — rule 1, through a new door. So the **coordinates
+are never editable and a place is never invented**; the place's *name* is, because
+it is a reverse-geocoding guess exactly as a sound label is a classifier guess.
+`CapsuleStore.PlaceEdit` (`.rename` / `.remove`) makes that structural.
+
+**§4A's one owner was taken literally.** `CapsuleDetailView` and `ResurfaceView`
+now read the shared `PlaybackController` rather than each building an
+`AudioPlayer`. `CaptureViewModel` keeps its own — it plays a recording that is not
+a capsule yet — and the gallery player is stopped when capture is presented, so
+the two can never sound together.
+
+### 13B. What the tests do and do not cover
+
+There is no UI-test target, and none was added. Every new test asserts on the
+policy layer: `PlaybackController` against a fake player (starting real audio
+would measure the simulator — two suites are already documented as failing locally
+and green on CI), `NotificationScheduler.reconcile` against a mock centre, and
+`CapsuleStore.update` against an in-memory container.
+
+**Not covered by tests, and stated rather than implied:** the view wiring — that
+`openCapsule`, the capture sheet and the scene phase call `stop()`, that the card's
+surface and its play control do not fight over a touch, and that the sealed
+capsule's menu omits Edit. Those were checked by hand in the simulator on the demo
+seed, and the checks are recorded in the S0 and S2 commit messages.
+
+**Every new test was run against a broken implementation and seen to fail** — ten
+control passes in total, listed per step in the commit messages. For S0 and S2 that
+meant deliberately breaking the new code (new code has no "pre-fix" version to run
+against); for S1 the control is the genuine article, the pre-M16 identity.
+
+### 13C. Found on the way in, fixed first
+
+**A clean build of `master` was not warning-free.** Two `try` expressions in
+`ListeningConsentTests` called a `rethrows` helper whose closure never throws
+(`d869182`). They survived because **the last CI run on this repo is `b025459`** —
+master was six commits ahead of anything a gate had actually executed, and an
+incremental local build recompiles nothing, so `check-warnings.sh` passed
+vacuously. That is the M15 §11P trap in its plainest form, and the fix is not code:
+**push.**
+
+### 13D. Still needs Jason
+
+1. **The §2 exclusions**, unchanged and unchallenged: `createdAt` immutable, no
+   audio editing, no revision history, no content editing while sealed-not-due.
+   Nothing in the build gave a reason to reopen any of them.
+2. **The ASC privacy nutrition label** (§6). `PrivacyInfo.xcprivacy` is unchanged
+   and no new field, category or transmission exists — but the nutrition label is
+   server-side state that nothing in this repo can read, and §11A#12 is open
+   precisely because that assertion was once made without checking.
+3. **Push, so CI runs.** See §13C.
+4. The two 1.7.0 blockers are untouched and still outstanding (M15 §11R): the
+   `CD_ListeningConsent` creation in CloudKit Development, and the authorised
+   `DeliveryIdentity` promotion.
+5. **M17 is still the sound milestone**, with §11's three preconditions unchanged —
+   and it now has the invalidation mechanism it needs, built and tested here.
