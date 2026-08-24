@@ -83,6 +83,11 @@ import re
 LOCALIZING = re.compile(
     r'(?:\bText|\bButton|\bLabel|\bToggle|\bTextField|\bNavigationLink|\bLink'
     r'|\.navigationTitle|\.alert|\.confirmationDialog|\.sheet|\.help'
+    # VoiceOver copy is copy. These take LocalizedStringKey exactly as Text does, and
+    # a blind user reading English on a Japanese device is the same defect as a
+    # sighted one — it is simply harder for us to notice, which is the argument for
+    # gating it rather than against.
+    r'|\.accessibilityLabel|\.accessibilityHint|\.accessibilityValue'
     r'|String\(localized:\s*)'
     r'\(?\s*"((?:[^"\\]|\\.)*)"'
 )
