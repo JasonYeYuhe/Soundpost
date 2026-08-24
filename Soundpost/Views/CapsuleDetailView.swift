@@ -11,7 +11,9 @@ struct CapsuleDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(NotificationCoordinator.self) private var notifications
     @Environment(StoreService.self) private var store
-    @State private var player = AudioPlayer()
+    /// The app's single playback owner (M16 §4A). This view used to build its own
+    /// `AudioPlayer`, which is how a gallery clip could go on sounding underneath it.
+    @Environment(PlaybackController.self) private var playback
     @State private var confirmingDelete = false
     @State private var showingSeal = false
     @State private var sealedWithNotificationsOff = false
@@ -39,6 +41,9 @@ struct CapsuleDetailView: View {
 
     private var tint: Color { palette.tint(for: capsule.mood) }
     private var isLocked: Bool { capsule.state == .sealed && !capsule.isContentVisible() }
+    /// This capsule's control state, not the player's: the owner is shared now, so
+    /// "playing" has to mean "playing *this*".
+    private var playbackState: PlaybackController.ControlState { playback.controlState(for: capsule) }
 
     var body: some View {
         ScrollView {
@@ -100,7 +105,7 @@ struct CapsuleDetailView: View {
         }
         .onAppear(perform: markOpenedIfResurfaced)
         .onDisappear {
-            player.stop()
+            playback.stop()
             // Nobody is waiting for this render any more — stop it and let the
             // cancellation path clean the temp dir, rather than burning CPU on a
             // video that has nowhere to go.
@@ -113,24 +118,26 @@ struct CapsuleDetailView: View {
             WaveformView(
                 samples: capsule.waveformSamples,
                 color: tint,
-                progress: player.state == .idle ? nil : player.progress
+                // One screen, one capsule — the right place for the 20 Hz progress
+                // the gallery card deliberately does not read (M16 §7).
+                progress: playbackState == .idle ? nil : playback.player.progress
             )
             .frame(height: 150)
             .padding(.top, 12)
 
-            Button(action: togglePlay) {
-                Image(systemName: player.state == .playing ? "pause.circle.fill" : "play.circle.fill")
+            Button { playback.toggle(capsule) } label: {
+                Image(systemName: playbackState == .playing ? "pause.circle.fill" : "play.circle.fill")
                     .font(.system(size: 66))
                     .foregroundStyle(tint)
                     .contentTransition(.symbolEffect(.replace))
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(player.state == .playing ? "Pause" : "Play")
+            .accessibilityLabel(playbackState == .playing ? "Pause" : "Play")
             // Read the play control and clip length as one unit (§S8 a11y): the
             // visible duration is folded into the button's value so VoiceOver
             // announces "Play, 0:08" together instead of two stray elements.
             .accessibilityValue(durationString)
-            .sensoryFeedback(.impact(weight: .light), trigger: player.state)
+            .sensoryFeedback(.impact(weight: .light), trigger: playbackState)
 
             Text(durationString)
                 .font(.headline.monospacedDigit())
@@ -329,14 +336,6 @@ struct CapsuleDetailView: View {
                 .padding(.top, 4)
         }
         .padding(.top, 48)
-    }
-
-    private func togglePlay() {
-        switch player.state {
-        case .idle: try? player.play(capsule)
-        case .playing: player.pause()
-        case .paused: player.resume()
-        }
     }
 
     private func markOpenedIfResurfaced() {

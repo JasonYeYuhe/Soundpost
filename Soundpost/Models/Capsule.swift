@@ -137,6 +137,23 @@ extension Capsule {
         }
     }
 
+    /// Whether this capsule may be played, and therefore whether a play control
+    /// should be offered for it at all (M16 §S0).
+    ///
+    /// Content visibility is the gate, and it is the same rule the note, the card
+    /// body and the search index already follow: a sealed-not-due capsule's *sound*
+    /// is as hidden as its words, so it gets no control on its card and
+    /// `PlaybackController` refuses it even if a stale view asks.
+    ///
+    /// `durationSeconds` stands in for "there is audio here" on purpose. Testing
+    /// `audioData` would read an external-storage blob once per row, putting the
+    /// whole library's audio in memory — the one thing the gallery must never do
+    /// (docs/M9-DEVPLAN.md). The duration is a scalar written by the same call that
+    /// attaches the clip.
+    func offersPlayback(now: Date = .now) -> Bool {
+        isContentVisible(now: now) && durationSeconds > 0
+    }
+
     /// Whether a sealed capsule is now due to resurface.
     func isDueToResurface(now: Date = .now) -> Bool {
         guard state == .sealed, let sealUntil else { return false }

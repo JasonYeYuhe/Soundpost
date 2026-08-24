@@ -14,6 +14,16 @@ final class AudioPlayer: NSObject {
     /// Playback progress, 0...1.
     private(set) var progress: Double = 0
 
+    /// Called when playback ended **on its own** — the clip ran out, or the decoder
+    /// gave up part-way through. Deliberately NOT called by `stop()` or `pause()`,
+    /// which the caller already knows about.
+    ///
+    /// It exists because `AVAudioPlayer`'s delegate is the only signal that a sound
+    /// has finished: without it, whoever is tracking *which* capsule is playing keeps
+    /// saying so after the audio stopped, and a card is left showing a pause button
+    /// for silence (M16 §4A).
+    @ObservationIgnored var onPlaybackEnded: (() -> Void)?
+
     private let store: AudioStore
     private var player: AVAudioPlayer?
     private var timer: Timer?
@@ -24,10 +34,12 @@ final class AudioPlayer: NSObject {
     }
 
     // No deinit cleanup needed (§S8): the progress timer captures `[weak self]`, so
-    // it never retains a freed player, and both hosts of an `AudioPlayer`
-    // (CapsuleDetailView, ResurfaceView) call `stop()` in `.onDisappear`, which
-    // invalidates the timer and deactivates the audio session on the main actor —
-    // the correct thread for both, which a nonisolated `deinit` could not guarantee.
+    // it never retains a freed player, and every screen that can play a capsule stops
+    // it in `.onDisappear` — since M16 through the one shared `PlaybackController`,
+    // which invalidates the timer and deactivates the audio session on the main
+    // actor, the correct thread for both, which a nonisolated `deinit` could not
+    // guarantee. (`CaptureViewModel` still owns a second player, for a recording that
+    // is not a capsule yet.)
 
     /// Play a capsule, preferring its durable `audioData` blob and falling back
     /// to the legacy on-disk file for capsules captured before the M9 backfill.
@@ -102,11 +114,27 @@ final class AudioPlayer: NSObject {
         guard let player, player.duration > 0 else { return }
         progress = max(0, min(1, player.currentTime / player.duration))
     }
+
+    /// Tear down, then tell whoever is tracking the playing capsule that it ended
+    /// without them asking. Order matters: the notification fires against a player
+    /// that is already idle, so a listener that reads `state` sees the truth.
+    private func endPlayback() {
+        stop()
+        onPlaybackEnded?()
+    }
 }
 
 extension AudioPlayer: AVAudioPlayerDelegate {
     nonisolated func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
-        Task { @MainActor in self.stop() }
+        Task { @MainActor in self.endPlayback() }
+    }
+
+    /// A clip that decodes far enough to start and then fails part-way through: the
+    /// audio stops, and without this callback nothing else ever says so. `flag ==
+    /// false` above covers the same class of failure at the end of the clip; this
+    /// covers it in the middle.
+    nonisolated func audioPlayerDecodeErrorDidOccur(_ player: AVAudioPlayer, error: Error?) {
+        Task { @MainActor in self.endPlayback() }
     }
 }
 

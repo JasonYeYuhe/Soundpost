@@ -9,6 +9,9 @@ struct ContentView: View {
     @Environment(\.requestReview) private var requestReview
     @Environment(NotificationCoordinator.self) private var notifications
     @Environment(CloudSyncMonitor.self) private var syncMonitor
+    /// The app's single playback owner (M16 §4A). The gallery's cards drive it, and
+    /// every transition away from the gallery stops it.
+    @Environment(PlaybackController.self) private var playback
     @Query(sort: \Capsule.createdAt, order: .reverse) private var capsules: [Capsule]
     @State private var showingCapture = false
     @State private var showingSettings = false
@@ -72,7 +75,19 @@ struct ContentView: View {
         }
         .task { await refreshAndSync() }
         .onChange(of: scenePhase) { _, phase in
-            if phase == .active { Task { await refreshAndSync() } }
+            if phase == .active {
+                Task { await refreshAndSync() }
+            } else {
+                // Recording and playback are both foreground-only (docs/PROJECT.md
+                // §1e.4), so a clip that kept "playing" into the background would be
+                // a control lying about silence.
+                playback.stop()
+            }
+        }
+        .onChange(of: showingCapture) { _, presented in
+            // Capture builds its own player for the unsaved recording; the gallery's
+            // must not be sounding underneath it.
+            if presented { playback.stop() }
         }
         .onChange(of: sealSignature) { _, _ in
             Task { await notifications.sync(capsules: capsules) }
@@ -125,11 +140,11 @@ struct ContentView: View {
                     ForEach(GallerySection.grouped(displayed), id: \.section.id) { group in
                         Section {
                             ForEach(group.capsules) { capsule in
-                                Button { openCapsule(capsule) } label: {
-                                    CapsuleCard(capsule: capsule)
-                                }
-                                .buttonStyle(.plain)
-                                .transition(.scale(scale: 0.96).combined(with: .opacity))
+                                // No wrapping `Button`: the card owns its surface tap
+                                // so its play control can be a sibling rather than a
+                                // second button nested inside this one (M16 §4E).
+                                CapsuleCard(capsule: capsule) { openCapsule(capsule) }
+                                    .transition(.scale(scale: 0.96).combined(with: .opacity))
                             }
                         } header: {
                             sectionHeader(group.section.title)
@@ -341,6 +356,9 @@ struct ContentView: View {
     /// capsule or navigate to detail otherwise. One decision point, so a due seal
     /// never opens as a plain detail screen.
     private func openCapsule(_ capsule: Capsule) {
+        // One stop covers every way out of the gallery: detail, the reveal, and the
+        // notification deep link, which all route through here (M16 §4A).
+        playback.stop()
         let store = CapsuleStore(context: modelContext)
         _ = try? store.refreshDueSeals()
         try? store.save()
@@ -373,4 +391,5 @@ struct ContentView: View {
         .environment(NotificationCoordinator())
         .environment(CloudSyncMonitor())
         .environment(StoreService(autoStart: false))
+        .environment(PlaybackController())
 }

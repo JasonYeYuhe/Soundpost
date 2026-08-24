@@ -4,8 +4,22 @@ import UIKit
 /// A capsule as a tappable, glanceable keepsake: a mood-tinted waveform with its
 /// one line, place, and date. Sealed capsules render locked (honest copy) until
 /// their date. This is the app's signature object (docs/PROJECT.md differentiation).
+///
+/// **Two tap targets, deliberately not nested** (M16 §4E). The card used to be
+/// wrapped in a whole-card `Button` by the gallery, and putting a play control
+/// inside that would have given SwiftUI two overlapping buttons and — because the
+/// card merges its accessibility children into one element — hidden the control
+/// from VoiceOver entirely. So the card owns its own surface tap, and the play
+/// control is a sibling: its own hit region, its own accessibility element.
 struct CapsuleCard: View {
     let capsule: Capsule
+    /// Opening the capsule. Passed in rather than wrapping this view in a `Button`
+    /// — see the type doc.
+    var onOpen: () -> Void = {}
+
+    /// The app's single playback owner (M16 §4A). Read here rather than held, so
+    /// every card in the gallery drives the one player.
+    @Environment(PlaybackController.self) private var playback
 
     /// The global card theme (M11 §2B(c)). A single app-wide preference, read at
     /// render time — never `isPro` — so an applied theme keeps rendering after a
@@ -21,6 +35,8 @@ struct CapsuleCard: View {
 
     private var tint: Color { palette.tint(for: capsule.mood) }
     private var isLocked: Bool { capsule.state == .sealed && !capsule.isContentVisible() }
+    /// No control at all on a sealed-not-due capsule, or on one with no clip.
+    private var showsPlayControl: Bool { capsule.offersPlayback() }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -28,6 +44,13 @@ struct CapsuleCard: View {
             if isLocked { lockedBody } else { openBody }
         }
         .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        // Everything readable becomes ONE element carrying the card's own action.
+        // Applied here, *below* the play control's overlay, which is what keeps the
+        // control a separate element instead of being merged away by `.combine`.
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction { onOpen() }
         .background {
             RoundedRectangle(cornerRadius: 22)
                 .fill(theme.baseFill)
@@ -40,7 +63,12 @@ struct CapsuleCard: View {
             RoundedRectangle(cornerRadius: 22)
                 .stroke(theme.strokeColor(tint: tint), lineWidth: theme.strokeWidth)
         )
-        .accessibilityElement(children: .combine)
+        .overlay(alignment: .bottomTrailing) { playControl }
+        // The whole card surface opens it. A tap that lands on the play control is
+        // handled there first — SwiftUI resolves the innermost gesture — so the two
+        // never compete for the same touch.
+        .contentShape(RoundedRectangle(cornerRadius: 22))
+        .onTapGesture(perform: onOpen)
     }
 
     private var header: some View {
@@ -87,7 +115,10 @@ struct CapsuleCard: View {
                 Text(note).font(.body).lineLimit(2)
             }
             HStack(spacing: 12) {
-                Label(durationString, systemImage: "play.circle")
+                // `play.circle` here was decoration — a glyph that looked like a
+                // control and did nothing (M16 §S0). The duration keeps its place;
+                // the real control is the sibling in the corner.
+                Label(durationString, systemImage: "waveform")
                 if let place = capsule.place?.name {
                     Label(place, systemImage: "mappin").lineLimit(1)
                 }
@@ -95,6 +126,35 @@ struct CapsuleCard: View {
             }
             .font(.caption)
             .foregroundStyle(.secondary)
+            // Keep a long place name out from under the play control.
+            .padding(.trailing, showsPlayControl ? 40 : 0)
+        }
+    }
+
+    /// The real play/pause control: a sibling of the card's readable content, with
+    /// its own hit region (44 pt) and its own accessibility element.
+    ///
+    /// It shows *state*, not *progress*. Progress ticks at 20 Hz
+    /// (`AudioPlayer.swift`), and a card that read it would re-render twenty times a
+    /// second while the gallery around it re-walked the library (M16 §7). The detail
+    /// view is where progress belongs — one screen, one capsule.
+    @ViewBuilder
+    private var playControl: some View {
+        if showsPlayControl {
+            let state = playback.controlState(for: capsule)
+            Button { playback.toggle(capsule) } label: {
+                Image(systemName: state == .playing ? "pause.circle.fill" : "play.circle.fill")
+                    .font(.system(size: 30))
+                    .foregroundStyle(tint)
+                    .contentTransition(.symbolEffect(.replace))
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .padding(6)
+            .accessibilityLabel(state == .playing ? "Pause" : "Play")
+            .accessibilityValue(durationString)
+            .sensoryFeedback(.impact(weight: .light), trigger: state)
         }
     }
 

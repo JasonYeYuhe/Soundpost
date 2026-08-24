@@ -10,6 +10,10 @@ struct SoundpostApp: App {
     @State private var notifications: NotificationCoordinator
     @State private var syncMonitor = CloudSyncMonitor()
 
+    /// The app's single playback owner (M16 §4A). Held here, above every screen that
+    /// can play a capsule, so exactly one sound can be playing at a time.
+    @State private var playback = PlaybackController()
+
     /// Cloud-backed delivery: device-token registration + per-user identity
     /// bootstrap (M10 §S1). Until the backend's config is filled in (after S2
     /// deploy), `SupabaseDeliveryBackend.isConfigured == false`, so this is inert
@@ -62,6 +66,7 @@ struct SoundpostApp: App {
             RootView(store: store)
                 .environment(notifications)
                 .environment(syncMonitor)
+                .environment(playback)
                 .environment(registrar)
                 .environment(storeService)
                 // Hand the registrar to the AppDelegate so APNs token callbacks

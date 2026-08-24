@@ -16,7 +16,9 @@ struct ResurfaceView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var player = AudioPlayer()
+    /// The app's single playback owner (M16 §4A) — the reveal used to build its own,
+    /// which is how the gallery and this screen could sound at once.
+    @Environment(PlaybackController.self) private var playback
     @State private var revealed = false
     /// One generated sentence, when Apple Intelligence is available (M15 §4G).
     /// Purely additive: `nil` is the normal case on most devices and the screen
@@ -30,6 +32,9 @@ struct ResurfaceView: View {
     @AppStorage(MoodPalette.storageKey) private var moodPaletteRaw = ""
     private var palette: MoodPalette { MoodPalette(stored: moodPaletteRaw) }
     private var tint: Color { palette.tint(for: capsule.mood) }
+    /// This capsule's control state — the owner is shared, so "playing" has to mean
+    /// "playing *this*".
+    private var playbackState: PlaybackController.ControlState { playback.controlState(for: capsule) }
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
@@ -63,7 +68,7 @@ struct ResurfaceView: View {
         }
         .onAppear(perform: open)
         .task { await generateSummary() }
-        .onDisappear { player.stop() }
+        .onDisappear { playback.stop() }
     }
 
     private var content: some View {
@@ -84,7 +89,7 @@ struct ResurfaceView: View {
             WaveformView(
                 samples: capsule.waveformSamples,
                 color: tint,
-                progress: player.state == .idle ? nil : player.progress
+                progress: playbackState == .idle ? nil : playback.player.progress
             )
             .frame(height: 120)
             .padding(.top, 4)
@@ -124,15 +129,15 @@ struct ResurfaceView: View {
 
             // The payoff: a big, inviting playback control. Auto-started on reveal
             // (the postcard plays itself), and fully pausable/skippable.
-            Button(action: togglePlay) {
-                Image(systemName: player.state == .playing ? "pause.circle.fill" : "play.circle.fill")
+            Button { playback.toggle(capsule) } label: {
+                Image(systemName: playbackState == .playing ? "pause.circle.fill" : "play.circle.fill")
                     .font(.system(size: 72))
                     .foregroundStyle(tint)
                     .contentTransition(.symbolEffect(.replace))
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(player.state == .playing ? "Pause" : "Play")
-            .sensoryFeedback(.impact(weight: .light), trigger: player.state)
+            .accessibilityLabel(playbackState == .playing ? "Pause" : "Play")
+            .sensoryFeedback(.impact(weight: .light), trigger: playbackState)
             .padding(.top, 4)
 
             Button { dismiss() } label: {
@@ -180,14 +185,8 @@ struct ResurfaceView: View {
         } else {
             withAnimation(.easeOut(duration: 0.8)) { revealed = true }
         }
-        try? player.play(capsule)
-    }
-
-    private func togglePlay() {
-        switch player.state {
-        case .idle: try? player.play(capsule)
-        case .playing: player.pause()
-        case .paused: player.resume()
-        }
+        // `play`, not `toggle`: this is an auto-start, and toggling something that
+        // had just begun would pause the postcard as it opened.
+        playback.play(capsule)
     }
 }
