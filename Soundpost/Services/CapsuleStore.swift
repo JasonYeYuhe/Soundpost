@@ -1,6 +1,13 @@
 import Foundation
 import SwiftData
 
+/// Why an edit was refused.
+enum CapsuleEditError: Error, Equatable {
+    /// The capsule's content is not currently visible to its owner — a sealed
+    /// capsule before its date. Editing it would show words the seal is hiding.
+    case contentHidden
+}
+
 /// Persistence + lifecycle operations over `Capsule`, on top of SwiftData.
 ///
 /// Kept deliberately thin: SwiftData's `ModelContext` is the source of truth and
@@ -103,6 +110,109 @@ final class CapsuleStore {
     /// `NotificationPlanner`) so the reminder lands at a humane hour (M12 §S2).
     func setEcho(_ capsule: Capsule, at date: Date?) {
         capsule.echoAt = date.map { SealClock.normalize($0) }
+    }
+
+    /// What an edit may do to a capsule's place.
+    ///
+    /// **The coordinates are never editable**, and that is the point of the type
+    /// rather than an omission. They are the record of where you were; offering
+    /// "tag where I am" on an edit sheet would stamp a memory from last month with
+    /// somewhere you are standing now, which is the one thing this app promises not
+    /// to do. What *is* editable is the **name** — a reverse-geocoding guess, exactly
+    /// as the sound suggestion is a classifier guess, and the person whose memory it
+    /// is should have the last word on it.
+    ///
+    /// A place cannot be added where none was recorded, for the same reason.
+    enum PlaceEdit: Equatable {
+        /// Keep the recorded coordinates under this name. Trimmed; blank clears the
+        /// name without touching where you were.
+        case rename(String?)
+        /// Drop the stamp entirely, coordinates included — a memory nobody wants
+        /// carrying an address must be able to shed it.
+        case remove
+    }
+
+    /// Change what the user wrote: the one line, the mood, the place name, the echo.
+    ///
+    /// The shape is `setEcho`'s, one step further: it commits, because §4D's restore
+    /// has to happen around the commit rather than after it.
+    ///
+    /// **What it will not touch.** `createdAt` — a capsule is *when it happened*, and
+    /// making the date editable turns a keepsake into a document while silently
+    /// re-ordering the gallery and invalidating seal arithmetic. The audio. The
+    /// state. And `serverJobSyncedAt`, deliberately: unlike `seal`, no wall clock has
+    /// moved here, and the M10 server push is content-free, so a far-future job has
+    /// nothing to re-upsert.
+    ///
+    /// **Content visibility is the gate** (§4B), the rule the card body and the
+    /// search index already follow. A sealed-not-due capsule's note is hidden from
+    /// its owner by design, so an edit sheet showing it in a text field would be a
+    /// back door around the seal. Changing the seal date and unsealing already exist
+    /// and stay the way out.
+    ///
+    /// **On a failed commit every field goes back by hand.** `rollback()` does not
+    /// restore already-materialised objects — this project has learned that twice,
+    /// in the backfill's first consent fix and in `ListeningConsentStore.set` — so
+    /// without this the capsule would keep the new values in memory while the store
+    /// still held the old ones, and the next unrelated save would commit an edit this
+    /// one had already reported as failed. The caller must surface the throw: a
+    /// silent failure here means the user believes they fixed a typo that is still
+    /// there.
+    ///
+    /// `commit` is the seam that makes that restore testable — SwiftData offers no
+    /// supported way to make an in-memory `save()` fail, and a recovery path that has
+    /// never been seen to run is not evidence (M15 §11P). Same defaulted-parameter
+    /// idiom the M15 consent gates use.
+    func update(
+        _ capsule: Capsule,
+        note: String?,
+        mood: Mood?,
+        place: PlaceEdit,
+        echoAt: Date?,
+        now: Date = .now,
+        commit: (() throws -> Void)? = nil
+    ) throws {
+        guard capsule.isContentVisible(now: now) else {
+            throw CapsuleEditError.contentHidden
+        }
+
+        let previousNote = capsule.note
+        let previousMood = capsule.mood
+        let previousPlace = capsule.place
+        let previousEcho = capsule.echoAt
+
+        // Trimmed, with blank meaning "nothing", so an edit and a capture write the
+        // same value for the same typing (`CaptureViewModel.save`).
+        capsule.note = Self.trimmedOrNil(note)
+        capsule.mood = mood
+        switch place {
+        case .remove:
+            capsule.place = nil
+        case .rename(let name):
+            if var existing = capsule.place {
+                existing.name = Self.trimmedOrNil(name)
+                capsule.place = existing
+            }
+        }
+        // Same humane-hour normalization the capture flow and `setEcho` apply, so an
+        // edited echo cannot ring back at 02:47 (M12 §S2).
+        capsule.echoAt = echoAt.map { SealClock.normalize($0) }
+
+        do {
+            if let commit { try commit() } else { try save() }
+        } catch {
+            capsule.note = previousNote
+            capsule.mood = previousMood
+            capsule.place = previousPlace
+            capsule.echoAt = previousEcho
+            throw error
+        }
+    }
+
+    private static func trimmedOrNil(_ value: String?) -> String? {
+        guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !trimmed.isEmpty else { return nil }
+        return trimmed
     }
 
     /// Cancel a seal before its date, returning the capsule to `.captured`.

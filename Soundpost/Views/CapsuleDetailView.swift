@@ -15,6 +15,7 @@ struct CapsuleDetailView: View {
     /// `AudioPlayer`, which is how a gallery clip could go on sounding underneath it.
     @Environment(PlaybackController.self) private var playback
     @State private var confirmingDelete = false
+    @State private var showingEdit = false
     @State private var showingSeal = false
     @State private var sealedWithNotificationsOff = false
     @State private var showingPaywall = false
@@ -57,10 +58,23 @@ struct CapsuleDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button(role: .destructive) { confirmingDelete = true } label: {
-                    Image(systemName: "trash")
+                Menu {
+                    // Editing is offered only while the content is visible (§4B).
+                    // A sealed capsule's words are hidden from its owner, so the way
+                    // in simply is not there — a stronger guarantee than an error,
+                    // though `CapsuleStore.update` still refuses one.
+                    if !isLocked {
+                        Button { showingEdit = true } label: {
+                            Label("Edit", systemImage: "pencil")
+                        }
+                    }
+                    Button(role: .destructive) { confirmingDelete = true } label: {
+                        Label("Delete capsule", systemImage: "trash")
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
                 }
-                .accessibilityLabel("Delete capsule")
+                .accessibilityLabel("More")
             }
         }
         .confirmationDialog("Delete this capsule?", isPresented: $confirmingDelete, titleVisibility: .visible) {
@@ -70,6 +84,9 @@ struct CapsuleDetailView: View {
         }
         .sheet(isPresented: $showingSeal) {
             SealSheet(onSeal: seal(until:))
+        }
+        .sheet(isPresented: $showingEdit) {
+            CapsuleEditSheet(capsule: capsule, onSaved: resyncAfterEdit)
         }
         .alert("Sealed — but reminders are off", isPresented: $sealedWithNotificationsOff) {
             Button("Open Settings") { openSettings() }
@@ -373,6 +390,18 @@ struct CapsuleDetailView: View {
             UIApplication.shared.open(url)
         }
         dismiss()
+    }
+
+    /// Re-issue this capsule's pending reminder after an edit.
+    ///
+    /// The gallery's own resync watches `sealSignature`, which carries id, state,
+    /// seal and echo — not content — so an edited note would otherwise leave the
+    /// lock-screen body quoting the old sentence. From M16 §S1 the request's identity
+    /// includes a fingerprint of its rendered copy, so this call actually rebuilds
+    /// the body rather than finding the identifier already scheduled and skipping it.
+    private func resyncAfterEdit() {
+        let store = CapsuleStore(context: modelContext)
+        Task { await notifications.sync(capsules: (try? store.all()) ?? []) }
     }
 
     private func unseal() {

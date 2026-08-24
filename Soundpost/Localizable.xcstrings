@@ -728,6 +728,22 @@
         }
       }
     },
+    "Couldn't save your changes": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "変更を保存できませんでした"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法保存你的更改"
+          }
+        }
+      }
+    },
     "Couldn't start recording. Please try again.": {
       "localizations": {
         "ja": {
@@ -997,6 +1013,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "%@ 回响 · %lld 天后"
+          }
+        }
+      }
+    },
+    "Edit": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "編集"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "编辑"
+          }
+        }
+      }
+    },
+    "Edit capsule": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "カプセルを編集"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "编辑胶囊"
           }
         }
       }
@@ -1597,6 +1645,22 @@
         }
       }
     },
+    "More": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "その他"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更多"
+          }
+        }
+      }
+    },
     "New capsule": {
       "localizations": {
         "ja": {
@@ -1625,6 +1689,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "还没有胶囊"
+          }
+        }
+      }
+    },
+    "No place on this capsule.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このカプセルに場所はありません。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这个胶囊没有地点。"
           }
         }
       }
@@ -1930,6 +2010,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "地点"
+          }
+        }
+      }
+    },
+    "Place name": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "場所の名前"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "地点名称"
           }
         }
       }
@@ -2299,6 +2395,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "已重现"
+          }
+        }
+      }
+    },
+    "Save": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保存"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保存"
           }
         }
       }
@@ -3284,6 +3396,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "你已拥有 Soundpost Pro。感谢你对 Soundpost 的支持。"
+          }
+        }
+      }
+    },
+    "Your capsule is unchanged. Please try again.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "カプセルは変更されていません。もう一度お試しください。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你的胶囊没有改动。请重试。"
           }
         }
       }
