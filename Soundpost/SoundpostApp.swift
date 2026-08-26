@@ -151,6 +151,14 @@ private struct RootView: View {
                     // M13 §4G). Nothing is in flight at launch, and it only ever
                     // removes children of our own export container.
                     VideoExportWorkspace.scavenge()
+                    // Count — never delete — audio clips no capsule points at
+                    // (M17 §4E). Until §S0 a capture sheet dismissed mid-take left
+                    // one behind, and nothing in the app could see it: every
+                    // existing check starts from capsule rows, so none of them can
+                    // fail for a file no row names. This starts from the directory.
+                    // Deleting on that rule would take the take the user is
+                    // recording right now, whose row does not exist until save.
+                    AudioOrphanAudit.report(in: store.container.mainContext)
                     // Adopt the account-wide listening answer before anything reads
                     // the local mirror (M15 §4I, revised). Ordering matters: the
                     // backfill below gates on that mirror, so a withdrawal made on

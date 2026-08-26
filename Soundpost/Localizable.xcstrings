@@ -856,6 +856,23 @@
         }
       }
     },
+    "Discard": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "破棄"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "丢弃"
+          }
+        }
+      }
+    },
     "Discard & re-record": {
       "localizations": {
         "ja": {
@@ -868,6 +885,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "放弃并重录"
+          }
+        }
+      }
+    },
+    "Discard this recording?": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "この録音を破棄しますか？"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "要丢弃这段录音吗？"
           }
         }
       }
@@ -1356,6 +1390,23 @@
         }
       }
     },
+    "It hasn't been saved yet, and this can't be undone.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "まだ保存されていません。元に戻すことはできません。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "它还没有保存，此操作无法撤销。"
+          }
+        }
+      }
+    },
     "It never locks a memory you've already made or received.": {
       "localizations": {
         "ja": {
@@ -1384,6 +1435,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "喜悦"
+          }
+        }
+      }
+    },
+    "Keep it": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "残す"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保留"
           }
         }
       }

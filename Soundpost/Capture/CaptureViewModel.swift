@@ -181,7 +181,31 @@ final class CaptureViewModel {
         await classificationTask?.value
     }
 
+    /// Whether throwing this sheet away would destroy something.
+    ///
+    /// True from the moment recording starts until the capsule is saved. It drives
+    /// both the confirmation the capture sheet asks for before a discard and its
+    /// `interactiveDismissDisabled` — a swipe cannot be confirmed, so while there is
+    /// a take to lose the gesture is simply not offered (M17 §4E).
+    ///
+    /// `.review` counts as much as `.recording` does: the clip is on disk and the
+    /// `Capsule` row does not exist yet, so a sheet dismissed there loses exactly as
+    /// much as one dismissed mid-take.
+    var hasUnsavedTake: Bool { phase != .idle }
+
+    /// Throw away the take in progress or in review.
+    ///
+    /// **This is the path that used to leak a live recording** (M17 §4E). It stopped
+    /// the *player* and deleted `fileName` — which is nil during `.recording`, since
+    /// it is only assigned in `handleFinishedRecording` — and never touched the
+    /// recorder at all. `AudioRecorder.cancel()` existed the whole time with no
+    /// callers.
     func discard() {
+        // Only while a take is actually in flight. After `stop()` the recorder still
+        // holds `currentFileName` but no `AVAudioRecorder`, and that clip is the one
+        // `fileName` names below — cancelling there would delete the same file twice
+        // and reset a recorder that has already finished.
+        if recorder.state == .recording { recorder.cancel() }
         player.stop()
         if let fileName { try? audioStore.delete(fileName) }
         reset()
@@ -289,6 +313,15 @@ extension CaptureViewModel {
     /// recorder's automatic finish) without a microphone.
     func finishRecordingForTesting(fileName: String, duration: TimeInterval) {
         handleFinishedRecording(fileName: fileName, duration: duration)
+    }
+
+    /// Test seam: present as a take in flight — the `.recording` phase plus a
+    /// recorder that believes it is running — so the discard path can be exercised
+    /// without a microphone (M17 §4E). See `AudioRecorder.beginRecordingForTesting`
+    /// for why a real recording is the wrong thing to put in a unit test.
+    func beginRecordingForTesting(fileName: String) {
+        recorder.beginRecordingForTesting(fileName: fileName)
+        phase = .recording
     }
 }
 #endif

@@ -25,6 +25,17 @@ struct CaptureView: View {
     @State private var recordPulse = false
     @State private var saveCount = 0
 
+    /// What a confirmed discard should do afterwards. The take is destroyed either
+    /// way; the difference is only where the user lands (M17 §S0).
+    private enum DiscardIntent: Identifiable {
+        /// Cancel — throw the take away and leave the sheet.
+        case close
+        /// Discard & re-record — throw it away and stay, ready to start again.
+        case reRecord
+        var id: Self { self }
+    }
+    @State private var confirmingDiscard: DiscardIntent?
+
     var body: some View {
         NavigationStack {
             Group {
@@ -39,9 +50,23 @@ struct CaptureView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { viewModel.discard(); dismiss() }
+                    Button("Cancel") {
+                        // Nothing recorded yet is nothing to lose — closing an idle
+                        // sheet must not ask a question with no stakes.
+                        if viewModel.hasUnsavedTake {
+                            confirmingDiscard = .close
+                        } else {
+                            viewModel.discard()
+                            dismiss()
+                        }
+                    }
                 }
             }
+            // A swipe cannot be confirmed, so while there is a take to lose the
+            // gesture is not offered at all and Cancel is the only way out (M17
+            // §4E). There is no UI-test target in this project, so this line is
+            // verified by hand in the simulator and nowhere else — see §13.
+            .interactiveDismissDisabled(viewModel.hasUnsavedTake)
             .alert(
                 viewModel.errorMessage ?? "",
                 isPresented: Binding(
@@ -50,6 +75,20 @@ struct CaptureView: View {
                 )
             ) {
                 Button("OK", role: .cancel) {}
+            }
+            .confirmationDialog(
+                "Discard this recording?",
+                isPresented: Binding(
+                    get: { confirmingDiscard != nil },
+                    set: { if !$0 { confirmingDiscard = nil } }
+                ),
+                titleVisibility: .visible,
+                presenting: confirmingDiscard
+            ) { intent in
+                Button("Discard", role: .destructive) { performDiscard(intent) }
+                Button("Keep it", role: .cancel) { confirmingDiscard = nil }
+            } message: { _ in
+                Text("It hasn't been saved yet, and this can't be undone.")
             }
             .sheet(isPresented: $showingEchoPicker) { echoPicker }
             .sheet(isPresented: $showingPaywall) {
@@ -247,7 +286,7 @@ struct CaptureView: View {
                 Button { save() } label: { Text("Save capsule").frame(maxWidth: .infinity) }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.large)
-                Button(role: .destructive) { viewModel.discard() } label: { Text("Discard & re-record") }
+                Button(role: .destructive) { confirmingDiscard = .reRecord } label: { Text("Discard & re-record") }
                     .font(.subheadline)
             }
             .padding()
@@ -422,6 +461,15 @@ struct CaptureView: View {
     }
 
     // MARK: Actions
+
+    /// Throw the take away, then go where the intent says. The destruction is
+    /// `viewModel.discard()`'s either way — this only decides whether the sheet
+    /// closes behind it.
+    private func performDiscard(_ intent: DiscardIntent) {
+        viewModel.discard()
+        confirmingDiscard = nil
+        if intent == .close { dismiss() }
+    }
 
     private func save() {
         let store = CapsuleStore(context: modelContext)

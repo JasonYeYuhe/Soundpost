@@ -113,6 +113,14 @@ final class AudioRecorder: NSObject {
     }
 
     /// Stop and discard the recording + its file.
+    ///
+    /// This had **zero callers** from the day it was written until M17 §S0
+    /// (`CaptureViewModel.discard`). Everything it does mattered and none of it
+    /// happened: a capture sheet dismissed mid-take left `AVAudioRecorder` running,
+    /// never reached `finishSession()` — the only place the meter timer is
+    /// invalidated and the audio session deactivated — and stranded an `.m4a` that
+    /// nothing in the app could ever see, because the `Capsule` row that would name
+    /// it is not inserted until save.
     func cancel() {
         recorder?.stop()
         if let fileName = currentFileName { try? store.delete(fileName) }
@@ -212,6 +220,30 @@ final class AudioRecorder: NSObject {
         finishAutomatically()
     }
 }
+
+#if DEBUG
+extension AudioRecorder {
+    /// Test seam: look like a take in flight without touching AVFoundation.
+    ///
+    /// Starting a real recording inside a unit test measures the simulator's audio
+    /// stack rather than this code — two suites are already documented as failing
+    /// locally and green on CI for exactly that reason (M16 §13B). What §S0 needs to
+    /// prove is that the discard path *reaches* `cancel()`, and that `cancel()`
+    /// closes the session rather than merely flipping a flag. Both are properties of
+    /// the state machine, and neither needs a microphone.
+    func beginRecordingForTesting(fileName: String) {
+        currentFileName = fileName
+        state = .recording
+        startMetering()
+    }
+
+    /// Whether the metering timer is still alive. `finishSession()` is the only
+    /// place it is invalidated — and the only place the audio session is
+    /// deactivated — so this is how a test sees that a cancelled take actually shut
+    /// the session down (M17 §4E).
+    var isMeteringForTesting: Bool { meterTimer?.isValid == true }
+}
+#endif
 
 extension AudioRecorder: AVAudioRecorderDelegate {
     nonisolated func audioRecorderDidFinishRecording(_ recorder: AVAudioRecorder, successfully flag: Bool) {
