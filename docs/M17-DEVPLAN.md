@@ -524,3 +524,169 @@ is why the plan changed.**
 - **Citations — both reviewers checked §3 and §4 line by line and found every one
   accurate.** That is a better result than M16's draft managed, and it is recorded so
   that a future finding of a wrong citation reads as a regression.
+
+---
+
+## 13. Build record (2026-08-26)
+
+Shipped as planned: **S0 → S1 → S2 → S3 → S4**, each compiling, passing and
+committed before the next. Nothing was dropped. Standing bars at close: **513 tests
+in 68 suites / 0 warnings on a clean build / i18n EN·JA·ZH-Hans 100% across 335
+strings / 93 sound labels / CloudKit seed coverage green.** No new CloudKit field,
+no new entity, no promotion — the constraint that lets this run while 1.7.0 is
+blocked held all the way through, and no step ever came close to wanting one.
+
+§4B's outcome was implemented as written: **the labels ship visible and attributed,
+with no per-label correction.** Nothing found during the build argued against it.
+
+### 13A. Where the plan was wrong, and where I departed from it
+
+**§4C said "give `Soundprint` an explicit showable-labels notion". It also needed a
+rename.** `isEmpty` was not merely incomplete, it was *misnamed* — it reads as
+"nothing here" and means "no labels in the string". It is now `hasNoLabels`, and the
+storage layer still asks it (`SoundprintRemediation` reopens exactly the
+analysed-but-empty verdicts). The §11P move applied to a name rather than a gate.
+
+**§S2 asks for "the attribution carried in the accessibility label"; the card carries
+it in the visible copy too.** §4A rule 1 forbids "a bare noun sitting where the mood
+sits", and the card's slot is the *note's* — a bare "rain" there reads as a caption
+the person wrote. So the card renders the whole attributed sentence at caption
+weight, and no separate accessibility label is needed because the visible text
+already is one. On the detail screen the attribution is a header over chips, which
+is not what a literal reading of "in the sentence" suggests: a phrase has to be
+tappable on its own to become §S3's facet, and the header sits directly above the
+chips so none of them is ever a bare noun in context. Each chip carries the full
+sentence as its accessibility label, because VoiceOver can land on one out of the
+header's context.
+
+**§S3 says "a `sounds` facet"; it needed `Soundprint.Showable` too.** A chip must
+carry both the phrase (for the reader) and the identifier (for the facet), and
+deriving one from the other at two call sites is how they drift. One type, one
+vocabulary lookup.
+
+**§S4's authorization item became a rule about `.denied` only.** `.notDetermined`
+still gets the promise: sealing asks for permission as part of its own flow, so
+apologising for a refusal that has not happened is its own small untruth.
+
+**`CapsuleStore.setEcho` was fixed alongside `seal`, which §S4 did not ask for.** It
+has the identical defect. The pickers happen to start at tomorrow so it is not
+reachable through the UI, but a store method that silently converts a caller's
+future instant into a past one is wrong whether or not a screen currently asks it
+to.
+
+### 13B. The localization gate could not fail for this milestone's own copy
+
+Found while adding the attribution sentence, and **measured rather than assumed**:
+`Soundpost heard %@` was written in source, the project built, and
+`Localizable.xcstrings` was untouched. The gate then reported "every source literal
+catalogued" while a string that would render in English to every Japanese and
+Chinese reader was absent from the catalog entirely.
+
+Check 2 skipped any literal containing `\(`, on the stated grounds that it "lands in
+the catalog under a format key instead" — which is what Xcode does when it extracts,
+and what this project's build does not. **That is M15 §11P a sixth time, inside the
+gate written to close it**, and it was written from a belief about a tool rather than
+from what the repository contains.
+
+Closed by SHAPE: `\(anything)` in source and `%@` / `%lld` / … in a catalog key both
+collapse to one placeholder, and a source literal must match some catalog key's
+shape. Types are deliberately not inferred — the question is "is a string of this
+shape catalogued at all", which is the one that was going unasked. Controls: removing
+the key turns it red; adding a third interpolation to the existing
+`Echoes back %@ · in %lld days` turns it red, which also proves the nested-paren
+scanner handles `echoDays(until: echoAt)`.
+
+**A second disguise, found in S4.** The gate finds literals in a localizing *call* or
+in a declaration typed `LocalizedStringKey`. A ternary's branches inside `Text(…)`
+are in neither, so new copy written that way ships untranslated with the gate green.
+Rather than widen the regex to scan call arguments (which would pick up image names
+and identifiers), the code was restructured to the `LocalizedStringKey` property
+shape the gate already understands — the shape `SealSheet` and `ContentView` already
+use. The gate then flagged it correctly. **The residual risk is recorded rather than
+closed:** a literal in a third position the gate does not know about would still slip
+through.
+
+### 13C. What the tests do and do not cover
+
+There is no UI-test target, and none was added. 73 tests were added across 8 new
+suites, every one asserting on a policy or storage layer:
+
+- `SoundprintDisplay` — which phrases a capsule shows, given its soundprint, its
+  visibility, its note and consent — is a pure function and is tested as one.
+- `GalleryFilter.Criteria.sounds`, `describesASearch`, `Soundprint.showable*`,
+  `SoundprintRemediation.supersededPrefixes/rejudge`, `CapsuleStore.humaneInstant`,
+  `AudioOrphanAudit.orphans`, `NotificationCoordinator.canPromiseAReminder`.
+
+**Not covered by tests, and verified by hand on the iPhone 17 simulator instead** —
+each recorded in its step's commit message:
+
+- `interactiveDismissDisabled` and the discard confirmation (S0): a sheet recording
+  at 0:18 does not dismiss on a swipe and runs on to 0:48; Cancel → Discard stops the
+  recorder and removes the clip from Application Support; an idle sheet still swipes
+  away. The launch orphan audit logged `code 2` for two planted clips and left both
+  files in place.
+- The card and detail rendering (S2), and the facet round trip (S3), against a
+  temporarily-seeded demo library that was **reverted, not committed**.
+- The seal sheet's promise copy, the filter empty state, and the echo/seal card
+  tapability (S4).
+
+**One item is not verified at all, and is not claimed to be:** the cold-launch deep
+link (§S4). `simctl push` delivered the payload and the notification appeared
+carrying the right `capsule_id`, but the simulator would not accept a synthetic tap
+on a lock-screen or Notification Center entry, so a cold launch was never triggered.
+The fix is small and its mechanism is plain — the pending id is now drained from
+`.task` as well as `.onChange` — but it wants a confirmation on a real device. It is
+in §8 for that reason.
+
+**Every new test was run against a broken implementation and seen to fail.** 39
+control mutations in total, listed per step in the commit messages. Three of them
+found real problems rather than confirming the tests:
+
+- **J** — deleting `SoundVocabulary.isAllowed` from `Soundprint.isShowable` left
+  every test green, because `showablePhrases` launders the answer through
+  `displayName(for:)`, which drops unknown labels anyway. But `rejudge` filters on
+  `showableLabels`, which does not — so the mutation would have let a **denied** label
+  be re-stamped into the current generation where nothing would question it again.
+  Moving `rejudge`'s inline check behind `isShowable` had quietly put a real
+  guarantee behind an untested condition. Three tests added; the mutation re-run red.
+- **AC** — `theFacetNarrowsWithTheOtherCriteria` stayed green with the sound facet
+  removed entirely: its mood filter alone already produced the expected single
+  result. A third capsule was added and the mutation re-run red.
+- **AQ** — `theStripCarriesNoContent` was vacuous on `timeZoneID`, because the
+  fixture left it nil and the mutation set it to nil. A reconstruction test proves
+  nothing about a field whose expected value is the default.
+
+And one about the harness rather than the code: mutation **AO** was mutually
+recursive, the test host crashed, and the runner reported no failures because it
+grepped for `✘ Test … failed` lines that a crash never produces. It now reads the
+authoritative "Failing tests:" block and warns when no run line appears at all —
+the same §11P shape, in my own tooling.
+
+### 13D. Still needs Jason
+
+1. **Push.** CI has still not run since `b025459`; master is now 20 commits ahead.
+   Every gate here was run locally on a clean build, which is exactly the claim M16
+   §13C says not to trust on its own.
+2. **The cold-launch deep link on a real device** (§13C).
+3. **The ASC privacy nutrition label** (§6). `PrivacyInfo.xcprivacy` is unchanged and
+   no new field, category or transmission exists — but it is server-side state
+   nothing in this repo can read, and §11A#12 is open precisely because that
+   assertion was once made without checking. One thing moved in the *right*
+   direction and belongs in the release notes: `CapsuleBulkExporter` now honours
+   listening consent (§4D).
+4. **The two CloudKit steps** (M15 §11R), untouched and still outstanding.
+5. **One human hour in App Store Connect** would make the app sellable (§8.2).
+6. **The "capture today" notification decision** (§8.5) — still not in scope either
+   way, and it shapes M18.
+7. **The demo seed carries no soundprints**, so `-seedSampleData` screenshots show
+   none of this milestone. Deliberately not changed here (it is nobody's request),
+   but it matters the moment §8.7's screenshots are retaken.
+
+### 13E. What M18 inherits
+
+Unchanged from §11: **per-label rejection as immutable `SoundRejection` rows**, which
+needs the promotion *and* a field-aware `cloudkit-schema.sh` (§4F) before it can be
+verified at all. The orphan **sweep** now has an observation to build on — and §4E's
+two guards plus an exclusion of `AudioRecorder.currentFileName` remain the price of
+entry. `Soundprint.Showable` and `SoundprintDisplay` are the seams a rejection would
+have to pass through, and both are pure.
