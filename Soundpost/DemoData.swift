@@ -21,11 +21,29 @@ enum DemoData {
     @MainActor
     static func seed(into context: ModelContext) {
         // Localized so screenshots read natively in every store locale.
-        let samples: [(mood: Mood, note: String, place: String?, duration: Double, daysAgo: Double)] = [
-            (.calm, String(localized: "Rain on the window this morning"), String(localized: "Home"), 12, 0),
-            (.joyful, String(localized: "Kids laughing at the park"), String(localized: "Ueno Park"), 8, 1),
-            (.nostalgic, String(localized: "The old train crossing bell"), nil, 17, 3),
-            (.tender, String(localized: "Her humming in the kitchen"), String(localized: "Home"), 22, 6),
+        //
+        // `sounds` are classifier identifiers, seeded so the demo library shows what
+        // M17 made visible: a card renders "Soundpost heard …" only when it has no
+        // note, so the fifth sample deliberately has none. Without that, a screenshot
+        // build would show none of this milestone at all and would misrepresent the
+        // app — the labels are the differentiator, and hiding them in the demo is the
+        // same mistake M17 exists to fix, one layer out.
+        //
+        // A `nil` note is what the card treats as a silence for the guess to fill;
+        // the phrases themselves are looked up at render time, so these stay correct
+        // in every language.
+        let samples: [(mood: Mood, note: String?, place: String?, duration: Double,
+                       daysAgo: Double, sounds: [String])] = [
+            (.calm, String(localized: "Rain on the window this morning"), String(localized: "Home"),
+             12, 0, ["rain", "raindrop"]),
+            (.joyful, String(localized: "Kids laughing at the park"), String(localized: "Ueno Park"),
+             8, 1, ["laughter", "chatter"]),
+            (.nostalgic, String(localized: "The old train crossing bell"), nil,
+             17, 3, ["train"]),
+            (.tender, String(localized: "Her humming in the kitchen"), String(localized: "Home"),
+             22, 6, ["water_tap_faucet"]),
+            // No note: the one card that shows what Soundpost heard.
+            (.calm, nil, String(localized: "Home"), 9, 8, ["bird_chirp_tweet", "wind_rustling_leaves"]),
         ]
         for (index, sample) in samples.enumerated() {
             let capsule = Capsule(createdAt: Date(timeIntervalSinceNow: -sample.daysAgo * 86_400))
@@ -39,6 +57,13 @@ enum DemoData {
             }
             capsule.mood = sample.mood
             capsule.note = sample.note
+            // Descending confidences, so the order on screen is the order here.
+            capsule.soundprintRaw = Soundprint(
+                classifier: "version1",
+                labels: sample.sounds.enumerated().map {
+                    Soundprint.Label(identifier: $1, confidence: 0.88 - Double($0) * 0.15)
+                }
+            ).stored
             if let place = sample.place {
                 capsule.place = Place(latitude: 35.7148, longitude: 139.7753, name: place)
             }
@@ -59,6 +84,12 @@ enum DemoData {
         sealed.waveformSamples = (0..<56).map { i in Float(0.3 + 0.5 * abs(sin(Double(i) * 0.7))) }
         sealed.mood = .energized
         sealed.note = String(localized: "A note to open on my birthday")
+        // Carried so the demo also covers the rule that matters most: a sealed-not-due
+        // capsule shows NOTHING, note or sound, however much it holds (M17 §4A).
+        sealed.soundprintRaw = Soundprint(
+            classifier: "version1",
+            labels: [Soundprint.Label(identifier: "crowd", confidence: 0.83)]
+        ).stored
         try? sealed.transition(to: .recording)
         try? sealed.transition(to: .captured)
         sealed.sealUntil = Date(timeIntervalSinceNow: 200 * 86_400)
