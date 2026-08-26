@@ -5,6 +5,10 @@ struct SealSheet: View {
     let onSeal: (Date) -> Void
 
     @Environment(\.dismiss) private var dismiss
+    /// Read for one sentence only: whether a dated reminder is still something this
+    /// app can promise (M17 §S4). The seal itself does not depend on it — a sealed
+    /// capsule reappears in the gallery on its date whatever notifications are doing.
+    @Environment(NotificationCoordinator.self) private var notifications
     @State private var date: Date = Calendar.current.date(byAdding: .month, value: 6, to: .now) ?? .now
 
     private var earliest: Date { Date.now.addingTimeInterval(60) }
@@ -29,7 +33,13 @@ struct SealSheet: View {
                 }
 
                 Section {
-                    Text("Soundpost will hide this capsule and notify you on \(date.formatted(date: .long, time: .omitted)). This is a gentle, honor-system seal kept on your device — not encryption.")
+                    // Say what will actually happen. With notifications denied the
+                    // old sentence promised an alert the OS has already refused —
+                    // and the app would only admit it *after* the seal was made, in
+                    // the "Sealed — but reminders are off" alert. `notDetermined` is
+                    // deliberately still a promise: sealing asks for permission as
+                    // part of the flow.
+                    Text(sealPromise)
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
@@ -45,6 +55,14 @@ struct SealSheet: View {
                 }
             }
         }
+    }
+
+    private var sealPromise: LocalizedStringKey {
+        let day = date.formatted(date: .long, time: .omitted)
+        if notifications.canPromiseAReminder {
+            return "Soundpost will hide this capsule and notify you on \(day). This is a gentle, honor-system seal kept on your device — not encryption."
+        }
+        return "Soundpost will hide this capsule until \(day). Notifications are off, so nothing will alert you — it reappears here on its date. This is a gentle, honor-system seal kept on your device — not encryption."
     }
 
     // LocalizedStringKey (not String) so the call-site literals localize — the

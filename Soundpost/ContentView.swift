@@ -177,9 +177,39 @@ struct ContentView: View {
         .background(.background.opacity(0.95))
     }
 
+    /// **Only a search says "no results for".** This was always
+    /// `ContentUnavailableView.search(text:)`, so a mood filter or a sound facet with
+    /// nothing under it answered a question the user had not asked — and with an empty
+    /// query it rendered a bare "No Results", which names no cause and offers no way
+    /// out (M17 §S4). A filter with nothing under it is a filter that wants removing,
+    /// and now says so.
+    ///
+    /// A query present makes it a search result again, even alongside filters: the
+    /// words are the user's own and are part of what they asked.
+    @ViewBuilder
     private var noMatches: some View {
-        ContentUnavailableView.search(text: searchText)
+        if !filterCriteria.describesASearch {
+            ContentUnavailableView {
+                Label("Nothing matches this filter", systemImage: "line.3.horizontal.decrease.circle")
+            } description: {
+                Text("No capsules match the filters you've set.")
+            } actions: {
+                Button("Clear filters") { withAnimation { clearFilters() } }
+            }
             .padding(.top, 40)
+        } else {
+            ContentUnavailableView.search(text: searchText)
+                .padding(.top, 40)
+        }
+    }
+
+    /// One definition of "clear", so the filter bar's button and the empty state's
+    /// cannot come to mean different things.
+    private func clearFilters() {
+        filterMoods = []
+        sealedOnly = false
+        searchText = ""
+        filterSounds = []
     }
 
     /// A collapsed-by-default filter: mood chips + a "Sealed only" toggle. Calm,
@@ -200,7 +230,27 @@ struct ContentView: View {
         }
     }
 
+    /// **An echo card opens its capsule; a seal card does not** (M17 §S4).
+    ///
+    /// An echo names a capsule whose content is already visible, so going there is
+    /// simply the thing the card is about. A seal's capsule is hidden until its date —
+    /// tapping it could only ever arrive at the locked screen, which is an invitation
+    /// to be told no. The strip stays content-free either way: a countdown, never a
+    /// note or a place (§4F).
+    @ViewBuilder
     private func upcomingCard(_ item: PlannedNotification) -> some View {
+        let isSeal = item.kind == .seal
+        let face = upcomingCardFace(item)
+        if !isSeal, let capsule = capsules.first(where: { $0.id == item.capsuleID }) {
+            Button { openCapsule(capsule) } label: { face }
+                .buttonStyle(.plain)
+                .accessibilityHint("Opens this capsule")
+        } else {
+            face
+        }
+    }
+
+    private func upcomingCardFace(_ item: PlannedNotification) -> some View {
         let isSeal = item.kind == .seal
         return VStack(alignment: .leading, spacing: 6) {
             Image(systemName: isSeal ? "lock.fill" : "bell.badge")
@@ -262,12 +312,8 @@ struct ContentView: View {
                     .font(.subheadline)
                     .tint(.accentColor)
                 if criteria.isActive {
-                    Button("Clear filters") {
-                        withAnimation {
-                            filterMoods = []; sealedOnly = false; searchText = ""; filterSounds = []
-                        }
-                    }
-                    .font(.caption)
+                    Button("Clear filters") { withAnimation { clearFilters() } }
+                        .font(.caption)
                 }
             }
         }
@@ -395,7 +441,29 @@ struct ContentView: View {
         _ = try? store.normalizeSealHours()
         _ = try? store.refreshDueSeals()
         try? store.save()
+        // Authorization is async and revocable from Settings while the app is
+        // backgrounded, so it is read on every foreground rather than once at launch
+        // — otherwise the seal sheet goes on promising a reminder the OS has since
+        // refused (M17 §S4).
+        await notifications.refreshAuthorization()
         await notifications.sync(capsules: capsules)
+        drainPendingDeepLink()
+    }
+
+    /// Open the capsule a notification tap asked for, if one is waiting.
+    ///
+    /// **The cold-launch tap used to do nothing.** `pendingDeepLinkCapsuleID`'s only
+    /// consumer was `.onChange`, which does not fire for a value that was already set
+    /// at the first body evaluation — and a tap that *launches* the app sets it before
+    /// there is any body to change. So the one tap that most obviously means "take me
+    /// to this capsule" was the one tap that was dropped. The coordinator's unit tests
+    /// could not see it: they assert the id was set, which it always was.
+    ///
+    /// Called after every `refreshAndSync`, which covers both the cold launch and a
+    /// return to the foreground; `.onChange` still covers a tap while the app is
+    /// already running. Harmless when nothing is pending.
+    private func drainPendingDeepLink() {
+        handleDeepLink(notifications.pendingDeepLinkCapsuleID)
     }
 
     /// The single "open capsule" action every card tap and deep link routes

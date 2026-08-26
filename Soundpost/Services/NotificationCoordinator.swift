@@ -12,6 +12,35 @@ final class NotificationCoordinator: NSObject, UNUserNotificationCenterDelegate 
     /// Set when a notification is tapped; ContentView observes this to navigate.
     var pendingDeepLinkCapsuleID: UUID?
 
+    /// Whether the OS currently permits Soundpost to post an alert. `nil` until it
+    /// has been read once.
+    ///
+    /// **Read on becoming active, never cached from launch.** Authorization is async
+    /// and the user can revoke it in Settings while the app is backgrounded, so a
+    /// value taken once at startup goes stale in exactly the case that matters — and
+    /// the app would go on offering to "notify you on 14 March 2027" when it has been
+    /// told it may not (M17 §S4).
+    ///
+    /// Nothing in the app read `notificationSettings()` at all before this: the one
+    /// existing call site is `SoundpostAppDelegate`, which uses it to decide whether
+    /// to re-register for APNs and hands the answer to no view.
+    private(set) var authorizationStatus: UNAuthorizationStatus?
+
+    /// Whether a dated reminder is a promise the app can still keep.
+    ///
+    /// `.notDetermined` counts as *yes*, and deliberately: sealing asks for
+    /// permission as part of the flow, so warning someone about a refusal that has
+    /// not happened — and probably will not — would be its own small untruth. Only an
+    /// outright denial is a state where the app knows, before saying anything, that
+    /// nothing will arrive.
+    var canPromiseAReminder: Bool { authorizationStatus != .denied }
+
+    /// Refresh `authorizationStatus`. Cheap, local, and safe to call on every
+    /// foreground.
+    func refreshAuthorization() async {
+        authorizationStatus = await center.notificationSettings().authorizationStatus
+    }
+
     /// Cloud-backed delivery reconciler (M10 §S3). Injected by the app; nil under
     /// tests/previews, where only the local path runs. Reconciled in lockstep with
     /// the local notification sync so routing is recomputed at the same points.
@@ -32,6 +61,9 @@ final class NotificationCoordinator: NSObject, UNUserNotificationCenterDelegate 
     @discardableResult
     func requestAuthorization() async -> Bool {
         let granted = (try? await center.requestAuthorization(options: [.alert, .sound, .badge])) ?? false
+        // The answer we just got IS the current state; re-reading it would be a
+        // second round trip to learn what this call already returned.
+        authorizationStatus = granted ? .authorized : .denied
         if granted {
             // Cloud-backed delivery (M10 §S1): once the user has allowed alerts,
             // register for remote notifications so the APNs token reaches the
@@ -144,3 +176,15 @@ final class NotificationCoordinator: NSObject, UNUserNotificationCenterDelegate 
         await MainActor.run { self.pendingDeepLinkCapsuleID = uuid }
     }
 }
+
+#if DEBUG
+extension NotificationCoordinator {
+    /// Test seam: stand in a given authorization state without a live notification
+    /// centre. `UNUserNotificationCenter` cannot be constructed or stubbed, and
+    /// `notificationSettings()` reports whatever the test *host* happens to be
+    /// authorized for — which is a property of the simulator, not of this code.
+    func setAuthorizationForTesting(_ status: UNAuthorizationStatus) {
+        authorizationStatus = status
+    }
+}
+#endif

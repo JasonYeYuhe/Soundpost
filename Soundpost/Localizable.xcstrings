@@ -1762,6 +1762,23 @@
         }
       }
     },
+    "No capsules match the filters you've set.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "設定した条件に一致するカプセルはありません。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有胶囊符合你设置的筛选条件。"
+          }
+        }
+      }
+    },
     "No capsules yet": {
       "localizations": {
         "ja": {
@@ -1842,6 +1859,23 @@
         }
       }
     },
+    "Nothing matches this filter": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "この条件に一致するものはありません"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有符合此筛选的内容"
+          }
+        }
+      }
+    },
     "Notifications": {
       "localizations": {
         "ja": {
@@ -1854,6 +1888,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "通知"
+          }
+        }
+      }
+    },
+    "Notifications are off, so this won't reach you until you turn them on.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通知がオフのため、オンにするまで届きません。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "通知已关闭，开启后才会收到提醒。"
           }
         }
       }
@@ -2047,6 +2098,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "%@ 开启"
+          }
+        }
+      }
+    },
+    "Opens this capsule": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このカプセルを開きます"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开这个胶囊"
           }
         }
       }
@@ -3000,6 +3068,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "Soundpost 会隐藏这个胶囊，并在 %@ 通知你。这是设备上温柔、基于自觉的封印，并非加密。"
+          }
+        }
+      }
+    },
+    "Soundpost will hide this capsule until %@. Notifications are off, so nothing will alert you — it reappears here on its date. This is a gentle, honor-system seal kept on your device — not encryption.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Soundpost は %@ までこのカプセルを隠します。通知がオフのため何も知らせは届きませんが、その日にここへ戻ってきます。これは端末上で守られる穏やかな封印であり、暗号化ではありません。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Soundpost 会把这个胶囊隐藏到 %@。通知已关闭，不会有任何提醒，但它会在当天重新出现在这里。这是保存在你设备上的温和封存，并非加密。"
           }
         }
       }

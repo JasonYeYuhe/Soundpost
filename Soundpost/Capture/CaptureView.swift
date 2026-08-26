@@ -8,6 +8,9 @@ struct CaptureView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(StoreService.self) private var store
+    /// Read for one sentence: whether the echo this screen is offering is a reminder
+    /// the app is still allowed to deliver (M17 §S4).
+    @Environment(NotificationCoordinator.self) private var notifications
     @State private var viewModel = CaptureViewModel()
     @State private var showingEchoPicker = false
     /// A stable fallback for the echo-picker binding, seeded once at view init so
@@ -399,7 +402,7 @@ struct CaptureView: View {
                     Button("Remove", role: .destructive) { viewModel.echoEnabled = false }
                         .font(.subheadline)
                 }
-                Text("A surprise reminder of what today sounded like.")
+                Text(echoPromise)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -411,6 +414,18 @@ struct CaptureView: View {
                 Label("Remind me of this later", systemImage: "bell")
             }
         }
+    }
+
+    /// A `LocalizedStringKey` property rather than a ternary inside `Text(...)`, and
+    /// not only for readability: the localization gate reads source, and it finds
+    /// literals in a localizing *call* or in a declaration typed `LocalizedStringKey`.
+    /// A ternary's branches inside `Text(…)` are in neither position, so a new string
+    /// written that way would ship untranslated with the gate green — the same
+    /// blindness M17 §S2 closed for interpolated literals, in a different disguise.
+    private var echoPromise: LocalizedStringKey {
+        notifications.canPromiseAReminder
+            ? "A surprise reminder of what today sounded like."
+            : "Notifications are off, so this won't reach you until you turn them on."
     }
 
     private var echoPicker: some View {

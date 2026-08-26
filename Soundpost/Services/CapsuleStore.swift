@@ -97,8 +97,17 @@ final class CapsuleStore {
     /// backstop). A removal (unseal/delete) deliberately does NOT clear it — that
     /// path relies on the reconcile *cancel* branch to tell the server to drop the
     /// job (§S2 P0).
-    func seal(_ capsule: Capsule, until date: Date, timeZone: TimeZone = .current) throws {
-        capsule.sealUntil = SealClock.normalize(date, in: timeZone)
+    ///
+    /// **The humane hour is applied only when it is still ahead** (M17 §S4). This
+    /// normalized unconditionally, so sealing "until today" at six in the evening
+    /// stored nine o'clock *this morning*: the capsule was due the instant it was
+    /// sealed, `refreshDueSeals` flipped it to `.resurfaced` on the next launch, and
+    /// the seal the user had just made was over before they saw it. That it was an
+    /// oversight rather than a decision is visible in the code beside it —
+    /// `normalizeSealHours` guards `> now` twice on the same operation.
+    func seal(_ capsule: Capsule, until date: Date, timeZone: TimeZone = .current,
+              now: Date = .now) throws {
+        capsule.sealUntil = Self.humaneInstant(for: date, in: timeZone, now: now)
         capsule.sealTimeZoneID = timeZone.identifier
         capsule.echoAt = nil
         capsule.serverJobSyncedAt = nil
@@ -108,8 +117,23 @@ final class CapsuleStore {
     /// Set or clear a capsule's gentle echo reminder. A non-nil date is normalized
     /// to 09:00 device-local (echoes are near-term wall-clock events — see
     /// `NotificationPlanner`) so the reminder lands at a humane hour (M12 §S2).
-    func setEcho(_ capsule: Capsule, at date: Date?) {
-        capsule.echoAt = date.map { SealClock.normalize($0) }
+    func setEcho(_ capsule: Capsule, at date: Date?, now: Date = .now) {
+        // Same guard as `seal`, for the same reason: the pickers happen to start at
+        // tomorrow, so today is not reachable through the UI — but a store method
+        // that silently converts a caller's future instant into a past one is wrong
+        // whether or not a screen currently asks it to.
+        capsule.echoAt = date.map { Self.humaneInstant(for: $0, in: .current, now: now) }
+    }
+
+    /// The instant a reminder chosen for `date` should fire: 09:00 local, **unless
+    /// that has already passed**, in which case the chosen instant stands.
+    ///
+    /// Only normalization can move an instant backwards here — a date the caller
+    /// picked in the past stays in the past, which is the caller's statement and not
+    /// this method's to overrule.
+    static func humaneInstant(for date: Date, in timeZone: TimeZone, now: Date = .now) -> Date {
+        let normalized = SealClock.normalize(date, in: timeZone)
+        return normalized > now ? normalized : date
     }
 
     /// What an edit may do to a capsule's place.

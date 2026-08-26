@@ -31,10 +31,21 @@ enum GalleryFilter {
         var sounds: Set<String> = []
 
         var isActive: Bool {
+            describesASearch || !moods.isEmpty || sealedOnly || !sounds.isEmpty
+        }
+
+        /// Whether the user actually asked a question in words.
+        ///
+        /// The gallery's empty state used to be `ContentUnavailableView.search(text:)`
+        /// unconditionally, so a mood filter or a sound facet with nothing under it
+        /// answered "no results for" a search nobody had run — and with an empty query
+        /// it rendered a bare "No Results", naming no cause and offering no way out
+        /// (M17 §S4). A filter with nothing under it is a filter that wants removing.
+        ///
+        /// A query alongside filters still counts: the words are the user's own and
+        /// are part of what they asked.
+        var describesASearch: Bool {
             !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                || !moods.isEmpty
-                || sealedOnly
-                || !sounds.isEmpty
         }
     }
 
