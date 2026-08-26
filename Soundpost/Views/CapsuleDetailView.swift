@@ -40,8 +40,22 @@ struct CapsuleDetailView: View {
     @AppStorage(MoodPalette.storageKey) private var moodPaletteRaw = ""
     private var palette: MoodPalette { MoodPalette(stored: moodPaletteRaw) }
 
+    /// This device's mirror of the account-wide listening answer, observed rather than
+    /// read, so turning listening off in Settings removes what Soundpost heard from
+    /// this screen immediately — and so the read is not a `UserDefaults` hit inside
+    /// `body`. Default `true` matches `SoundAnalysisPreferences.isEnabled`'s
+    /// default-on; write through `ListeningConsentStore.set`, never here.
+    @AppStorage(SoundAnalysisPreferences.enabledKey) private var listeningEnabled = true
+
     private var tint: Color { palette.tint(for: capsule.mood) }
     private var isLocked: Bool { capsule.state == .sealed && !capsule.isContentVisible() }
+
+    /// What Soundpost heard, subject to every §4A rule at once. Empty on a
+    /// sealed-not-due capsule, empty with listening off, empty when nothing stored is
+    /// showable — and never assembled here, so this screen and the card cannot drift.
+    private var heardPhrases: [String] {
+        SoundprintDisplay.phrases(for: capsule, on: .detail, listening: listeningEnabled)
+    }
     /// This capsule's control state, not the player's: the owner is shared now, so
     /// "playing" has to mean "playing *this*".
     private var playbackState: PlaybackController.ControlState { playback.controlState(for: capsule) }
@@ -168,6 +182,8 @@ struct CapsuleDetailView: View {
                     .padding(.horizontal)
             }
 
+            heardSection
+
             VStack(spacing: 8) {
                 if let place = capsule.place?.name {
                     Label(place, systemImage: "mappin.and.ellipse")
@@ -192,6 +208,46 @@ struct CapsuleDetailView: View {
             exportControl
                 .padding(.top, capsule.state == .captured ? 0 : 8)
         }
+    }
+
+    /// What Soundpost heard, said in the reader's language and attributed in the copy
+    /// (M17 §4A).
+    ///
+    /// **Below the note, never above it.** The one line the person wrote is the title
+    /// of their own memory; this is a machine's guess about the room, and it says so.
+    ///
+    /// The attribution is a *header over chips* rather than one joined sentence, which
+    /// is the shape the capture sheet already uses and which M17 §S3 needs — a phrase
+    /// has to be tappable on its own to become a gallery facet. No chip is ever a bare
+    /// noun in context: the header names the guesser directly above them, and each
+    /// chip carries the whole sentence as its accessibility label, because VoiceOver
+    /// can land on one out of the header's context.
+    @ViewBuilder
+    private var heardSection: some View {
+        let phrases = heardPhrases
+        if !phrases.isEmpty {
+            VStack(spacing: 8) {
+                Text("Soundpost heard")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                // Wrapping, not scrolling: at most three phrases, and a horizontal
+                // scroll view on a vertically-scrolling screen is a gesture conflict
+                // for the sake of a row that fits.
+                HStack(spacing: 8) {
+                    ForEach(phrases, id: \.self) { heardChip($0) }
+                }
+            }
+            .padding(.top, 4)
+        }
+    }
+
+    private func heardChip(_ phrase: String) -> some View {
+        Text(phrase)
+            .font(.subheadline)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 7)
+            .background(Color(.secondarySystemBackground), in: SwiftUI.Capsule())
+            .accessibilityLabel(SoundprintDisplay.sentence(for: [phrase]) ?? phrase)
     }
 
     /// **The gate sits before the menu** (M13 §4E). A free user taps one button and

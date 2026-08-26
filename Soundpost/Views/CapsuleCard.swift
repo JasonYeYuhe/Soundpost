@@ -33,6 +33,13 @@ struct CapsuleCard: View {
     @AppStorage(MoodPalette.storageKey) private var moodPaletteRaw = ""
     private var palette: MoodPalette { MoodPalette(stored: moodPaletteRaw) }
 
+    /// This device's mirror of the account-wide listening answer. `@AppStorage` rather
+    /// than a `SoundAnalysisPreferences.isEnabled` read, for the same reason the
+    /// palette is: it repaints the whole gallery the moment the switch flips, and it
+    /// is not a `UserDefaults` hit per card per body pass on a path the 20 Hz player
+    /// already drives (M16 §7).
+    @AppStorage(SoundAnalysisPreferences.enabledKey) private var listeningEnabled = true
+
     private var tint: Color { palette.tint(for: capsule.mood) }
     private var isLocked: Bool { capsule.state == .sealed && !capsule.isContentVisible() }
     /// No control at all on a sealed-not-due capsule, or on one with no clip.
@@ -113,6 +120,20 @@ struct CapsuleCard: View {
                 .frame(height: 56)
             if let note = capsule.note, !note.isEmpty {
                 Text(note).font(.body).lineLimit(2)
+            } else if let heard = SoundprintDisplay.sentence(for: heardPhrases) {
+                // The machine's guess FILLS A SILENCE — it never competes with the
+                // user's own line, which is why this is the `else` branch and not a
+                // row of its own (M17 §4A rule 2, `NotificationCopy.Digest.lead`'s
+                // precedence applied to a second surface).
+                //
+                // Attributed in the copy, at caption weight and secondary colour, so
+                // it can never be mistaken for something the person wrote here. A bare
+                // "rain" in this position would read as their own caption — the exact
+                // failure rule 1 names.
+                Text(heard)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
             }
             HStack(spacing: 12) {
                 // `play.circle` here was decoration — a glyph that looked like a
@@ -172,6 +193,13 @@ struct CapsuleCard: View {
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
         }
+    }
+
+    /// What Soundpost heard, subject to every §4A rule at once — including the one
+    /// this surface adds, that a capsule with a note shows nothing here. Decided in
+    /// `SoundprintDisplay` so the card and the detail screen cannot drift apart.
+    private var heardPhrases: [String] {
+        SoundprintDisplay.phrases(for: capsule, on: .card, listening: listeningEnabled)
     }
 
     private var dateText: String {

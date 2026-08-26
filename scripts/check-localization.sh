@@ -76,8 +76,24 @@ if problems:
 # The constructs below take a `LocalizedStringKey`/`String.LocalizationValue`, so a
 # bare literal in one IS a translatable string whether or not anyone remembered to
 # catalog it. `Text(verbatim:)` is deliberately not in the list — that spelling is
-# how the code says "this one is not for translation" — and neither is anything
-# holding an interpolation, which lands in the catalog under a format key instead.
+# how the code says "this one is not for translation".
+#
+# **Interpolated literals are checked too, and used not to be** (M17 §S2). The first
+# version skipped anything containing `\(`, on the stated grounds that it "lands in
+# the catalog under a format key instead". That is what Xcode does when it extracts,
+# and this project's build does not: adding `Text("Soundpost heard \(x)")` and
+# building left `Localizable.xcstrings` untouched, and this gate passed green while a
+# string that would render in English to every Japanese and Chinese reader was absent
+# from the catalog entirely. Measured, not assumed — the string was added, the build
+# run, the gate run, and it said "every source literal catalogued".
+#
+# So that is the same structural bug this whole check exists to remove, one level in:
+# the exemption was written from a belief about a tool rather than from what the
+# repository contains. It is now closed by SHAPE: `\(anything)` in the source and
+# `%@` / `%lld` / … in a catalog key both normalize to one placeholder, and a source
+# literal must match some catalog key's shape. Types are deliberately not inferred —
+# the gate asks "is a string of this shape catalogued at all", which is the question
+# that was going unasked.
 import re
 
 LOCALIZING = re.compile(
@@ -96,6 +112,49 @@ HAS_CONTENT = re.compile(r'[0-9A-Za-z぀-ヿ一-鿿]')
 known = set()
 for path in catalogs:
     known |= set(json.load(open(path, encoding="utf-8")).get("strings", {}))
+
+# --- Shape matching for interpolated literals ---------------------------------
+#
+# `Text("Soundpost heard \(phrases)")` is catalogued as `Soundpost heard %@`, and
+# `"\(days) days"` as `%lld days`. The gate cannot infer which specifier a given
+# interpolation compiles to without type-checking the expression, and it does not
+# need to: both sides collapse to one placeholder and the shapes are compared.
+
+PLACEHOLDER = "\x00"
+FORMAT_SPECIFIER = re.compile(r"%(?:\d+\$)?[-+ #0]*[\d*]*(?:\.[\d*]+)?(?:hh|h|ll|l|q|L|z|t|j)?[@dioufFeEgGxXsSpaAc]")
+
+
+def catalog_shape(key):
+    return FORMAT_SPECIFIER.sub(PLACEHOLDER, key)
+
+
+def source_shape(key):
+    r"""Replace every `\(…)` with the placeholder, counting nested parentheses.
+
+    A scan rather than a regex, because interpolations nest:
+    `\(echoDays(until: echoAt))` has an inner call whose `)` is not the end.
+    """
+    out, i, n = [], 0, len(key)
+    while i < n:
+        if key.startswith("\\(", i):
+            depth, i = 0, i + 1
+            while i < n:
+                if key[i] == "(":
+                    depth += 1
+                elif key[i] == ")":
+                    depth -= 1
+                    if depth == 0:
+                        i += 1
+                        break
+                i += 1
+            out.append(PLACEHOLDER)
+        else:
+            out.append(key[i])
+            i += 1
+    return "".join(out)
+
+
+known_shapes = {catalog_shape(k) for k in known if "%" in k}
 
 STRING_LITERAL = re.compile(r'"((?:[^"\\\n]|\\.)*)"')
 
@@ -139,11 +198,13 @@ for path in sorted(glob.glob(os.path.join(project_dir, "Soundpost", "**", "*.swi
             found.append((m.start(), m.group(1)))
 
     for offset, key in found:
-        if r"\(" in key:                       # interpolated → format key
-            continue
         if not HAS_CONTENT.search(key):        # "…", " " — nothing to translate
             continue
-        if key in known:
+        interpolated = r"\(" in key
+        if interpolated:
+            if source_shape(key) in known_shapes:
+                continue
+        elif key in known:
             continue
         line = src.count("\n", 0, offset) + 1
         shown = key if len(key) <= 60 else key[:57] + "..."
@@ -194,5 +255,6 @@ if half:
 
 count = sum(1 for path in catalogs for _ in json.load(open(path, encoding="utf-8")).get("strings", {}))
 print(f"✓ Localization gate passed — {len(catalogs)} catalog(s), {count} strings 100% translated,")
-print("  every source literal catalogued, Chinese metadata punctuation clean.")
+print("  every source literal catalogued (interpolated ones by shape),")
+print("  Chinese metadata punctuation clean.")
 PY
