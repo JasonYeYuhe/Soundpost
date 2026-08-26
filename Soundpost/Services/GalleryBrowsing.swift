@@ -15,11 +15,26 @@ enum GalleryFilter {
         var moods: Set<Mood> = []
         /// Restrict to the time-capsule lineage (sealed → resurfaced → opened).
         var sealedOnly: Bool = false
+        /// Classifier identifiers a capsule must have been heard as — "show me the
+        /// others that sounded like this" (M17 §S3).
+        ///
+        /// **A facet, not the search box.** Free text also matches notes and places,
+        /// so searching "rain" surfaces a capsule whose note says rain and whose sound
+        /// was a train. This says what it means, and it costs one field on a value
+        /// type plus a set lookup inside the single walk `apply` already does.
+        ///
+        /// Identifiers rather than phrases: a phrase would tie the filter to the
+        /// device's current language and would have to go through the word-boundary
+        /// rules free-text search needs, which are exactly the fuzziness a facet must
+        /// not have. Matches **any** of them; today the UI sets at most one, because
+        /// the chip is the one the user tapped.
+        var sounds: Set<String> = []
 
         var isActive: Bool {
             !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                 || !moods.isEmpty
                 || sealedOnly
+                || !sounds.isEmpty
         }
     }
 
@@ -39,6 +54,10 @@ enum GalleryFilter {
             guard let mood = capsule.mood, criteria.moods.contains(mood) else { return false }
         }
         if criteria.sealedOnly && !isSealedLineage(capsule) { return false }
+        if !criteria.sounds.isEmpty && !soundFacetMatches(capsule, criteria.sounds,
+                                                          now: now, listening: listening) {
+            return false
+        }
         guard !query.isEmpty else { return true }
         return searchMatches(capsule, query: query, now: now, listening: listening)
     }
@@ -72,6 +91,24 @@ enum GalleryFilter {
         // Non-sensitive, always searchable (mood label shows even on locked cards).
         if capsule.mood?.label.localizedCaseInsensitiveContains(query) == true { return true }
         return false
+    }
+
+    /// Whether this capsule was heard as any of `sounds`.
+    ///
+    /// Gated exactly as sound *search* is, and for the same two reasons rather than by
+    /// analogy: consent, because the erase that removes these labels can lag or fail
+    /// and the app ships copy about it; and visibility, because a sealed-not-due
+    /// capsule's sound is as hidden as its note — a facet that returned one would
+    /// reveal that an unopened capsule is a rainy one, which is the leak M15 §S4
+    /// closed for the search box.
+    ///
+    /// Matched against **showable** identifiers, so a facet can never surface a
+    /// capsule by a label the app declined to name (§4C).
+    static func soundFacetMatches(_ capsule: Capsule, _ sounds: Set<String>,
+                                  now: Date, listening: Bool) -> Bool {
+        guard listening, capsule.isContentVisible(now: now) else { return false }
+        guard let soundprint = Soundprint(stored: capsule.soundprintRaw) else { return false }
+        return soundprint.showableIdentifiers().contains { sounds.contains($0) }
     }
 
     /// Match a query against a capsule's soundprint.

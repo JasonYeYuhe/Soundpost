@@ -180,6 +180,29 @@ struct Soundprint: Equatable, Sendable {
         labels.filter { Self.isShowable($0, defaultFloor: defaultFloor) }
     }
 
+    /// A showable label together with the phrase it renders as.
+    ///
+    /// Both, because the two are wanted by different things about the same chip: the
+    /// reader needs the phrase in their language, and a gallery facet needs the stable
+    /// classifier identifier — matching a *phrase* would tie a saved filter to the
+    /// device's current language, and would go through the fuzzy word-boundary rules
+    /// free-text search needs and a facet must not (M17 §S3).
+    struct Showable: Equatable, Sendable, Identifiable {
+        let identifier: String
+        let phrase: String
+        var id: String { identifier }
+    }
+
+    /// Showable labels paired with their phrases, highest confidence first. The one
+    /// place the vocabulary lookup happens, so a facet and a caption can never
+    /// disagree about which labels exist.
+    func showable(defaultFloor: Double = SoundprintService.confidenceFloor) -> [Showable] {
+        showableLabels(defaultFloor: defaultFloor).compactMap { label in
+            SoundVocabulary.displayName(for: label.identifier)
+                .map { Showable(identifier: label.identifier, phrase: $0) }
+        }
+    }
+
     /// The localized phrases, in the order they would be shown, for the reader's
     /// language.
     ///
@@ -193,8 +216,14 @@ struct Soundprint: Equatable, Sendable {
     /// Empty means "nothing to show", which is the question a header should be driven
     /// by — never `hasNoLabels`.
     func showablePhrases(defaultFloor: Double = SoundprintService.confidenceFloor) -> [String] {
-        showableLabels(defaultFloor: defaultFloor)
-            .compactMap { SoundVocabulary.displayName(for: $0.identifier) }
+        showable(defaultFloor: defaultFloor).map(\.phrase)
+    }
+
+    /// The identifiers a screen could show — and therefore the only ones a gallery
+    /// facet may match on. Finding a capsule by a label it was never told about is a
+    /// result the app cannot explain (§4C).
+    func showableIdentifiers(defaultFloor: Double = SoundprintService.confidenceFloor) -> [String] {
+        showable(defaultFloor: defaultFloor).map(\.identifier)
     }
 
     /// Exact-token membership. **Never substring**: the classifier's own vocabulary

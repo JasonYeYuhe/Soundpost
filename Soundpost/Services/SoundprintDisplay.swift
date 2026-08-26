@@ -50,19 +50,32 @@ enum SoundprintDisplay {
         case card
     }
 
-    /// The phrases this capsule may show on `surface`, highest confidence first.
-    /// Empty means "show nothing at all" — including no header, no icon and no
-    /// container, which is what keeps a ghost impossible (§4C).
+    /// What this capsule may show on `surface`, highest confidence first — each phrase
+    /// with the identifier behind it, because the detail screen's chips are also
+    /// gallery facets (§S3) and a facet must match on the stable identifier.
+    ///
+    /// Empty means "show nothing at all" — no header, no icon, no container, which is
+    /// what keeps a ghost impossible (§4C).
+    static func heard(
+        for capsule: Capsule,
+        on surface: Surface,
+        now: Date = .now,
+        listening: Bool = SoundAnalysisPreferences.isEnabled
+    ) -> [Soundprint.Showable] {
+        guard listening else { return [] }
+        guard capsule.isContentVisible(now: now) else { return [] }
+        if surface == .card, hasNote(capsule) { return [] }
+        return Soundprint(stored: capsule.soundprintRaw)?.showable() ?? []
+    }
+
+    /// Just the phrases, for a surface that renders a sentence rather than chips.
     static func phrases(
         for capsule: Capsule,
         on surface: Surface,
         now: Date = .now,
         listening: Bool = SoundAnalysisPreferences.isEnabled
     ) -> [String] {
-        guard listening else { return [] }
-        guard capsule.isContentVisible(now: now) else { return [] }
-        if surface == .card, hasNote(capsule) { return [] }
-        return Soundprint(stored: capsule.soundprintRaw)?.showablePhrases() ?? []
+        heard(for: capsule, on: surface, now: now, listening: listening).map(\.phrase)
     }
 
     /// Trimmed, because `NotificationCopy.Digest.lead` trims before deciding a note

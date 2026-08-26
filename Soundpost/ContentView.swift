@@ -26,6 +26,11 @@ struct ContentView: View {
     @State private var searchText = ""
     @State private var filterMoods: Set<Mood> = []
     @State private var sealedOnly = false
+    /// The "sounded like this" facet, set by tapping a phrase on a capsule's detail
+    /// screen (M17 §S3). **Never derived by walking the library**: the chip shown is
+    /// the one the user just tapped, so no facet list is enumerated on a path the
+    /// 20 Hz player already drives (M16 §7).
+    @State private var filterSounds: Set<String> = []
     @State private var showingFilters = false
     /// Mirrors the lock-screen-preview preference (toggled in Settings, §S3/§S7).
     /// Changing it must force a full notification reconcile so already-scheduled
@@ -49,7 +54,9 @@ struct ContentView: View {
             }
             .searchable(text: $searchText, prompt: Text("Search your sounds"))
             .navigationTitle("Soundpost")
-            .navigationDestination(for: Capsule.self) { CapsuleDetailView(capsule: $0) }
+            .navigationDestination(for: Capsule.self) {
+                CapsuleDetailView(capsule: $0, onFindSimilar: findSimilar)
+            }
             .toolbar {
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     // The calm Settings hub (§S7): notifications, iCloud + delivery,
@@ -119,7 +126,8 @@ struct ContentView: View {
     }
 
     private var filterCriteria: GalleryFilter.Criteria {
-        GalleryFilter.Criteria(searchText: searchText, moods: filterMoods, sealedOnly: sealedOnly)
+        GalleryFilter.Criteria(searchText: searchText, moods: filterMoods,
+                               sealedOnly: sealedOnly, sounds: filterSounds)
     }
 
     /// The nearest upcoming resurfaces/echoes for the anticipation strip (§S8).
@@ -235,6 +243,15 @@ struct ContentView: View {
             .buttonStyle(.plain)
 
             if showingFilters {
+                // The sound facet, when there is one. Rendered from the SET, never
+                // from the library: a facet list derived by walking every capsule
+                // inside `body` would run on a path that already re-walks several
+                // times per pass and is driven at 20 Hz during playback (§S3).
+                if !filterSounds.isEmpty {
+                    HStack(spacing: 8) {
+                        ForEach(Array(filterSounds).sorted(), id: \.self) { soundFilterChip($0) }
+                    }
+                }
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
                         ForEach(Mood.allCases) { moodFilterChip($0) }
@@ -246,11 +263,42 @@ struct ContentView: View {
                     .tint(.accentColor)
                 if criteria.isActive {
                     Button("Clear filters") {
-                        withAnimation { filterMoods = []; sealedOnly = false; searchText = "" }
+                        withAnimation {
+                            filterMoods = []; sealedOnly = false; searchText = ""; filterSounds = []
+                        }
                     }
                     .font(.caption)
                 }
             }
+        }
+    }
+
+    /// The active sound facet, with the way out of it. Attributed in the copy, like
+    /// every other place a guess appears (§4A rule 1) — a bare "rain" chip in a filter
+    /// bar would read as a tag the user applied to their own capsules.
+    ///
+    /// A label the vocabulary no longer names cannot produce a chip, so it cannot
+    /// produce a filter the user is unable to see or remove: it is dropped along with
+    /// the facet itself.
+    @ViewBuilder
+    private func soundFilterChip(_ identifier: String) -> some View {
+        if let phrase = SoundVocabulary.displayName(for: identifier),
+           let sentence = SoundprintDisplay.sentence(for: [phrase]) {
+            Button {
+                withAnimation { _ = filterSounds.remove(identifier) }
+            } label: {
+                HStack(spacing: 6) {
+                    Text(sentence)
+                    Image(systemName: "xmark.circle.fill").font(.caption)
+                }
+                .font(.subheadline)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 7)
+                .background(Color.accentColor.opacity(0.16), in: SwiftUI.Capsule())
+                .foregroundStyle(Color.accentColor)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(Text("Remove the \(phrase) filter"))
         }
     }
 
@@ -366,6 +414,25 @@ struct ContentView: View {
         case .reveal: revealCapsule = capsule
         case .detail: path = [capsule]
         }
+    }
+
+    /// "Find the others that sounded like this" (§S3): return to the gallery with the
+    /// tapped phrase as an active facet.
+    ///
+    /// It **replaces** rather than accumulates, because the question the user asked is
+    /// about the phrase they just tapped, and it clears the search text, which would
+    /// otherwise silently narrow the answer with words from a previous question. The
+    /// filter bar is opened so the reason the gallery is filtered is on screen —
+    /// a filtered library with no visible cause is the app being quietly wrong about
+    /// what it is showing.
+    private func findSimilar(_ identifier: String) {
+        playback.stop()
+        filterSounds = [identifier]
+        searchText = ""
+        filterMoods = []
+        sealedOnly = false
+        showingFilters = true
+        path = []
     }
 
     /// After the reveal closes, ask for a rating if this was a genuine resurface

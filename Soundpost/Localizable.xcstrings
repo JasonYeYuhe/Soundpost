@@ -1228,6 +1228,23 @@
         }
       }
     },
+    "Find your other capsules that sounded like this": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "同じように聞こえた他のカプセルを探します"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查找听起来相似的其他胶囊"
+          }
+        }
+      }
+    },
     "Finding location…": {
       "localizations": {
         "ja": {
@@ -2399,6 +2416,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "移除"
+          }
+        }
+      }
+    },
+    "Remove the %@ filter": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@のフィルタを解除"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "移除%@筛选"
           }
         }
       }

@@ -7,6 +7,12 @@ import UIKit
 struct CapsuleDetailView: View {
     let capsule: Capsule
 
+    /// "Find the others that sounded like this" (M17 §S3). Passed in rather than
+    /// reached for, because the gallery owns both the filter state and the navigation
+    /// path — the same arrangement `CapsuleCard.onOpen` and `ResurfaceView.onOpened`
+    /// already use. The default makes this view usable from a preview.
+    var onFindSimilar: (String) -> Void = { _ in }
+
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @Environment(NotificationCoordinator.self) private var notifications
@@ -53,8 +59,8 @@ struct CapsuleDetailView: View {
     /// What Soundpost heard, subject to every §4A rule at once. Empty on a
     /// sealed-not-due capsule, empty with listening off, empty when nothing stored is
     /// showable — and never assembled here, so this screen and the card cannot drift.
-    private var heardPhrases: [String] {
-        SoundprintDisplay.phrases(for: capsule, on: .detail, listening: listeningEnabled)
+    private var heard: [Soundprint.Showable] {
+        SoundprintDisplay.heard(for: capsule, on: .detail, listening: listeningEnabled)
     }
     /// This capsule's control state, not the player's: the owner is shared now, so
     /// "playing" has to mean "playing *this*".
@@ -224,8 +230,8 @@ struct CapsuleDetailView: View {
     /// can land on one out of the header's context.
     @ViewBuilder
     private var heardSection: some View {
-        let phrases = heardPhrases
-        if !phrases.isEmpty {
+        let showable = heard
+        if !showable.isEmpty {
             VStack(spacing: 8) {
                 Text("Soundpost heard")
                     .font(.subheadline)
@@ -234,20 +240,31 @@ struct CapsuleDetailView: View {
                 // scroll view on a vertically-scrolling screen is a gesture conflict
                 // for the sake of a row that fits.
                 HStack(spacing: 8) {
-                    ForEach(phrases, id: \.self) { heardChip($0) }
+                    ForEach(showable) { heardChip($0) }
                 }
             }
             .padding(.top, 4)
         }
     }
 
-    private func heardChip(_ phrase: String) -> some View {
-        Text(phrase)
-            .font(.subheadline)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 7)
-            .background(Color(.secondarySystemBackground), in: SwiftUI.Capsule())
-            .accessibilityLabel(SoundprintDisplay.sentence(for: [phrase]) ?? phrase)
+    /// A phrase, and the way back to every other capsule that sounded like it (§S3).
+    ///
+    /// The accessibility label is the whole attributed sentence because VoiceOver can
+    /// land on one chip out of its header's context; the hint says what tapping does,
+    /// which a lone noun cannot.
+    private func heardChip(_ item: Soundprint.Showable) -> some View {
+        Button {
+            onFindSimilar(item.identifier)
+        } label: {
+            Text(item.phrase)
+                .font(.subheadline)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 7)
+                .background(Color(.secondarySystemBackground), in: SwiftUI.Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(SoundprintDisplay.sentence(for: [item.phrase]) ?? item.phrase)
+        .accessibilityHint("Find your other capsules that sounded like this")
     }
 
     /// **The gate sits before the menu** (M13 §4E). A free user taps one button and
