@@ -31,13 +31,52 @@ import SwiftData
 ///   backfill re-analyses it. No second analysis path to keep in step with the first.
 enum SoundprintRemediation {
 
+    /// The prefix a value written under `gate` carries.
+    ///
+    /// Derived from the encoder rather than spelled out, because a gate's **empty
+    /// marker is that gate's prefix**: provenance, `|`, no pairs. Hand-writing the
+    /// string is how the first version of this looked for `1/version1/1|` — a string
+    /// no build has ever produced — and would have run, reported success, and touched
+    /// nothing.
+    static func prefix(forGate gate: Int, classifier: String = "version1") -> String {
+        Soundprint.emptyMarker(classifier: classifier, gate: gate)
+    }
+
     /// The prefix every value written before gate versioning carries.
     ///
     /// Gate 1 was written without a gate component (it *is* 1.6.0's format), so every
-    /// superseded value — empty or labelled — begins `1/<classifier>|`. A prefix test
-    /// keeps the fetch a predicate the store can run rather than a full scan.
+    /// gate-1 value — empty or labelled — begins `1/<classifier>|`.
     static func legacyPrefix(classifier: String = "version1") -> String {
-        "\(Soundprint.schemaVersion)/\(classifier)|"
+        prefix(forGate: 1, classifier: classifier)
+    }
+
+    /// Every prefix a **superseded** value can carry: one per gate generation older
+    /// than the current one.
+    ///
+    /// This is the fix M17 §S1 exists for. The fetch used `legacyPrefix()` alone,
+    /// which is hard-coded to gate 1 — so a gate-2 verdict could never be reopened by
+    /// anything, and the day `gateVersion` became 3 every capsule analysed under gate
+    /// 2 would have been stranded **silently**: the pass would still run, still report
+    /// success, and simply not see them. A pass that can only ever repair the
+    /// generation before last is not a repair mechanism, it is a one-off that happened
+    /// to work once.
+    ///
+    /// One prefix per generation, and one fetch each, rather than a negated predicate
+    /// on the current prefix. "Anything that is not gate 2" also selects values from a
+    /// *newer* build syncing down, which `rejudge` correctly leaves alone — so the
+    /// candidate set would never shrink and `drain` would spin to its batch ceiling
+    /// every launch. The prefixes are mutually exclusive by construction (`1/version1|`
+    /// and `1/version1/2|` differ at the tenth character), so no capsule is fetched
+    /// twice.
+    ///
+    /// `classifier` is still a parameter with one value, and that is deliberate: a
+    /// classifier change means the labels came from a different model, which is a
+    /// re-analysis rather than a re-judgement, and not something this pass should
+    /// quietly take on.
+    static func supersededPrefixes(classifier: String = "version1",
+                                   currentGate: Int = Soundprint.gateVersion) -> [String] {
+        guard currentGate > 1 else { return [] }
+        return (1..<currentGate).map { prefix(forGate: $0, classifier: classifier) }
     }
 
     /// What a re-judgement decided.
@@ -54,20 +93,31 @@ enum SoundprintRemediation {
     /// reopened (it was entirely a threshold judgement), and a labelled one keeps
     /// only labels that still clear today's allow-list and floors. If nothing
     /// survives, there is no longer anything to say and the capsule is reopened.
-    static func rejudge(_ stored: String) -> (outcome: Outcome, stored: String?) {
-        guard let print = Soundprint(stored: stored), print.gate < Soundprint.gateVersion else {
+    /// - Parameter currentGate: the generation to judge against. Defaulted, and a
+    ///   parameter only so a test can stand at a gate this build is not yet at —
+    ///   which is the only way to prove that a gate-2 verdict is reopened when gate 3
+    ///   arrives, rather than asserting it about the one case that happens to work
+    ///   today.
+    static func rejudge(_ stored: String,
+                        currentGate: Int = Soundprint.gateVersion) -> (outcome: Outcome, stored: String?) {
+        guard let print = Soundprint(stored: stored), print.gate < currentGate else {
             return (.revalidated, stored)
         }
-        guard !print.isEmpty else { return (.reopened, nil) }
+        guard print.hasNoLabels == false else { return (.reopened, nil) }
 
-        let surviving = print.labels.filter {
-            SoundVocabulary.isAllowed($0.identifier)
-                && $0.confidence >= SoundVocabulary.confidenceFloor(
-                    for: $0.identifier, default: SoundprintService.confidenceFloor)
-        }
+        // The same pair of conditions display asks (`Soundprint.isShowable`), asked at
+        // rest. Kept spelled out here because this is where the *decision to keep the
+        // stored bytes* is made, and a label that survives must be one a screen would
+        // have shown.
+        let surviving = print.labels.filter { Soundprint.isShowable($0) }
         guard !surviving.isEmpty else { return (.reopened, nil) }
+        // Stamped with the gate the judgement was made under, not with
+        // `Soundprint.gateVersion`'s default. They are the same in production and
+        // differ under a test standing at a future gate — where defaulting would
+        // re-stamp a value back into the superseded set and `drain` would never
+        // converge.
         return (.revalidated,
-                Soundprint(classifier: print.classifier, labels: surviving).stored)
+                Soundprint(classifier: print.classifier, gate: currentGate, labels: surviving).stored)
     }
 
     /// Keep re-judging until nothing superseded is left.
@@ -84,11 +134,13 @@ enum SoundprintRemediation {
         in context: ModelContext,
         batchSize: Int = 40,
         maximumBatches: Int = 100,
-        isEnabled: Bool = SoundAnalysisPreferences.isEnabled
+        isEnabled: Bool = SoundAnalysisPreferences.isEnabled,
+        currentGate: Int = Soundprint.gateVersion
     ) -> Int {
         var reopened = 0
         for batch in 0..<maximumBatches {
-            let result = rejudgeBatch(in: context, limit: batchSize, isEnabled: isEnabled)
+            let result = rejudgeBatch(in: context, limit: batchSize,
+                                      isEnabled: isEnabled, currentGate: currentGate)
             reopened += result.reopened
             // Nothing *touched* means nothing superseded is left. Re-stamps count as
             // progress here — counting only reopenings would loop forever over a
@@ -107,29 +159,45 @@ enum SoundprintRemediation {
     /// many of those were **reopened**. The drain needs the first to know whether
     /// there is more to do; callers care about the second.
     @discardableResult
+    /// - Parameter currentGate: see `rejudge`. Threaded through the fetch *and* the
+    ///   judgement so a test can exercise the join between them, which is where the
+    ///   gate-blindness lived: `supersededPrefixes` deciding what to select and
+    ///   `rejudge` deciding what to do agree by construction only if they are asked
+    ///   about the same generation.
     static func rejudgeBatch(
         in context: ModelContext,
         limit: Int = 40,
-        isEnabled: Bool = SoundAnalysisPreferences.isEnabled
+        isEnabled: Bool = SoundAnalysisPreferences.isEnabled,
+        currentGate: Int = Soundprint.gateVersion
     ) -> (touched: Int, reopened: Int) {
         // Consent first. Re-judging is a prelude to analysing again, and a user who
         // turned listening off must not have their library quietly queued up for it.
         guard isEnabled else { return (0, 0) }
-        guard Soundprint.gateVersion > 1 else { return (0, 0) }
+        let prefixes = supersededPrefixes(currentGate: currentGate)
+        guard !prefixes.isEmpty else { return (0, 0) }
 
-        let prefix = legacyPrefix()
-        var descriptor = FetchDescriptor<Capsule>(
-            predicate: #Predicate { capsule in
-                if let raw = capsule.soundprintRaw {
-                    return raw.starts(with: prefix)
-                } else {
-                    return false
-                }
-            },
-            sortBy: [SortDescriptor(\.createdAt, order: .reverse)]
-        )
-        descriptor.fetchLimit = limit
-        guard let superseded = try? context.fetch(descriptor), !superseded.isEmpty else { return (0, 0) }
+        // One fetch per superseded generation, sharing the batch's budget. Today that
+        // is exactly one and this is what it always was; the difference is what
+        // happens on the next gate bump, when it is two and neither generation is
+        // stranded. See `supersededPrefixes`.
+        var superseded: [Capsule] = []
+        for prefix in prefixes {
+            let remaining = limit - superseded.count
+            guard remaining > 0 else { break }
+            var descriptor = FetchDescriptor<Capsule>(
+                predicate: #Predicate { capsule in
+                    if let raw = capsule.soundprintRaw {
+                        return raw.starts(with: prefix)
+                    } else {
+                        return false
+                    }
+                },
+                sortBy: [SortDescriptor(\.createdAt, order: .reverse)]
+            )
+            descriptor.fetchLimit = remaining
+            if let batch = try? context.fetch(descriptor) { superseded.append(contentsOf: batch) }
+        }
+        guard !superseded.isEmpty else { return (0, 0) }
 
         // Remember the originals: `rollback()` does not restore already-materialised
         // objects — this project established that the hard way when the first version
@@ -139,7 +207,7 @@ enum SoundprintRemediation {
         var reopened = 0
         for capsule in superseded {
             guard let raw = capsule.soundprintRaw else { continue }
-            let (outcome, replacement) = rejudge(raw)
+            let (outcome, replacement) = rejudge(raw, currentGate: currentGate)
             capsule.soundprintRaw = replacement
             if outcome == .reopened { reopened += 1 }
         }

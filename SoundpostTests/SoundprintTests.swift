@@ -65,7 +65,7 @@ struct SoundprintTests {
         let empty = Soundprint(classifier: "version1", labels: [])
         #expect(empty.stored == "1/version1/\(Soundprint.gateVersion)|")
         let parsed = try #require(Soundprint(stored: empty.stored))
-        #expect(parsed.isEmpty)
+        #expect(parsed.hasNoLabels)
         #expect(parsed.classifier == "version1")
         // Never analysed:
         #expect(Soundprint(stored: nil) == nil)
@@ -124,7 +124,7 @@ struct SoundprintTests {
         let stub = StubClassifier(labels: [label("music", 0.25), label("synthesizer", 0.13)])
         let outcome = await SoundprintService.soundprint(
             forClipAt: URL(fileURLWithPath: "/dev/null"), duration: 3, peak: 0.9, classifier: stub)
-        #expect(outcome.soundprint?.isEmpty == true, "silence-shaped output must survive as nothing")
+        #expect(outcome.soundprint?.hasNoLabels == true, "silence-shaped output must survive as nothing")
     }
 
     @Test func confidentLabelsSurviveAndAreCapped() async throws {
@@ -370,7 +370,8 @@ struct SoundSuggestionTests {
 
     @Test func nothingIsSuggestedWhenThereIsNothingConfidentToSay() {
         let empty = Soundprint(classifier: "version1", labels: [])
-        #expect(empty.isEmpty, "an empty soundprint renders no chips at all")
+        #expect(empty.hasNoLabels, "an empty soundprint renders no chips at all")
+        #expect(empty.showablePhrases().isEmpty)
         #expect(Soundprint(stored: nil) == nil)
     }
 }
@@ -682,7 +683,7 @@ struct SoundprintBackfillTests {
 
         // The verdict is recorded — analysed, with nothing to say — not left nil.
         let recorded = try #require(Soundprint(stored: capsule.soundprintRaw))
-        #expect(recorded.isEmpty)
+        #expect(recorded.hasNoLabels)
         #expect(recorded.classifier == "version1")
 
         // And a second pass does not reconsider it: the predicate only ever selects
@@ -1134,7 +1135,7 @@ struct SoundprintGateVersionTests {
 
         let legacyEmpty = try #require(Soundprint(stored: "1/version1|"))
         #expect(legacyEmpty.gate == 1)
-        #expect(legacyEmpty.isEmpty)
+        #expect(legacyEmpty.hasNoLabels)
     }
 
     @Test func aNonsenseGateComponentDegradesToNeverAnalysed() {

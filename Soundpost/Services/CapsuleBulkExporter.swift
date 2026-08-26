@@ -72,11 +72,13 @@ actor CapsuleBulkExporter {
 
     /// Build the export bundle and zip it; returns the `.zip` URL for the share
     /// sheet. Runs on the actor's isolated background context.
-    func export(audioStore: AudioStore = AudioStore()) throws -> URL {
+    func export(audioStore: AudioStore = AudioStore(),
+                listening: Bool = SoundAnalysisPreferences.isEnabled) throws -> URL {
         let base = FileManager.default.temporaryDirectory
             .appending(path: "Soundpost-Export-\(UUID().uuidString)", directoryHint: .isDirectory)
         let folder = base.appending(path: "Soundpost", directoryHint: .isDirectory)
-        try Self.writeBundle(in: modelContext, container: modelContainer, to: folder, audioStore: audioStore)
+        try Self.writeBundle(in: modelContext, container: modelContainer, to: folder,
+                             audioStore: audioStore, listening: listening)
         let zipURL = base.appending(path: "Soundpost.zip", directoryHint: .notDirectory)
         try Self.zip(folder: folder, to: zipURL)
         return zipURL
@@ -84,11 +86,17 @@ actor CapsuleBulkExporter {
 
     /// The streaming bundle core, `nonisolated`/synchronous so it can be unit-tested
     /// against any context + container without crossing an actor boundary.
+    /// - Parameter listening: whether the account currently permits Soundpost to
+    ///   listen. Threaded as a defaulted parameter, the same seam
+    ///   `GalleryFilter.apply` and every other M15 gate uses, rather than read down
+    ///   in the loop — this type is `nonisolated` and testable precisely because its
+    ///   decisions arrive as arguments.
     static func writeBundle(
         in context: ModelContext,
         container: ModelContainer,
         to folder: URL,
         audioStore: AudioStore = AudioStore(),
+        listening: Bool = SoundAnalysisPreferences.isEnabled,
         fileManager: FileManager = .default
     ) throws {
         try fileManager.createDirectory(at: folder, withIntermediateDirectories: true)
@@ -147,9 +155,19 @@ actor CapsuleBulkExporter {
                 // Display phrases, not raw classifier identifiers: the export is for
                 // the person, and "a waterfall" is their data in a form they can read
                 // where `waterfall=0.62` is ours.
-                soundsHeard: Soundprint(stored: snap.soundprintRaw).map { print in
-                    print.identifiers.compactMap { SoundVocabulary.displayName(for: $0) }
-                },
+                //
+                // **Consent-gated (M17 §4D).** This read `snap.soundprintRaw`
+                // unconditionally, with no reference to `SoundAnalysisPreferences`
+                // anywhere in the file, while search has threaded `listening:` since
+                // M15 for exactly the case the app ships user-facing copy about: an
+                // erase that lags or fails. An export taken in that window wrote the
+                // sounds Soundpost heard for someone who had turned listening off,
+                // into a file they keep. `nil` rather than `[]`, because "we are not
+                // telling you what we heard" is not "we heard nothing" — and it is the
+                // value the row itself will hold once the erase catches up.
+                soundsHeard: listening
+                    ? Soundprint(stored: snap.soundprintRaw)?.showablePhrases()
+                    : nil,
                 audioFile: wrote ? audioName : nil
             ))
         }

@@ -253,15 +253,19 @@ struct CaptureView: View {
                 // What the on-device classifier heard (M15 §4E). A SUGGESTION: it
                 // appears only when there is something confident to say, it is never
                 // applied on its own, and ignoring it forever costs nothing.
-                if let soundprint = viewModel.soundprint, !soundprint.isEmpty {
+                //
+                // The header and the chips are driven by the SAME array, which is the
+                // point rather than a tidy-up: this used to ask `!soundprint.isEmpty`
+                // — a count of *stored* labels — and then render each one only `if let
+                // phrase = displayName(for:)`. A value holding nothing showable drew
+                // the "Sounds like" header over zero chips (M17 §4C). A header that
+                // cannot exist without its content cannot be a ghost.
+                let heard = viewModel.suggestedPhrases
+                if !heard.isEmpty {
                     section("Sounds like") {
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 10) {
-                                ForEach(soundprint.identifiers, id: \.self) { identifier in
-                                    if let phrase = SoundVocabulary.displayName(for: identifier) {
-                                        soundSuggestionChip(phrase)
-                                    }
-                                }
+                                ForEach(heard, id: \.self) { soundSuggestionChip($0) }
                             }
                             .padding(.vertical, 2)
                         }

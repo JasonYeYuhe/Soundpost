@@ -139,11 +139,63 @@ struct Soundprint: Equatable, Sendable {
         return "\(provenance)|\(pairs)"
     }
 
-    /// Whether this soundprint has anything to show. An analysed-but-empty
-    /// soundprint is *not* an error — it is Soundpost choosing to say nothing.
-    var isEmpty: Bool { labels.isEmpty }
+    /// Whether anything was **stored**. Not the same question as whether anything
+    /// can be shown — see `showablePhrases`, and read this name as the warning it is.
+    ///
+    /// It used to be spelled `isEmpty`, which read as "nothing here" and meant
+    /// "no labels in the string". A value can hold a label that has since left the
+    /// vocabulary, or one below a floor that has since been raised — both real, since
+    /// the vocabulary grew from 52 to 93 and the floors moved twice — and such a
+    /// value answers `false` here while every display path renders nothing. That cost
+    /// one ghost "Sounds like" header over zero chips on the capture sheet
+    /// (`CaptureView`), and after M17 §S2 it would have cost one on every new surface.
+    ///
+    /// The storage layer genuinely wants this question: an analysed-but-empty
+    /// soundprint is *not* an error, it is Soundpost choosing to say nothing, and
+    /// `SoundprintRemediation` reopens exactly those. Display never does.
+    var hasNoLabels: Bool { labels.isEmpty }
 
+    /// Every stored identifier, showable or not. The **storage** view; a render site
+    /// wants `showablePhrases`.
     var identifiers: [String] { labels.map(\.identifier) }
+
+    // MARK: What anyone can actually be shown (M17 §4C)
+
+    /// Whether this stored label may be shown **today**.
+    ///
+    /// Two conditions, and both can change under a value that was written years ago:
+    /// the label must still be in the curated vocabulary, and it must still clear the
+    /// confidence floor that applies to it. `SoundprintRemediation.rejudge` applies
+    /// the identical pair when it decides whether a superseded verdict survives — the
+    /// same rule, asked at rest rather than at display time.
+    static func isShowable(_ label: Label,
+                           defaultFloor: Double = SoundprintService.confidenceFloor) -> Bool {
+        SoundVocabulary.isAllowed(label.identifier)
+            && label.confidence >= SoundVocabulary.confidenceFloor(
+                for: label.identifier, default: defaultFloor)
+    }
+
+    /// The labels a screen could put in front of someone, highest confidence first.
+    func showableLabels(defaultFloor: Double = SoundprintService.confidenceFloor) -> [Label] {
+        labels.filter { Self.isShowable($0, defaultFloor: defaultFloor) }
+    }
+
+    /// The localized phrases, in the order they would be shown, for the reader's
+    /// language.
+    ///
+    /// **This is what every render site asks for**, and it is deliberately the only
+    /// convenient way to get from a stored value to words. A site that assembled its
+    /// own from `identifiers` would be re-deciding the vocabulary and floor rules by
+    /// hand, which is how the four existing sites came to disagree about them: the
+    /// export, the reveal and search each dropped out-of-vocabulary labels but honoured
+    /// no floor, and the capture sheet counted labels it could not render.
+    ///
+    /// Empty means "nothing to show", which is the question a header should be driven
+    /// by — never `hasNoLabels`.
+    func showablePhrases(defaultFloor: Double = SoundprintService.confidenceFloor) -> [String] {
+        showableLabels(defaultFloor: defaultFloor)
+            .compactMap { SoundVocabulary.displayName(for: $0.identifier) }
+    }
 
     /// Exact-token membership. **Never substring**: the classifier's own vocabulary
     /// contains both `rain` and `train`, so a `contains` match would find rainy

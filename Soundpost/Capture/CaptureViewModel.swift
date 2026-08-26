@@ -41,6 +41,16 @@ final class CaptureViewModel {
     private(set) var soundprint: Soundprint?
     private var classificationTask: Task<Void, Never>?
 
+    /// The phrases the review screen offers, highest confidence first — or nothing.
+    ///
+    /// A property rather than an expression inside `body`, so the rule the sheet
+    /// draws is testable at all. The header and the chips are driven by this **one**
+    /// array, which is what makes a ghost header structurally impossible: the sheet
+    /// used to ask `!soundprint.isEmpty` — a count of *stored* labels — and then
+    /// render each one only `if let phrase = displayName(for:)`, so a value holding
+    /// nothing showable drew "Sounds like" over zero chips (M17 §4C).
+    var suggestedPhrases: [String] { soundprint?.showablePhrases() ?? [] }
+
     let recorder: AudioRecorder
     let player: AudioPlayer
     private let audioStore: AudioStore

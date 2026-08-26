@@ -155,8 +155,10 @@ struct ResurfaceView: View {
     /// and fades in, or it never does and nothing about this screen changes.
     private func generateSummary() async {
         let facts = SoundSummaryWriter.Facts(
-            soundPhrases: (Soundprint(stored: capsule.soundprintRaw)?.identifiers ?? [])
-                .compactMap { SoundVocabulary.displayName(for: $0) },
+            // Showable, not merely stored: this dropped out-of-vocabulary labels but
+            // honoured no confidence floor, so a gate-1 `waterfall=0.35` could still
+            // reach the summary writer (M17 §4C).
+            soundPhrases: Soundprint(stored: capsule.soundprintRaw)?.showablePhrases() ?? [],
             note: capsule.note,
             placeName: capsule.place?.name,
             elapsedPhrase: elapsedPhrase

@@ -33,8 +33,12 @@ enum NotificationCopy {
             if let place = placeName?.trimmingCharacters(in: .whitespacesAndNewlines), !place.isEmpty {
                 return place
             }
-            if let identifier = soundprint?.identifiers.first,
-               let phrase = SoundVocabulary.displayName(for: identifier) {
+            // The first *showable* phrase, not the first stored identifier. Asking
+            // for `identifiers.first` and then looking it up meant a top label that
+            // had left the vocabulary — or one below a floor that has since risen —
+            // returned nil here and dropped the copy to generic, even when the
+            // capsule had a perfectly good second label (M17 §4C).
+            if let phrase = soundprint?.showablePhrases().first {
                 return phrase
             }
             return nil

@@ -85,11 +85,12 @@ enum GalleryFilter {
     /// identifier's phrase rather than substring-matching the stored blob, so a
     /// search for "rain" can never hit a capsule labelled `train` (M15 §4E).
     static func soundMatches(_ capsule: Capsule, query: String) -> Bool {
+        // The phrases this capsule could actually be *shown* by. Search and display
+        // must agree: finding a capsule by a label it was never told about — one
+        // below today's floor — is finding something on evidence the app withheld
+        // (M17 §4C).
         guard let soundprint = Soundprint(stored: capsule.soundprintRaw) else { return false }
-        return soundprint.identifiers.contains { identifier in
-            guard let phrase = SoundVocabulary.displayName(for: identifier) else { return false }
-            return matches(phrase: phrase, query: query)
-        }
+        return soundprint.showablePhrases().contains { matches(phrase: $0, query: query) }
     }
 
     /// Match a query against a shown phrase, requiring the match to **begin a word**.
