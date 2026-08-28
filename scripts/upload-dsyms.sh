@@ -35,10 +35,18 @@ upload() {
   local src="$1"
   echo "=== sentry-cli debug-files upload ($src) → $SENTRY_ORG/$SENTRY_PROJECT ==="
   # --include-sources is intentionally OMITTED: never upload source to Sentry.
+  #
+  # The `|| return 1` is the point. Without it a failed upload — an expired token
+  # returns `Invalid token (http status: 401)` and a non-zero exit — was swallowed,
+  # this script still exited 0, and the caller printed nothing. Measured 2026-08-28
+  # on the 1.7.0 build 16 upload: the token in ~/.zshrc had expired, the dSYMs never
+  # reached Sentry, and the run reported success. That is the same shape as
+  # 1.6.0 build 12 shipping unsymbolicated, which is the incident this script exists
+  # to prevent — reported as fine, twice.
   sentry-cli debug-files upload \
     --org "$SENTRY_ORG" \
     --project "$SENTRY_PROJECT" \
-    "$src"
+    "$src" || return 1
 }
 
 MODE="${1:-}"
