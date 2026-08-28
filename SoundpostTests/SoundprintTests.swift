@@ -397,10 +397,23 @@ struct SoundSearchTests {
         return capsule
     }
 
+    /// Every search below assumes listening is on **and answered** — that is the
+    /// condition under which "does search find this sound" is even a question.
+    ///
+    /// Stated here rather than inherited from the gate's default, and that is the
+    /// point: the test host shares `UserDefaults.standard` with the app, so once
+    /// Soundpost had been run in the simulator it had written `sound.hasStanding` and
+    /// this suite passed locally while failing on a clean CI runner. Worse, the three
+    /// assertions below that expect *emptiness* would have passed vacuously — closed
+    /// gate, no results, green.
+    private func search(_ capsules: [Capsule], _ text: String) -> [Capsule] {
+        GalleryFilter.apply(capsules, .init(searchText: text), listening: true)
+    }
+
     @Test func searchingForASoundFindsTheCapsule() throws {
         let rainy = try captured(soundLabels: ["rain"])
         let noisy = try captured(soundLabels: ["traffic_noise"])
-        let results = GalleryFilter.apply([rainy, noisy], .init(searchText: "rain"))
+        let results = search([rainy, noisy], "rain")
         #expect(results.count == 1)
         #expect(results.first === rainy)
     }
@@ -427,8 +440,8 @@ struct SoundSearchTests {
     /// `train`. Matching the shown phrase (not the raw blob) keeps them apart.
     @Test func searchingForRainDoesNotMatchATrain() throws {
         let train = try captured(soundLabels: ["train"])
-        #expect(GalleryFilter.apply([train], .init(searchText: "rain")).isEmpty)
-        #expect(GalleryFilter.apply([train], .init(searchText: "train")).count == 1)
+        #expect(search([train], "rain").isEmpty)
+        #expect(search([train], "train").count == 1)
     }
 
     /// The load-bearing one: a sealed-not-due capsule must not be findable by the
@@ -439,20 +452,20 @@ struct SoundSearchTests {
         sealed.sealUntil = Date(timeIntervalSinceNow: 60 * 60 * 24 * 365)
 
         #expect(!sealed.isContentVisible())
-        #expect(GalleryFilter.apply([sealed], .init(searchText: "rain")).isEmpty,
+        #expect(search([sealed], "rain").isEmpty,
                 "a sealed capsule's sound is as hidden as its note")
-        #expect(GalleryFilter.apply([sealed], .init(searchText: "storm")).isEmpty)
+        #expect(search([sealed], "storm").isEmpty)
 
         // Once its day comes, it is findable by both again.
         sealed.sealUntil = Date(timeIntervalSinceNow: -60)
         #expect(sealed.isContentVisible())
-        #expect(GalleryFilter.apply([sealed], .init(searchText: "rain")).count == 1)
+        #expect(search([sealed], "rain").count == 1)
     }
 
     @Test func aCapsuleWithNoSoundprintSimplyDoesNotMatch() throws {
         let plain = try captured(soundLabels: [])
         plain.soundprintRaw = nil
-        #expect(GalleryFilter.apply([plain], .init(searchText: "rain")).isEmpty)
+        #expect(search([plain], "rain").isEmpty)
         #expect(!GalleryFilter.soundMatches(plain, query: "rain"))
     }
 
@@ -462,7 +475,7 @@ struct SoundSearchTests {
         let capsule = try captured(soundLabels: [])
         capsule.soundprintRaw = "1/version1|crying_sobbing=0.99"
         #expect(!GalleryFilter.soundMatches(capsule, query: "crying"))
-        #expect(GalleryFilter.apply([capsule], .init(searchText: "crying")).isEmpty)
+        #expect(search([capsule], "crying").isEmpty)
     }
 }
 
