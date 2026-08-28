@@ -416,12 +416,11 @@ added.
 2. **One human hour in App Store Connect makes the app sellable.** Capture the IAP
    review screenshot from a StoreKit-testing run, attach it to both products, submit
    them. Until then the paywall is a dead end and no Pro work is worth doing.
-3. **The two CloudKit steps are still outstanding** (M15 §11R): sign a Simulator into
-   iCloud so `CD_ListeningConsent` materialises in Development, then the authorised
-   `promote` that also fixes `DeliveryIdentity`. M18 needs both, plus a field-aware
-   `cloudkit-schema.sh` (§4F).
-4. **Push.** CI has not run since `b025459`; master is 13 commits ahead. Two warnings
-   already shipped into master through exactly that gap.
+3. ~~**The two CloudKit steps**~~ — **done 2026-08-28**, see §13D and §14D. Both
+   record types and the never-promoted `CD_soundprintRaw` field are in Production.
+   M18 still needs trustworthy tooling, which is now a larger job than §4F described
+   (§14C).
+4. ~~**Push.**~~ — **done**, and CI has been green on master since 2026-08-26.
 5. **Decide whether Soundpost will ever send a "capture today" notification.** Not in
    scope either way (§0B); the answer shapes M18.
 6. **The ASC privacy nutrition label** (§6).
@@ -676,7 +675,14 @@ the same §11P shape, in my own tooling.
    assertion was once made without checking. One thing moved in the *right*
    direction and belongs in the release notes: `CapsuleBulkExporter` now honours
    listening consent (§4D).
-4. **The two CloudKit steps** (M15 §11R), untouched and still outstanding.
+4. ~~**The two CloudKit steps**~~ (M15 §11R). **Done 2026-08-28.** A simulator was
+   signed into iCloud, the seed created `CD_ListeningConsent` in Development, and the
+   Development→Production deploy was performed in the CloudKit Console — it carried
+   `CD_soundprintRaw` with it, which had never been in Production (§14D). Production
+   now holds every record type the app's schema implies. **1.7.0 is no longer blocked
+   on CloudKit**, and the M10 delivery defect's server-side cause is repaired; what
+   remains is confirming it end to end by watching `device_tokens` gain rows from a
+   signed build.
 5. **One human hour in App Store Connect** would make the app sellable (§8.2).
 6. **The "capture today" notification decision** (§8.5) — still not in scope either
    way, and it shapes M18.
