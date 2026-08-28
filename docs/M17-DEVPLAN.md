@@ -768,26 +768,72 @@ reachable today.
   reveal screen — the most emotionally loaded surface in the app. Codex named it
   alongside the notification copy; only the notification was fixed here. §4A rule 1
   applies to it and it is not yet met.
-- **`cloudkit-schema.sh` is field-blind in four places** (§4F), and Codex added one the
-  plan had not recorded: the preview prints added *type names* while
-  `import-schema --file dev.ckdb` applies the **entire** Development export, so what an
-  operator confirms and what gets deployed are not the same set — into a Production
-  schema that is irreversible.
+- **The CloudKit tooling is worse than §4F recorded, and §14D is why.** Not only does
+  the promote preview compare type names — `cktool export-schema` itself omits
+  unindexed fields, so *no* diff built on it can be trusted to be field-complete, and
+  `cktool import-schema` cannot write Production at all. The only trustworthy view of
+  a Dev→Prod delta today is the CloudKit Console's own Confirm Deployment dialog.
+  Anything M18 builds on `SoundRejection` rows must be verified there, by eye, not by
+  this script.
+- **The seed's fixed 20-second wait is not enough on a first run after sign-in**
+  (§14E), and it reports success without checking that the record type exists.
 
-### 14D. The delta, finally measured rather than asserted
+### 14D. The delta was NOT measured — and what the deployment actually contained
 
-Because of that last point, both schemas were exported and diffed **by field** before
-recommending the promotion. The complete Dev→Prod delta is one thing:
+**This section previously claimed the Dev→Prod delta had been verified by field and
+was exactly `DeliveryIdentity(userKey)`. That was wrong, and the correction matters
+more than the original claim did.**
+
+Both schemas were exported with `cktool export-schema` and diffed. `CD_Capsule` came
+back identical, so it was reported as having no field drift. When the CloudKit Console
+was finally opened to perform the deploy, it listed something the diff had not:
 
 ```
-+ RECORD TYPE DeliveryIdentity ( userKey STRING QUERYABLE SEARCHABLE SORTABLE )
+Modify 1 field on CD_Capsule type
+  Contains 1 new field:
+  CD_soundprintRaw   stringType
 ```
 
-`CD_Capsule` is identical in both environments, field for field. The repo has claimed
-this since §11P, but on the authority of the type-only tooling; it is now verified.
-**The promotion is safe to run as it stands** — and this diff must be re-run after
-`CD_ListeningConsent` is created in Development, because that is the moment new fields
-could enter the picture.
+`grep -c soundprintRaw` over **both** exported files returns **0**. The field is absent
+from the Development export too — so `cktool export-schema` does not emit every field.
+Every field it *did* emit carries an index annotation (`QUERYABLE`, `SEARCHABLE`,
+`SORTABLE`); `soundprintRaw` has none. **The export appears to omit unindexed fields**,
+and because the omission is symmetric, a diff of two exports shows nothing wrong.
+
+So the diff was not a field-level check. It was a check over whatever subset cktool
+chose to serialise, presented — by me — as a complete one. That is this project's
+recurring failure in its purest form, committed while writing the section that
+congratulates the project for catching it: *the check iterated an artefact, and could
+not fail for what was missing from the artefact.* It also means the tooling is worse
+than §4F recorded: `import-schema dev.ckdb` would have silently **dropped**
+`CD_soundprintRaw` even if the import endpoint had existed.
+
+**`CD_soundprintRaw` had never been in Production.** That is a live defect of exactly
+the same class as `DeliveryIdentity`, in a field shipped since 1.6.0 — and it falsifies
+the premise M15 §11Q's whole design rests on:
+
+> "**`soundprintRaw` syncs with the capsule.** The backfill is therefore per-*library*
+> work, not per-device — a device with no history running it is redundant as well as
+> unsafe, because the labels arrive on their own from whichever device already did the
+> work."
+
+In Development that was true. In every shipped build it was not: the labels never
+travelled, and a second device re-derived them or went without. The standing design was
+correct reasoning over a fact that did not hold. It holds from now on.
+
+**What was actually deployed** (read from the Console, expanded item by item, before
+the click):
+
+| | |
+|---|---|
+| Record types | `CD_Capsule` **+`CD_soundprintRaw`**; create `CD_ListeningConsent`; create `DeliveryIdentity` |
+| Indexes | 3 for `CD_Capsule`, 10 for `CD_ListeningConsent`, 3 for `DeliveryIdentity` |
+| Security roles | `_world` / `_icloud` / `_creator` each gain the two new types with the default grants every existing type already carries |
+
+All additive; CloudKit cannot do otherwise. Verified afterwards by reading Production
+back rather than trusting the click: `status` reports every implied type present, and
+the two environments' exports are now identical — *as far as cktool can see*, which is
+the caveat this section exists to record.
 
 ### 14E. Two incidents during the review, neither of them in the product
 
