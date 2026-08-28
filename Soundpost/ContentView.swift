@@ -107,6 +107,12 @@ struct ContentView: View {
         .onChange(of: notifications.pendingDeepLinkCapsuleID) { _, id in
             handleDeepLink(id)
         }
+        .onChange(of: capsules.count) { _, _ in
+            // The other half of `PendingLink.wait`: a link kept because its capsule had
+            // not imported yet is retried the moment the library grows. Cheap — an
+            // `Int` comparison, and a no-op whenever nothing is pending.
+            drainPendingDeepLink()
+        }
     }
 
     private var emptyState: some View {
@@ -472,6 +478,12 @@ struct ContentView: View {
     /// capsule or navigate to detail otherwise. One decision point, so a due seal
     /// never opens as a plain detail screen.
     private func openCapsule(_ capsule: Capsule) {
+        // Opening anything supersedes a link still waiting for its capsule to import.
+        // This is what bounds `PendingLink.wait` without inventing a clock: the user
+        // going somewhere themselves is the event that means "I have moved on", and
+        // without it a capsule arriving minutes later would yank them out of whatever
+        // they were doing.
+        notifications.pendingDeepLinkCapsuleID = nil
         // One stop covers every way out of the gallery: detail, the reveal, and the
         // notification deep link, which all route through here (M16 §4A).
         playback.stop()
@@ -512,11 +524,21 @@ struct ContentView: View {
     }
 
     private func handleDeepLink(_ id: UUID?) {
-        guard let id else { return }
-        if let capsule = capsules.first(where: { $0.id == id }) {
+        switch CapsuleOpenRoute.pendingLink(id, among: capsules.map(\.id)) {
+        case .open(let found):
+            guard let capsule = capsules.first(where: { $0.id == found }) else { return }
+            // Cleared BEFORE opening: `openCapsule` mutates `path`, which re-evaluates
+            // the body, and a link still marked pending at that moment would be drained
+            // a second time.
+            notifications.pendingDeepLinkCapsuleID = nil
             openCapsule(capsule)
+        case .wait:
+            // Deliberately keep it. At a cold launch the tap is handled before CloudKit
+            // has delivered the library; clearing here is what made the fix incomplete.
+            break
+        case .none:
+            break
         }
-        notifications.pendingDeepLinkCapsuleID = nil
     }
 }
 

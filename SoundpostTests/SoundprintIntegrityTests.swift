@@ -78,7 +78,7 @@ struct ShowableLabelTests {
             createdAt: .now, note: nil, placeName: nil, mood: nil,
             soundprint: print([("not_a_real_label", 0.99), ("rain", 0.80)])
         )
-        #expect(digest.lead == SoundVocabulary.displayName(for: "rain"))
+        #expect(digest.lead == .heard(SoundVocabulary.displayName(for: "rain") ?? ""))
     }
 
     /// Rule 1's precedence, unchanged and re-pinned here because M17 §S2 reuses it on
@@ -88,7 +88,7 @@ struct ShowableLabelTests {
             createdAt: .now, note: "the storm broke", placeName: "Kyoto", mood: nil,
             soundprint: print([("rain", 0.95)])
         )
-        #expect(digest.lead == "the storm broke")
+        #expect(digest.lead == .ownWords("the storm broke"))
     }
 
     /// The capture sheet's own header, as a value rather than a view expression:

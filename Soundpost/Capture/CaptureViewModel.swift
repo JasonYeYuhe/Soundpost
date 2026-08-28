@@ -277,6 +277,10 @@ final class CaptureViewModel {
         // launch backfill standing to analyse the rest of the library. See
         // `SoundAnalysisPreferences.hasRecordedHere`.
         SoundAnalysisPreferences.hasRecordedHere = true
+        // And therefore this device's listening answer is an answer, not a default —
+        // settled now rather than at the next launch, so the capsule just saved can
+        // show what Soundpost heard on the card the user is about to return to.
+        SoundAnalysisPreferences.hasStanding = true
         let trimmed = note.trimmingCharacters(in: .whitespacesAndNewlines)
         capsule.note = trimmed.isEmpty ? nil : trimmed
         capsule.place = includePlace ? place : nil

@@ -60,7 +60,7 @@ enum SoundprintDisplay {
         for capsule: Capsule,
         on surface: Surface,
         now: Date = .now,
-        listening: Bool = SoundAnalysisPreferences.isEnabled
+        listening: Bool = SoundAnalysisPreferences.mayReveal
     ) -> [Soundprint.Showable] {
         guard listening else { return [] }
         guard capsule.isContentVisible(now: now) else { return [] }
@@ -73,7 +73,7 @@ enum SoundprintDisplay {
         for capsule: Capsule,
         on surface: Surface,
         now: Date = .now,
-        listening: Bool = SoundAnalysisPreferences.isEnabled
+        listening: Bool = SoundAnalysisPreferences.mayReveal
     ) -> [String] {
         heard(for: capsule, on: surface, now: now, listening: listening).map(\.phrase)
     }

@@ -54,13 +54,13 @@ enum GalleryFilter {
     /// `UserDefaults` read down there would be one hit per capsule per keystroke over
     /// the whole library. Every other M15 gate uses the same defaulted-parameter seam.
     static func apply(_ capsules: [Capsule], _ criteria: Criteria, now: Date = .now,
-                      listening: Bool = SoundAnalysisPreferences.isEnabled) -> [Capsule] {
+                      listening: Bool = SoundAnalysisPreferences.mayReveal) -> [Capsule] {
         let query = criteria.searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         return capsules.filter { matches($0, criteria, query: query, now: now, listening: listening) }
     }
 
     static func matches(_ capsule: Capsule, _ criteria: Criteria, query: String, now: Date,
-                        listening: Bool = SoundAnalysisPreferences.isEnabled) -> Bool {
+                        listening: Bool = SoundAnalysisPreferences.mayReveal) -> Bool {
         if !criteria.moods.isEmpty {
             guard let mood = capsule.mood, criteria.moods.contains(mood) else { return false }
         }
@@ -81,7 +81,7 @@ enum GalleryFilter {
     }
 
     static func searchMatches(_ capsule: Capsule, query: String, now: Date,
-                              listening: Bool = SoundAnalysisPreferences.isEnabled) -> Bool {
+                              listening: Bool = SoundAnalysisPreferences.mayReveal) -> Bool {
         // Hidden words — only when the capsule's content is visible (§4D P1).
         if capsule.isContentVisible(now: now) {
             if capsule.note?.localizedCaseInsensitiveContains(query) == true { return true }

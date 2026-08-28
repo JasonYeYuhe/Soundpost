@@ -3024,6 +3024,40 @@
         }
       }
     },
+    "Soundpost heard %@ — %lld days ago. Listen back.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Soundpost には%@が聞こえました。%lld日前の音です。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Soundpost 听到了%@。那是%lld天前的声音。"
+          }
+        }
+      }
+    },
+    "Soundpost heard %@ — tap to listen.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Soundpost には%@が聞こえました。タップして聴く。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Soundpost 听到了%@。点按收听。"
+          }
+        }
+      }
+    },
     "Soundpost is free — capture, seal, resurface, back up to iCloud, and receive every memory. Pro adds richer ways to make and share them.": {
       "localizations": {
         "ja": {

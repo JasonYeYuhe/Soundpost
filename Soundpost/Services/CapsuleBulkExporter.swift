@@ -73,7 +73,7 @@ actor CapsuleBulkExporter {
     /// Build the export bundle and zip it; returns the `.zip` URL for the share
     /// sheet. Runs on the actor's isolated background context.
     func export(audioStore: AudioStore = AudioStore(),
-                listening: Bool = SoundAnalysisPreferences.isEnabled) throws -> URL {
+                listening: Bool = SoundAnalysisPreferences.mayReveal) throws -> URL {
         let base = FileManager.default.temporaryDirectory
             .appending(path: "Soundpost-Export-\(UUID().uuidString)", directoryHint: .isDirectory)
         let folder = base.appending(path: "Soundpost", directoryHint: .isDirectory)
@@ -96,7 +96,7 @@ actor CapsuleBulkExporter {
         container: ModelContainer,
         to folder: URL,
         audioStore: AudioStore = AudioStore(),
-        listening: Bool = SoundAnalysisPreferences.isEnabled,
+        listening: Bool = SoundAnalysisPreferences.mayReveal,
         fileManager: FileManager = .default
     ) throws {
         try fileManager.createDirectory(at: folder, withIntermediateDirectories: true)

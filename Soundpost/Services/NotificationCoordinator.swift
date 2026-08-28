@@ -35,6 +35,28 @@ final class NotificationCoordinator: NSObject, UNUserNotificationCenterDelegate 
     /// nothing will arrive.
     var canPromiseAReminder: Bool { authorizationStatus != .denied }
 
+    /// Whether a reminder scheduled **right now** would actually be delivered.
+    ///
+    /// Stricter than `canPromiseAReminder`, and the difference is which screen is
+    /// asking. The seal sheet requests authorization as part of its own flow, so
+    /// `.notDetermined` there is a question that is about to be asked. **Capture never
+    /// asks** — onboarding does, and onboarding has a Skip button — so `.notDetermined`
+    /// on the capture sheet means nothing on that path will ever ask, the echo is
+    /// scheduled into a permission the app does not hold, and `UNUserNotificationCenter`
+    /// drops it silently. Promising there is the untruth `canPromiseAReminder` was
+    /// written to avoid, arriving through the other door (Codex, M17 review).
+    ///
+    /// Unread (`nil`) promises, deliberately: not knowing yet is not the same as
+    /// knowing it is off, and claiming otherwise would be its own false statement.
+    var remindersWouldBeDelivered: Bool {
+        guard let authorizationStatus else { return true }
+        switch authorizationStatus {
+        case .authorized, .provisional, .ephemeral: return true
+        case .denied, .notDetermined: return false
+        @unknown default: return false
+        }
+    }
+
     /// Refresh `authorizationStatus`. Cheap, local, and safe to call on every
     /// foreground.
     func refreshAuthorization() async {

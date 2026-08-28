@@ -423,7 +423,10 @@ struct CaptureView: View {
     /// written that way would ship untranslated with the gate green — the same
     /// blindness M17 §S2 closed for interpolated literals, in a different disguise.
     private var echoPromise: LocalizedStringKey {
-        notifications.canPromiseAReminder
+        // `remindersWouldBeDelivered`, not `canPromiseAReminder`: this screen never
+        // requests authorization, so `.notDetermined` here is not a question about to
+        // be asked — see the property's own doc.
+        notifications.remindersWouldBeDelivered
             ? "A surprise reminder of what today sounded like."
             : "Notifications are off, so this won't reach you until you turn them on."
     }

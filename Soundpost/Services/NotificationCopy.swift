@@ -19,6 +19,27 @@ enum NotificationCopy {
         /// What the on-device classifier heard, if anything (M15 §S5).
         var soundprint: Soundprint?
 
+        /// Whose words the lead is, because the two are set differently.
+        ///
+        /// A note or a place goes in **quotation marks** — it is what the person wrote
+        /// or tagged. A classifier label must not: «"rain" — tap to listen.» presents a
+        /// machine's guess as the user's own sentence, on a lock screen, which is §4A
+        /// rule 1 failing in the one place the user cannot ask a follow-up question.
+        /// M17 codified that rule and left this surface alone; found by Codex in the
+        /// M17 review.
+        enum Lead: Equatable {
+            /// The one line they wrote, or the place they chose to tag.
+            case ownWords(String)
+            /// What the classifier heard. Attributed, never quoted.
+            case heard(String)
+
+            var text: String {
+                switch self {
+                case .ownWords(let value), .heard(let value): value
+                }
+            }
+        }
+
         /// The lead phrase for personalized copy: the user's one-line, else the
         /// place, else what it sounded like. Trimmed; nil when all are empty.
         ///
@@ -26,12 +47,12 @@ enum NotificationCopy {
         /// a guess only ever fills the gap where the copy would otherwise have been
         /// generic. And because `lead` is consulted only when `personalized` is on,
         /// a sound label can never reach a lock screen the user opted out of.
-        var lead: String? {
+        var lead: Lead? {
             if let note = note?.trimmingCharacters(in: .whitespacesAndNewlines), !note.isEmpty {
-                return note
+                return .ownWords(note)
             }
             if let place = placeName?.trimmingCharacters(in: .whitespacesAndNewlines), !place.isEmpty {
-                return place
+                return .ownWords(place)
             }
             // The first *showable* phrase, not the first stored identifier. Asking
             // for `identifiers.first` and then looking it up meant a top label that
@@ -39,7 +60,7 @@ enum NotificationCopy {
             // returned nil here and dropped the copy to generic, even when the
             // capsule had a perfectly good second label (M17 §4C).
             if let phrase = soundprint?.showablePhrases().first {
-                return phrase
+                return .heard(phrase)
             }
             return nil
         }
@@ -53,18 +74,28 @@ enum NotificationCopy {
         switch item.kind {
         case .seal:
             let title = String(localized: "A capsule has resurfaced")
-            if personalized, let lead = digest?.lead {
-                return (title, String(localized: "“\(lead)” — tap to listen."))
+            switch digest?.lead {
+            case .ownWords(let words) where personalized:
+                return (title, String(localized: "“\(words)” — tap to listen."))
+            case .heard(let phrase) where personalized:
+                // Attributed, and unquoted. The quotation marks are what made this a
+                // claim about the user's own memory rather than about the recording.
+                return (title, String(localized: "Soundpost heard \(phrase) — tap to listen."))
+            default:
+                return (title, String(localized: "Open Soundpost to hear this moment again."))
             }
-            return (title, String(localized: "Open Soundpost to hear this moment again."))
 
         case .echo:
             let title = String(localized: "An echo from your past")
             let days = elapsedDays(from: digest?.createdAt ?? item.fireDate, to: item.fireDate)
-            if personalized, let lead = digest?.lead {
-                return (title, String(localized: "“\(lead)” — \(days) days ago. Listen back."))
+            switch digest?.lead {
+            case .ownWords(let words) where personalized:
+                return (title, String(localized: "“\(words)” — \(days) days ago. Listen back."))
+            case .heard(let phrase) where personalized:
+                return (title, String(localized: "Soundpost heard \(phrase) — \(days) days ago. Listen back."))
+            default:
+                return (title, String(localized: "\(days) days ago, you captured this sound. Listen back."))
             }
-            return (title, String(localized: "\(days) days ago, you captured this sound. Listen back."))
         }
     }
 

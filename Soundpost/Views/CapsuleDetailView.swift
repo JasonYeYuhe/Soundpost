@@ -52,6 +52,10 @@ struct CapsuleDetailView: View {
     /// `body`. Default `true` matches `SoundAnalysisPreferences.isEnabled`'s
     /// default-on; write through `ListeningConsentStore.set`, never here.
     @AppStorage(SoundAnalysisPreferences.enabledKey) private var listeningEnabled = true
+    /// Whether that answer is an answer at all (M15 §11Q's standing, extended to
+    /// display). Both are `@AppStorage` so this view repaints when either changes; the
+    /// rule they compose is `SoundAnalysisPreferences.mayReveal`.
+    @AppStorage(SoundAnalysisPreferences.hasStandingKey) private var hasStanding = false
 
     private var tint: Color { palette.tint(for: capsule.mood) }
     private var isLocked: Bool { capsule.state == .sealed && !capsule.isContentVisible() }
@@ -60,7 +64,7 @@ struct CapsuleDetailView: View {
     /// sealed-not-due capsule, empty with listening off, empty when nothing stored is
     /// showable — and never assembled here, so this screen and the card cannot drift.
     private var heard: [Soundprint.Showable] {
-        SoundprintDisplay.heard(for: capsule, on: .detail, listening: listeningEnabled)
+        SoundprintDisplay.heard(for: capsule, on: .detail, listening: listeningEnabled && hasStanding)
     }
     /// This capsule's control state, not the player's: the owner is shared now, so
     /// "playing" has to mean "playing *this*".

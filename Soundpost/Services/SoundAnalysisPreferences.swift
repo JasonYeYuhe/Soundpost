@@ -60,6 +60,39 @@ enum SoundAnalysisPreferences {
         set { defaults.set(newValue, forKey: enabledKey) }
     }
 
+    static let hasStandingKey = "sound.hasStanding"
+
+    /// Whether `isEnabled` on this device is a real **answer** rather than an untouched
+    /// default — M15 §11Q's "standing", asked by the surfaces that *reveal* a label.
+    ///
+    /// M15 built standing for the retrospective drains, because the mirror above reads
+    /// `true` both for someone who wants listening on and for a device that has never
+    /// been told anything — and on a phone set up as new and signed into iCloud, the
+    /// library arrives from CloudKit long before the `ListeningConsent` row does. Worse
+    /// than "before": CloudKit returns a zone's changes in roughly modification order,
+    /// so the person who opted out *most recently* has their answer sorted behind every
+    /// capsule it applies to.
+    ///
+    /// M17 then added a second way for a label to reach someone — showing it on a card —
+    /// and did not extend standing to it, so in that same window the app could display
+    /// exactly what the user had opted out of. This closes that.
+    ///
+    /// **Monotonic, which is what makes a persisted flag safe here.** Both inputs (an
+    /// account row exists; this install has recorded) only ever become true, so a stale
+    /// `true` cannot be wrong. A stale `false` costs one launch of hidden labels and
+    /// then corrects itself — the safe direction to be wrong in.
+    static var hasStanding: Bool {
+        get { defaults.object(forKey: hasStandingKey) as? Bool ?? false }
+        set { defaults.set(newValue, forKey: hasStandingKey) }
+    }
+
+    /// Whether a stored label may be **revealed** on this device at all — shown on a
+    /// card or a detail screen, matched by search, or matched by a sound facet.
+    ///
+    /// The single rule those gates default to. `isEnabled` alone is not enough: it is
+    /// the *answer*, and standing is whether the answer is one.
+    static var mayReveal: Bool { isEnabled && hasStanding }
+
     static let localHistoryKey = "sound.hasRecordedHere"
 
     /// Has **this install** ever been the device that recorded a capsule?

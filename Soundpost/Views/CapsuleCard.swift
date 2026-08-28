@@ -39,6 +39,10 @@ struct CapsuleCard: View {
     /// is not a `UserDefaults` hit per card per body pass on a path the 20 Hz player
     /// already drives (M16 §7).
     @AppStorage(SoundAnalysisPreferences.enabledKey) private var listeningEnabled = true
+    /// Whether that answer is an answer at all (M15 §11Q's standing, extended to
+    /// display). Both are `@AppStorage` so this view repaints when either changes; the
+    /// rule they compose is `SoundAnalysisPreferences.mayReveal`.
+    @AppStorage(SoundAnalysisPreferences.hasStandingKey) private var hasStanding = false
 
     private var tint: Color { palette.tint(for: capsule.mood) }
     private var isLocked: Bool { capsule.state == .sealed && !capsule.isContentVisible() }
@@ -199,7 +203,7 @@ struct CapsuleCard: View {
     /// this surface adds, that a capsule with a note shows nothing here. Decided in
     /// `SoundprintDisplay` so the card and the detail screen cannot drift apart.
     private var heardPhrases: [String] {
-        SoundprintDisplay.phrases(for: capsule, on: .card, listening: listeningEnabled)
+        SoundprintDisplay.phrases(for: capsule, on: .card, listening: listeningEnabled && hasStanding)
     }
 
     private var dateText: String {

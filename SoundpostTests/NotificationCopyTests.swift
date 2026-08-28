@@ -76,12 +76,18 @@ struct NotificationCopyTests {
 
     // MARK: What it heard — the last-resort lead (M15 §S5)
 
+    /// **This test used to assert the defect.** It pinned
+    /// «"rain" — tap to listen.» as correct, which is why a green suite never noticed
+    /// that a classifier label was being dressed as the user's own sentence on a lock
+    /// screen (§4A rule 1; found by Codex in the M17 review). The gap the classifier
+    /// fills is still filled — it is now attributed instead of quoted.
     @Test func personalizedSealFallsBackToWhatItHeardWithoutWords() {
         // No note, no place, but something was heard: the gap the classifier fills.
         let (_, body) = seal(digest(soundprint: heard("rain")), personalized: true)
         let phrase = SoundVocabulary.displayName(for: "rain")
         #expect(phrase != nil)
-        #expect(body == String(localized: "“\(phrase!)” — tap to listen."))
+        #expect(body == String(localized: "Soundpost heard \(phrase!) — tap to listen."))
+        #expect(!body.contains("“"), "never dressed as the user's own words")
     }
 
     @Test func theUsersOwnWordsAlwaysOutrankWhatItHeard() {

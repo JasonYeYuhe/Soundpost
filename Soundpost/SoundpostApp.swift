@@ -209,7 +209,12 @@ private struct RootView: View {
                     // work rather than per-device: a device that skips it is usually
                     // skipping work another device has already done.
                     let answered = (try? ListeningConsentStore.hasAnswer(in: store.container.mainContext)) ?? false
-                    let mayScanLibrary = mayListen && (answered || SoundAnalysisPreferences.hasRecordedHere)
+                    // Recorded, not just computed. M15 asked this question only to decide
+                    // whether to ANALYSE; M17 gave the app a way to DISPLAY a label, and
+                    // the display path had no way to ask it (Codex, M17 review). One
+                    // expression now answers both.
+                    SoundAnalysisPreferences.hasStanding = answered || SoundAnalysisPreferences.hasRecordedHere
+                    let mayScanLibrary = mayListen && SoundAnalysisPreferences.hasStanding
                     guard mayScanLibrary else {
                         Diagnostics.info("No standing to analyse the existing library yet — deferring until the account's answer arrives")
                         return

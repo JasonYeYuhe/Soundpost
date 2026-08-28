@@ -586,13 +586,13 @@ struct SoundNotificationCopyTests {
 
     @Test func aSoundFillsTheGapWhenThereAreNoWords() throws {
         let lead = try #require(digest(sound: "rain").lead)
-        #expect(lead == SoundVocabulary.displayName(for: "rain"))
+        #expect(lead == .heard(SoundVocabulary.displayName(for: "rain") ?? ""))
     }
 
     /// The user's own words always win — a guess never displaces them.
     @Test func theUsersOwnWordsOutrankTheGuess() {
-        #expect(digest(note: "the storm broke", sound: "rain").lead == "the storm broke")
-        #expect(digest(place: "Home", sound: "rain").lead == "Home")
+        #expect(digest(note: "the storm broke", sound: "rain").lead == .ownWords("the storm broke"))
+        #expect(digest(place: "Home", sound: "rain").lead == .ownWords("Home"))
     }
 
     @Test func nothingIsInventedWhenThereIsNoSoundprint() {
