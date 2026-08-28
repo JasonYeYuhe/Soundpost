@@ -183,10 +183,41 @@ cmd_promote() {
     die "Refusing to deploy without confirmation. Re-run with: CK_CONFIRM=yes $0 promote"
   fi
 
-  xcrun cktool import-schema \
-    --team-id "$TEAM_ID" --container-id "$CONTAINER" \
-    --environment production --validate --file "$WORK/dev.ckdb" \
-    || die "import into Production failed"
+  # ── There is no cktool path from Development to Production. ──────────────────
+  #
+  # Measured 2026-08-28, the first time this command was ever run to completion:
+  #
+  #     --environment production --validate  ->  Operation: validate
+  #     --environment production             ->  Operation: schema
+  #     both: BadRequestException: endpoint not applicable in the environment
+  #           'production'
+  #
+  # `cktool import-schema` writes Development only, and `cktool` offers no deploy or
+  # promote subcommand at all (`reset-schema` runs the other way: Production ->
+  # Development). Apple exposes the Development -> Production deploy **only** in the
+  # CloudKit Console web UI.
+  #
+  # So this script had never once promoted anything. It was written, it was never
+  # exercised against Production, and its failure mode stayed invisible until the day
+  # it was needed — which is the exact shape this file was created to catch, in the
+  # file itself. The header's own note that "M9 did the promotion by hand for
+  # CD_Capsule" is the corroboration nobody read as one.
+  #
+  # What survives, and is worth keeping, is everything above this line: the drift
+  # report, the field-level preview, and the refusal to proceed on a partial set.
+  # Those are the parts that tell a human what they are about to deploy.
+  echo
+  printf '\033[33mThis last step is not automatable — deploy it in the CloudKit Console:\033[0m\n'
+  echo
+  echo "  1. https://icloud.developer.apple.com/dashboard/"
+  echo "  2. Container: $CONTAINER"
+  echo "  3. Schema -> Deploy Schema Changes…"
+  echo "  4. Confirm the two record types above, and only those, then Deploy."
+  echo
+  echo "Then verify from here — it reads Production back, it does not trust the click:"
+  echo "  $0 status"
+  echo
+  die "nothing was deployed by this run; see the steps above"
 
   # Verify what this run was actually able to promote — the types Development held.
   # Checking the full expectation here would report a *successful* partial promotion
