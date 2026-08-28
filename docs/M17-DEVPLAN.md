@@ -664,9 +664,11 @@ the same §11P shape, in my own tooling.
 
 ### 13D. Still needs Jason
 
-1. **Push.** CI has still not run since `b025459`; master is now 20 commits ahead.
-   Every gate here was run locally on a clean build, which is exactly the claim M16
-   §13C says not to trust on its own.
+1. ~~**Push.**~~ Done 2026-08-26/28. CI green on `8a6368e` and again on `83bd776`
+   after the review fixes — 529 tests in 72 suites, 0 warnings, i18n 100% across 337
+   strings, seed coverage. The gap that had been open since `b025459` is closed, and
+   it earned its keep immediately: the first run after the review fixes went **red**
+   for a local-only reason (§14E).
 2. **The cold-launch deep link on a real device** (§13C).
 3. **The ASC privacy nutrition label** (§6). `PrivacyInfo.xcprivacy` is unchanged and
    no new field, category or transmission exists — but it is server-side state
@@ -690,3 +692,125 @@ verified at all. The orphan **sweep** now has an observation to build on — and
 two guards plus an exclusion of `AudioRecorder.currentFileName` remain the price of
 entry. `Soundprint.Showable` and `SoundprintDisplay` are the seams a rejection would
 have to pass through, and both are pure.
+
+---
+
+## 14. External review of the shipped milestone (2026-08-27/28)
+
+M17 was reviewed **after** it shipped, by **Codex** and **Gemini 3.7 Flash**, each
+given the same brief and asked to be adversarial. Every code claim was checked against
+the repo before being acted on; two did not survive checking and are recorded here
+rather than fixed. Four did, and `250f3bd` fixes them.
+
+**Where they agreed, independently:** do not cut a third carve-out branch; the
+promotion is the first priority; a field-aware `cloudkit-schema.sh` is M18's price of
+entry; and §4B's rejection of the in-string tombstone was correct.
+
+### 14A. The one real disagreement, recorded rather than settled
+
+**Codex dissents from the shipped milestone.** Its position: rejecting the tombstone
+was right, but *shipping permanent label visibility without a correction was not* —
+"record-level LWW makes the tombstone unsafe, but that does not make uncorrectable
+assertions safe". It would have shipped S0/S1/S4, kept the transient capture-sheet
+suggestions, and held S2/S3 until immutable `SoundRejection` rows existed, on the
+grounds that delayed product value is a reversible harm and a permanently displayed
+wrong guess is not.
+
+Gemini took the opposite view: §4A's four gates neutralise the primary harm.
+
+**Not acted on**, and the reasons are worth stating so the next person can reopen it
+knowingly. The three-party pre-build review had rule 1 fully in view and concluded
+§4A plus the account-wide switch were sufficient; the alternative leaves the
+milestone's entire subject invisible behind a blocker of unknown duration; and the
+labels were already reaching users — through search, the reveal summary, and the lock
+screen — before M17 made them visible, so "hold S2/S3" would not have been the
+no-exposure option it sounds like. **Codex's underlying point stands and is the reason
+rejection is M18's first item**, not a later one.
+
+### 14B. Four findings, confirmed and fixed
+
+1. **The cold-launch deep link was still lossy — in the code §S4 added.**
+   `handleDeepLink` cleared `pendingDeepLinkCapsuleID` whether or not it had found the
+   capsule; §S4 then made the drain run at cold launch, which is exactly when CloudKit
+   is least likely to have delivered it. The fix moved the loss *closer* to the case it
+   was written to repair. Now `CapsuleOpenRoute.pendingLink` returns `.wait`, the link
+   survives, and `.onChange(of: capsules.count)` retries. `openCapsule` clears it —
+   the user going somewhere themselves is what bounds the wait, so no clock was
+   invented.
+
+2. **The consent mirror's default lies on a fresh device, and display believed it.**
+   M15 §11Q established exactly this and built *standing* for the retrospective
+   drains. M17 added a second way for a label to reach a person and did not extend it.
+   `SoundAnalysisPreferences.hasStanding` is now recorded at launch, granted on save,
+   and composed into `mayReveal`, which every reveal gate defaults to — display,
+   search, facet, export. It defaults to **false**.
+
+3. **The lock screen dressed the guess as the user's own sentence.**
+   «"rain" — tap to listen.» `Digest.lead` now carries whose words it is; a heard
+   phrase is attributed and unquoted. Predates M17 (M15 §S5) — M17 is what wrote the
+   rule it breaks. **An existing test was pinning the defect**, which is why a green
+   suite never noticed.
+
+4. **`.notDetermined` promised an echo on a screen that never asks.** The seal sheet
+   requests authorization as part of its flow; capture does not, and onboarding — which
+   does — has a Skip button. `remindersWouldBeDelivered` is the stricter rule capture
+   now uses.
+
+**Not confirmed.** Gemini's `humaneInstant` midnight scenario is unreachable: the seal
+picker's `earliest` bound greys out every date through today, checked in the simulator.
+Gemini's "the card duplicates the note rule" is a fair coupling observation, but the
+view and `SoundprintDisplay` suppress in the same direction, so no wrong result is
+reachable today.
+
+### 14C. Still open from the review, for M18
+
+- **`SoundSummaryWriter` produces unattributed prose** from the same phrases, on the
+  reveal screen — the most emotionally loaded surface in the app. Codex named it
+  alongside the notification copy; only the notification was fixed here. §4A rule 1
+  applies to it and it is not yet met.
+- **`cloudkit-schema.sh` is field-blind in four places** (§4F), and Codex added one the
+  plan had not recorded: the preview prints added *type names* while
+  `import-schema --file dev.ckdb` applies the **entire** Development export, so what an
+  operator confirms and what gets deployed are not the same set — into a Production
+  schema that is irreversible.
+
+### 14D. The delta, finally measured rather than asserted
+
+Because of that last point, both schemas were exported and diffed **by field** before
+recommending the promotion. The complete Dev→Prod delta is one thing:
+
+```
++ RECORD TYPE DeliveryIdentity ( userKey STRING QUERYABLE SEARCHABLE SORTABLE )
+```
+
+`CD_Capsule` is identical in both environments, field for field. The repo has claimed
+this since §11P, but on the authority of the type-only tooling; it is now verified.
+**The promotion is safe to run as it stands** — and this diff must be re-run after
+`CD_ListeningConsent` is created in Development, because that is the moment new fields
+could enter the picture.
+
+### 14E. Two incidents during the review, neither of them in the product
+
+- **iCloud conflict copies broke the build mid-session.** `~/Documents` is iCloud-synced
+  and Soundpost's `.xcodeproj` uses file-system-synchronized groups, so four
+  `X 2.swift` files appearing at once (stale pre-§11P copies, `mtime Aug 18`) meant
+  `invalid redeclaration of 'ListeningConsentStore'`. They were untracked but **not**
+  gitignored, so a `git add -A` flow would have committed four files that silently
+  revert the consent redesign. Moved aside, not deleted; the pushed commits were never
+  affected.
+- **A green local suite that CI reddened**, and the reason is worth carrying: the test
+  host shares `UserDefaults.standard` with the app, so having driven Soundpost in the
+  simulator had written `sound.hasStanding` and made the new default look harmless.
+  Three tests failed on CI; **five more would have passed vacuously**, because they
+  assert a search finds *nothing* and a closed gate satisfies that without exercising
+  anything. When a gate's default moves, the assert-emptiness tests are where the
+  damage hides. Fixed in `83bd776`, verified with the app uninstalled.
+
+### 14F. One hazard sitting in front of §8.2
+
+`~/.zshrc:68` exports `ASC_APP_ID="6761163709"` — **CLI Pulse Bar's** id, not
+Soundpost's `6778389097` — and `scripts/asc.py:24` honours the environment over its
+default, using it for reads *and* creates. Any Soundpost App Store Connect work run
+from the interactive shell would target the wrong app. Found by Codex, which had it in
+its own environment. Unset it for the session, or the ASC hour in §8.2 starts by
+editing someone else's listing.
