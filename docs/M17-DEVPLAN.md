@@ -866,3 +866,73 @@ default, using it for reads *and* creates. Any Soundpost App Store Connect work 
 from the interactive shell would target the wrong app. Found by Codex, which had it in
 its own environment. Unset it for the session, or the ASC hour in §8.2 starts by
 editing someone else's listing.
+
+---
+
+## 15. 1.7.0 shipped to review (2026-08-28)
+
+**`WAITING_FOR_REVIEW`, build 16, submission `a977308d`.** The release that had been
+code-complete and unshippable since 2026-08-23 is out. What unblocked it was not code:
+a simulator signed into iCloud, a seed run twice, and a deploy performed in the
+CloudKit Console because no CLI can do it (§14D).
+
+**What actually shipped in it.** 1.7.0 was named for account-wide listening consent.
+By the time it could be uploaded it also carried M16 and M17 — 32 commits — so the
+release notes were rewritten to say so, in three languages, led by the thing the
+release is really for: what Soundpost heard is now on the capsule, attributed, never
+as a claim about the reader's memory. Codex's review had warned against shipping
+"blindly from current master"; this accepts the enlarged scope deliberately rather
+than by omission.
+
+### 15A. Three false successes found on the way out
+
+Each reported "fine" and was not. They are listed together because the shape is one
+this project has now hit **nine** times, and three of them were in the release
+tooling itself — the part nobody exercises until the day it matters.
+
+1. **The schema seed.** Printed `SCHEMA-SEED cleaned up` while creating no record
+   type. Its fixed 20-second wait expired mid-`CKModifyRecordZonesOperation`, which
+   took 30.5 s on a first run after sign-in; the delete beat the export, the two
+   coalesced, and the follow-up export was `madeChanges: 0`. Its own comment guards
+   the sleep against *cancellation* and not against being too short, and it never
+   checks that the type exists. Running it twice worked.
+2. **`cloudkit-schema.sh promote`.** Could not have worked at all — `cktool
+   import-schema` writes Development only and cktool has no deploy subcommand. Written,
+   never exercised, invisible until needed.
+3. **`upload-dsyms.sh`.** Swallowed sentry-cli's exit status, so an expired-looking
+   token (`Invalid token`, 401) was reported as a completed step. This is precisely
+   the incident the script exists to prevent — 1.6.0 build 12 shipped unsymbolicated
+   for a different reason with the same silence. Now `|| return 1`; verified by
+   re-running the same failure and watching the exit code go 0 → 1.
+
+The 401 turned out not to be an expired token: the value in `~/.zshrc` was the token
+**wrapped in angle brackets** (73 chars, `<` … `>`). Two characters. But it would have
+shipped unsymbolicated again, silently, if the script had not been fixed first.
+
+### 15B. What is now true that was not
+
+- CloudKit **Production** holds `CD_Capsule` (with `CD_soundprintRaw`),
+  `CD_ListeningConsent`, `DeliveryIdentity` and `Users`.
+- `CD_soundprintRaw` reaching Production means sound labels can sync between a
+  person's devices **for the first time**, and M15 §11Q's premise finally holds.
+- The M10 delivery defect's server-side cause is repaired. **Unconfirmed end to end:**
+  `device_tokens` and `notification_jobs` gaining rows from a signed build is the only
+  proof, and their emptiness is the only reason anyone noticed.
+- 1.7.0's dSYMs are in Sentry, so its Release crashes will symbolicate.
+
+### 15C. Still open
+
+1. **Release 1.7.0 when Apple approves it** — `scripts/asc.py release`, which acts only
+   on `PENDING_DEVELOPER_RELEASE`. Deliberately left to a human.
+2. **Confirm M10 end to end** (above).
+3. **The cold-launch deep link on a real device** — M17's one unverified item, now
+   twice-modified and more worth checking than before.
+4. **The ASC hour for the two `MISSING_METADATA` IAPs**, with `unset ASC_APP_ID` first:
+   `~/.zshrc` points it at CLI Pulse Bar (§14F).
+5. **The ASC privacy nutrition label** (§6) — still server-side state nobody has read.
+   M17 added no field, category or transmission, and moved the export *toward* less
+   data; the check remains outstanding rather than assumed.
+6. **The store listing** — no mention of listening or search, screenshots from 1.1.0.
+   More overdue than ever now that the labels are visible.
+7. **`* 2.swift` / iCloud Drive** — the working tree still lives where conflict copies
+   can appear and break the build (§14E).
