@@ -124,7 +124,7 @@ struct CapsuleCard: View {
                 .frame(height: 56)
             if let note = capsule.note, !note.isEmpty {
                 Text(note).font(.body).lineLimit(2)
-            } else if let heard = SoundprintDisplay.sentence(for: heardPhrases) {
+            } else if let heard = heardSentence {
                 // The machine's guess FILLS A SILENCE — it never competes with the
                 // user's own line, which is why this is the `else` branch and not a
                 // row of its own (M17 §4A rule 2, `NotificationCopy.Digest.lead`'s
@@ -201,9 +201,10 @@ struct CapsuleCard: View {
 
     /// What Soundpost heard, subject to every §4A rule at once — including the one
     /// this surface adds, that a capsule with a note shows nothing here. Decided in
-    /// `SoundprintDisplay` so the card and the detail screen cannot drift apart.
-    private var heardPhrases: [String] {
-        SoundprintDisplay.phrases(for: capsule, on: .card, listening: listeningEnabled && hasStanding)
+    /// `SoundprintDisplay` so the card, the detail screen and the reveal cannot drift
+    /// apart: the phrases and the sentence they become are now one call, not two.
+    private var heardSentence: String? {
+        SoundprintDisplay.sentence(for: capsule, on: .card, listening: listeningEnabled && hasStanding)
     }
 
     private var dateText: String {

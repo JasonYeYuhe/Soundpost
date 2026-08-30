@@ -25,6 +25,14 @@ struct ResurfaceView: View {
     /// reads exactly as it always has.
     @State private var summary: String?
 
+    /// This device's mirror of the account-wide listening answer, and whether that
+    /// answer is an answer at all — the pair `SoundAnalysisPreferences.mayReveal`
+    /// composes. `@AppStorage` for the same reason the card and the detail screen use
+    /// it: the reveal repaints if the switch flips underneath it, and the read is not
+    /// a `UserDefaults` hit inside `body`.
+    @AppStorage(SoundAnalysisPreferences.enabledKey) private var listeningEnabled = true
+    @AppStorage(SoundAnalysisPreferences.hasStandingKey) private var hasStanding = false
+
 
     /// The user's custom mood colours (M14). Observed so a change in Settings
     /// repaints immediately, exactly like `cardTheme`. Resolving never reads
@@ -112,6 +120,27 @@ struct ResurfaceView: View {
                     .padding(.horizontal)
             }
 
+            // What Soundpost heard, said as a machine's guess and not as a fact
+            // (M18 §4D). Until now this screen was the one surface that named a sound
+            // without attribution — the summary above described a classifier guess in
+            // the app's own prose, on the most emotionally loaded moment the app has.
+            // The generator is no longer told the guess at all; this deterministic
+            // line is what replaces it.
+            //
+            // **Below the note, not directly under the summary.** §4D says "beneath
+            // it", and this is beneath it — but the rule the detail screen states in
+            // full applies here too: the line the person wrote is the title of their
+            // own memory, and a guess about the room never goes above it (M17 §4A
+            // rule 2). A sentence, not chips: the reveal is a moment, not a place to
+            // start browsing from.
+            if let heard = heardSentence {
+                Text(heard)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal)
+            }
+
             VStack(spacing: 6) {
                 if let place = capsule.place?.name {
                     Label(place, systemImage: "mappin.and.ellipse")
@@ -150,22 +179,25 @@ struct ResurfaceView: View {
         }
     }
 
-    /// Localized elapsed time since capture, e.g. "8 months ago" / "8か月前".
     /// Ask for a sentence once the screen is up. Fire-and-forget: it either arrives
     /// and fades in, or it never does and nothing about this screen changes.
     private func generateSummary() async {
-        let facts = SoundSummaryWriter.Facts(
-            // Showable, not merely stored: this dropped out-of-vocabulary labels but
-            // honoured no confidence floor, so a gate-1 `waterfall=0.35` could still
-            // reach the summary writer (M17 §4C).
-            soundPhrases: Soundprint(stored: capsule.soundprintRaw)?.showablePhrases() ?? [],
-            note: capsule.note,
-            placeName: capsule.place?.name,
-            elapsedPhrase: elapsedPhrase
-        )
-        summary = await SoundSummaryWriter.summary(for: facts)
+        // Built by `SoundSummaryWriter`, not here. This is where the sounds line was
+        // assembled, out of reach of every test, which is how the reveal came to be
+        // the last surface presenting a guess as a fact (M18 §4B/§4D).
+        summary = await SoundSummaryWriter.summary(
+            for: SoundSummaryWriter.facts(for: capsule, elapsedPhrase: elapsedPhrase))
     }
 
+    /// The attributed line, subject to every §4A rule. `.detail` rather than `.card`:
+    /// this screen has room, and the guess sits below the note rather than in its
+    /// place, so a capsule with a note is not a reason to say nothing.
+    private var heardSentence: String? {
+        SoundprintDisplay.sentence(for: capsule, on: .detail,
+                                   listening: listeningEnabled && hasStanding)
+    }
+
+    /// Localized elapsed time since capture, e.g. "8 months ago" / "8か月前".
     private var elapsedPhrase: String {
         let formatter = RelativeDateTimeFormatter()
         formatter.unitsStyle = .full

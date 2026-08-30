@@ -87,6 +87,23 @@ enum SoundprintDisplay {
         return !note.isEmpty
     }
 
+    /// The attributed sentence for one capsule on one surface — every §4A rule and
+    /// the copy, in a single call.
+    ///
+    /// Two surfaces render this line rather than chips: the gallery card, and, from
+    /// M18 §4D, the resurface reveal. Neither should be assembling
+    /// `sentence(for: phrases(for:on:))` by hand, because that is two decisions a
+    /// screen can get half right — and the reveal is the screen that had no
+    /// attribution at all until now.
+    static func sentence(
+        for capsule: Capsule,
+        on surface: Surface,
+        now: Date = .now,
+        listening: Bool = SoundAnalysisPreferences.mayReveal
+    ) -> String? {
+        sentence(for: phrases(for: capsule, on: surface, now: now, listening: listening))
+    }
+
     /// The attributed sentence: "Soundpost heard rain and leaves in the wind".
     ///
     /// **The attribution is in the copy, never in the layout.** A bare noun sitting

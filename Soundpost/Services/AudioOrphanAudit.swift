@@ -22,10 +22,18 @@ import SwiftData
 /// a stray file beside a saved capsule, run the sweep, assert the stray is gone —
 /// passes green without ever simulating a take in flight.
 ///
-/// Reclaiming the debris is M18 work. When it is written it needs **both** guards —
-/// unreferenced *and* untouched for a generous age window — plus an explicit
-/// exclusion of `AudioRecorder.currentFileName`. Until then the honest thing is to
-/// make the leak observable and leave the bytes alone.
+/// **M18 proposed the sweep with exactly those two guards and cut it** (M18 §4E).
+/// Three reviewers found three different holes, and none is answered by the guards:
+/// the launch audit runs from `SoundpostApp` holding no `AudioRecorder`, so
+/// `currentFileName` is not reachable where the sweep would run; jetsam defeats the
+/// age window (start a take, get killed, come back a day later — the file is
+/// unreferenced, old, and the recorder that knew about it died with the process);
+/// and a fetch on one context is not the whole truth. The cost of the leak is disk
+/// space; the cost of a wrong sweep is somebody's recording.
+///
+/// So the price of entry is now named rather than assumed: an **app-scoped recording
+/// lease that outlives the process**, so "is this file live?" is answerable from a
+/// launch task holding no recorder at all. Until that exists, this counts.
 enum AudioOrphanAudit {
 
     /// What one pass found. No filenames: a count is all anyone can act on, and

@@ -15,13 +15,31 @@ import FoundationModels
 /// type were the only route to a feature, that feature would be broken for most
 /// users, which is why the plan marked S6 explicitly droppable.
 ///
-/// **What it is allowed to do.** It is given only facts Soundpost already holds and
-/// already shows — what the classifier heard, the user's own line, the place, how
-/// long ago — and is instructed to rearrange them, not to add to them. It is never
-/// asked how the moment *felt*: a mood is the user's reading, and inferring emotion
-/// from a recording is out of scope for this milestone (§2). Output is validated
-/// before it is shown, because a model that invents something about someone's
-/// memory is worse than no sentence at all (§1.2).
+/// **What it is allowed to do.** It is given only facts the person themselves
+/// supplied — their own line, the place they tagged, how long ago — and is instructed
+/// to rearrange them, not to add to them. It is never asked how the moment *felt*: a
+/// mood is the user's reading, and inferring emotion from a recording is out of scope
+/// for this milestone (§2). Output is validated before it is shown, because a model
+/// that invents something about someone's memory is worse than no sentence at all
+/// (§1.2).
+///
+/// **What it is deliberately NOT given: what the classifier heard** (M18 §4D). It
+/// used to be handed `Sounds heard: rain, wind` under "use only the given facts",
+/// and it would duly write *"A rainy morning at home."* — a machine's guess about
+/// someone's memory, stated as fact, in generated prose, on the most emotionally
+/// loaded screen the app has. That is rule 1 failing.
+///
+/// The first fix proposed was to catch it in `validated`. Three external reviewers
+/// rejected that independently and they were right: "a rainy day" versus "sounds of
+/// rain" is not a lexical property, and no check that works across EN, JA and ZH-Hans
+/// can be built out of one. A validator written to try would either drop good
+/// sentences or pass bad ones, and rule 1 would be resting on a heuristic.
+///
+/// So the guess never arrives. There is no `soundPhrases` on `Facts` to put in the
+/// prompt, which is a guarantee rather than an instruction — and the reveal renders
+/// `SoundprintDisplay.sentence` beside what this writes, so the screen gains the
+/// attribution it never had. The feature is smaller: a capsule with no note and no
+/// place now gets no sentence at all. Honestly smaller.
 ///
 /// Nothing is stored: the sentence is generated when the screen appears and
 /// forgotten when it closes. That keeps it from going stale, and keeps generated
@@ -33,14 +51,30 @@ enum SoundSummaryWriter {
     /// value type rather than a `Capsule`, so it is obvious at a glance that no
     /// audio and no hidden field can reach it.
     struct Facts: Equatable, Sendable {
-        var soundPhrases: [String]
         var note: String?
         var placeName: String?
         var elapsedPhrase: String
 
-        /// Nothing worth writing about: no sounds *and* no words of the user's own.
+        /// Nothing worth writing about: neither the person's own line nor the place
+        /// they tagged.
+        ///
+        /// It used to read `soundPhrases.isEmpty && note == nil`, so a capsule with
+        /// nothing but a classifier guess was still worth a sentence — and the
+        /// sentence it got was the guess restated as fact. With the guess gone, the
+        /// remaining facts are the two the person supplied, and a capsule carrying
+        /// neither has nothing this can truthfully say. It gets no sentence, and the
+        /// attributed line carries the screen instead (M18 §4D).
         var isEmpty: Bool {
-            soundPhrases.isEmpty && (note?.isEmpty ?? true)
+            Self.isBlank(note) && Self.isBlank(placeName)
+        }
+
+        /// Trimmed, because `prompt(for:)` trims before deciding a field counts and
+        /// the two must not disagree about what "  " is — the same rule
+        /// `SoundprintDisplay.hasNote` and `NotificationCopy.Digest.lead` already
+        /// share.
+        private static func isBlank(_ value: String?) -> Bool {
+            guard let value else { return true }
+            return value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         }
     }
 
@@ -128,9 +162,13 @@ enum SoundSummaryWriter {
         for facts: Facts,
         isListeningEnabled: Bool = SoundAnalysisPreferences.isEnabled
     ) async -> String? {
-        // The same consent that governs listening governs writing about what was
-        // heard — otherwise turning listening off would still leave a model reading
-        // the results of it.
+        // Kept after M18 §4D removed the sound phrases from `Facts`, deliberately and
+        // not by oversight. The original reason no longer holds — no result of
+        // listening reaches the model now — but dropping the gate would start showing
+        // machine-written prose on the reveal to exactly the people who asked for
+        // less of it, which is a change this milestone has no mandate to make and the
+        // wrong direction to be wrong in. Narrowing what an opted-out user is shown is
+        // never the harmful mistake.
         guard isListeningEnabled else { return nil }
         guard !facts.isEmpty else { return nil }
         guard availability() == nil else { return nil }
@@ -233,17 +271,22 @@ enum SoundSummaryWriter {
     /// heard, in any language — whereas the sentence we asked for is built out of
     /// exactly those.
     ///
-    /// Only sound phrases and the place are used as anchors. They are short localized
-    /// nouns, which makes containment meaningful in scripts with and without word
-    /// breaks. The note is deliberately not an anchor: it is free text of any length,
-    /// and a legitimate one-sentence rephrasing may share nothing quotable with it.
-    /// When those are the only facts, the blocklist above is the whole defence — a
-    /// limit worth stating rather than papering over.
+    /// The place is the preferred anchor: a short localized noun, which makes
+    /// containment meaningful in scripts with and without word breaks. The note is
+    /// only a fallback, because it is free text of any length and a legitimate
+    /// one-sentence rephrasing may share nothing quotable with it. When the note is
+    /// the only fact, the blocklist above is most of the defence — a limit worth
+    /// stating rather than papering over.
+    ///
+    /// **Sound phrases used to head this list and no longer exist** (M18 §4D). That
+    /// matters here and not only in `prompt`: an anchor is a claim that the model was
+    /// *given* something, and a sentence proving it mentioned a sound it was never
+    /// told about would have been the check certifying the invention.
     ///
     /// Rejecting a good sentence costs nothing dangerous: the caller falls back to
     /// its own localized copy. Accepting a bad one breaks §1.2.
     static func mentionsAGivenFact(_ facts: Facts, in text: String) -> Bool {
-        var anchors = (facts.soundPhrases + [facts.placeName].compactMap { $0 })
+        var anchors = [facts.placeName].compactMap { $0 }
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
         // The note grounds a capsule that has neither a sound nor a place. The first
@@ -296,7 +339,7 @@ enum SoundSummaryWriter {
     /// identification, and it catches the case that actually occurs — English prose
     /// returned for CJK facts.
     static func looksLikeTheSameScript(as facts: Facts, text: String) -> Bool {
-        let given = facts.soundPhrases + [facts.note, facts.placeName].compactMap { $0 }
+        let given = [facts.note, facts.placeName].compactMap { $0 }
         guard containsCJK(given.joined(separator: " ")) else { return true }
         // Look at the sentence with the given facts REMOVED. Asking only whether the
         // output contains CJK is satisfied by a single quoted place name — "A rainy
@@ -345,17 +388,31 @@ enum SoundSummaryWriter {
         2. Never state or guess how the person felt. Describe the moment, not the emotion.
         3. One sentence, at most twenty words. No preamble, no quotation marks, no emoji.
         4. Write warmly and plainly, as a friend would. Do not be poetic or dramatic.
-        5. If the facts are too thin to say anything true, repeat the given sounds plainly.
-        6. Write in the SAME LANGUAGE as the facts you are given. The facts are already \
+        5. Write in the SAME LANGUAGE as the facts you are given. The facts are already \
         in the reader's language; your sentence must match them. Do not translate them \
         into English, and do not answer in English when the facts are not English.
         """
 
+    /// The prompt. **There is no sounds line, and no field to build one from**
+    /// (M18 §4D) — the old rule 5, "if the facts are too thin, repeat the given sounds
+    /// plainly", went with it, since a brief that asks for a sound when there is
+    /// nothing else to say is the assertion this milestone removed, phrased as
+    /// guidance.
+    /// The facts one capsule yields — **the only place a `Facts` is built from a
+    /// capsule**, so the claim "no classifier guess reaches the generator" is one a
+    /// test can hold to account instead of a promise about a call site.
+    ///
+    /// It lived inline in `ResurfaceView.generateSummary`, where a test could not
+    /// reach it. That is where the sounds line was added, and where the reveal was
+    /// missed by M17's own §S3 inventory (M18 §4B).
+    static func facts(for capsule: Capsule, elapsedPhrase: String) -> Facts {
+        Facts(note: capsule.note,
+              placeName: capsule.place?.name,
+              elapsedPhrase: elapsedPhrase)
+    }
+
     static func prompt(for facts: Facts) -> String {
         var lines = ["Time since: \(facts.elapsedPhrase)"]
-        if !facts.soundPhrases.isEmpty {
-            lines.append("Sounds heard: \(facts.soundPhrases.joined(separator: ", "))")
-        }
         if let note = facts.note?.trimmingCharacters(in: .whitespacesAndNewlines), !note.isEmpty {
             lines.append("Their own note: \(note)")
         }

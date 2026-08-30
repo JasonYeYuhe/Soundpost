@@ -897,9 +897,8 @@ struct SoundprintEraserTests {
 /// refuse to show. That is where the risk lives.
 struct SoundSummaryWriterTests {
 
-    private func facts(sounds: [String] = ["rain"], note: String? = nil) -> SoundSummaryWriter.Facts {
-        SoundSummaryWriter.Facts(soundPhrases: sounds, note: note,
-                                 placeName: "Home", elapsedPhrase: "8 months ago")
+    private func facts(note: String? = nil, place: String? = "Home") -> SoundSummaryWriter.Facts {
+        SoundSummaryWriter.Facts(note: note, placeName: place, elapsedPhrase: "8 months ago")
     }
 
     /// Withdrawing consent to listen also withdraws consent to write about what was
@@ -908,13 +907,23 @@ struct SoundSummaryWriterTests {
         #expect(await SoundSummaryWriter.summary(for: facts(), isListeningEnabled: false) == nil)
     }
 
+    /// **The meaning of "nothing to say" moved in M18 §4D.** It used to be "no sounds
+    /// and no note", so a capsule carrying only a classifier guess was still worth a
+    /// sentence — and the sentence it got was the guess restated as fact. The facts
+    /// are now the two the person supplied, and a capsule with neither gets nothing.
     @Test func itDoesNotWriteWhenThereIsNothingToSay() async {
-        let empty = SoundSummaryWriter.Facts(soundPhrases: [], note: nil,
-                                             placeName: "Home", elapsedPhrase: "a year ago")
+        let empty = SoundSummaryWriter.Facts(note: nil, placeName: nil,
+                                             elapsedPhrase: "a year ago")
         #expect(empty.isEmpty)
         #expect(await SoundSummaryWriter.summary(for: empty, isListeningEnabled: true) == nil)
-        // A user's own words alone are enough to be worth a sentence.
-        #expect(!facts(sounds: [], note: "the storm broke").isEmpty)
+        // Either one of the person's own facts is enough to be worth a sentence.
+        #expect(!facts(note: "the storm broke", place: nil).isEmpty)
+        #expect(!facts(note: nil, place: "Home").isEmpty)
+        // Whitespace is not a fact. `prompt` trims before deciding a field counts, so
+        // this has to agree with it — otherwise a capsule whose note is "  " asks the
+        // model to write a sentence out of an elapsed time and nothing else.
+        #expect(SoundSummaryWriter.Facts(note: "   \n ", placeName: "  ",
+                                         elapsedPhrase: "a year ago").isEmpty)
     }
 
     /// On any device without Apple Intelligence this returns a reason rather than
@@ -930,14 +939,17 @@ struct SoundSummaryWriterTests {
     /// these tests exercise the guard they are about rather than tripping over the
     /// fact-mention check.
     private var rainFacts: SoundSummaryWriter.Facts {
-        facts(sounds: ["rain"], note: nil)
+        facts(note: nil)
     }
 
     // MARK: Output validation — the part that protects the memory
 
     @Test func itStripsTheQuotesModelsLikeToAdd() {
-        #expect(SoundSummaryWriter.validated("\"Rain on the window.\"", describing: rainFacts) == "Rain on the window.")
-        #expect(SoundSummaryWriter.validated("“Rain on the window.”", describing: rainFacts) == "Rain on the window.")
+        // The sentence still has to mention a fact we gave, and after M18 §4D the
+        // place is the only anchor these facts carry — "rain" is no longer something
+        // the model was told, so a sentence about rain is no longer evidence.
+        #expect(SoundSummaryWriter.validated("\"Rain on the window at Home.\"", describing: rainFacts) == "Rain on the window at Home.")
+        #expect(SoundSummaryWriter.validated("“Rain on the window at Home.”", describing: rainFacts) == "Rain on the window at Home.")
     }
 
     @Test func itRejectsARefusalOrAPreamble() {
@@ -1025,16 +1037,17 @@ struct SoundSummaryWriterTests {
         #expect(SoundSummaryWriter.validated(unrelated, describing: rainFacts) == nil)
     }
 
-    @Test func aSentenceMentioningTheSoundOrThePlaceIsKept() {
-        let withSound = "Rain, eight months ago."
+    /// The place is the anchor now. A sentence naming a **sound** proves nothing,
+    /// because after M18 §4D no sound was ever given — so a sentence that mentions one
+    /// and nothing else is describing something the model supplied itself.
+    @Test func aSentenceMentioningThePlaceIsKept() {
         let withPlace = "An afternoon at Home, eight months ago."
-        #expect(SoundSummaryWriter.validated(withSound, describing: rainFacts) == withSound)
-        #expect(SoundSummaryWriter.validated(withPlace, describing: facts(sounds: [])) == withPlace)
+        #expect(SoundSummaryWriter.validated(withPlace, describing: rainFacts) == withPlace)
+        #expect(SoundSummaryWriter.validated("Rain, eight months ago.", describing: rainFacts) == nil)
     }
 
     @Test func thePromptCarriesOnlyFactsWeAlreadyDisplay() {
         let prompt = SoundSummaryWriter.prompt(for: facts(note: "the storm broke"))
-        #expect(prompt.contains("rain"))
         #expect(prompt.contains("the storm broke"))
         #expect(prompt.contains("Home"))
         #expect(prompt.contains("8 months ago"))
@@ -1046,7 +1059,7 @@ struct SoundSummaryWriterTests {
     /// The model is never asked how the moment felt — inferring emotion from a
     /// recording is out of scope for this milestone, and a mood is the user's own.
     @Test func itNeverAsksAboutFeelings() {
-        let prompt = SoundSummaryWriter.prompt(for: facts())
+        let prompt = SoundSummaryWriter.prompt(for: facts(note: "the storm broke"))
         for word in ["mood", "feel", "emotion", "happy", "sad"] {
             #expect(!prompt.lowercased().contains(word), "the prompt mentions \(word)")
         }
@@ -1277,13 +1290,19 @@ struct PostReviewGuardTests {
     /// 「 left on the front, the refusal check never fired — so the trilingual
     /// blocklist was reachable only for output that happened to be unwrapped.
     @Test func aRefusalWrappedInCornerBracketsIsStillRejected() {
-        let facts = SoundSummaryWriter.Facts(soundPhrases: ["rain"], note: nil,
-                                             placeName: nil, elapsedPhrase: "eight months ago")
+        let facts = SoundSummaryWriter.Facts(note: nil, placeName: "京都",
+                                             elapsedPhrase: "八か月前")
         for raw in ["「申し訳ありませんが、お手伝いできません。」",
                     "『すみません、それはできません。』",
                     "「抱歉，我无法完成这个请求。」"] {
             #expect(SoundSummaryWriter.validated(raw, describing: facts) == nil, "\(raw) should be rejected")
         }
+        // And the positive half, which those assertions cannot supply: each refusal
+        // mentions none of the given facts, so the anchor check rejects it whether or
+        // not the brackets ever came off. A GOOD sentence wrapped the same way is the
+        // only case that fails when stripping breaks.
+        #expect(SoundSummaryWriter.validated("「京都の雨の朝、八か月前。」", describing: facts)
+                == "京都の雨の朝、八か月前。")
     }
 
     /// `Locale.Language(identifier: "zh-TW").script` is nil — the script is implied
@@ -1324,9 +1343,8 @@ struct PostReviewGuardTests {
 @MainActor
 struct CodexReviewGuardTests {
 
-    private func facts(sounds: [String] = ["rain"], note: String? = nil,
-                       place: String? = nil) -> SoundSummaryWriter.Facts {
-        SoundSummaryWriter.Facts(soundPhrases: sounds, note: note, placeName: place,
+    private func facts(note: String? = nil, place: String? = nil) -> SoundSummaryWriter.Facts {
+        SoundSummaryWriter.Facts(note: note, placeName: place,
                                  elapsedPhrase: "eight months ago")
     }
 
@@ -1337,18 +1355,20 @@ struct CodexReviewGuardTests {
     /// `localizedStandardContains`, so a sentence about a train satisfied an anchor
     /// of rain and would have been shown as a description of a rainy morning.
     @Test func anAnchorMustNotMatchInsideALongerWord() {
-        #expect(!SoundSummaryWriter.mentionsAGivenFact(facts(sounds: ["rain"]),
+        // The anchor is a place after M18 §4D. The rule under test is the word
+        // boundary, which is a property of the script and not of what the noun means.
+        #expect(!SoundSummaryWriter.mentionsAGivenFact(facts(place: "Rain"),
                                                        in: "A train passed through the evening."))
-        #expect(SoundSummaryWriter.mentionsAGivenFact(facts(sounds: ["rain"]),
+        #expect(SoundSummaryWriter.mentionsAGivenFact(facts(place: "Rain"),
                                                       in: "Rain on the window, eight months ago."))
     }
 
     /// The boundary rule cannot apply to scripts without spaces — it would degrade to
     /// "must start the sentence" and switch the feature off for ja/zh.
     @Test func cjkAnchorsMatchAnywhereInTheSentence() {
-        #expect(SoundSummaryWriter.mentionsAGivenFact(facts(sounds: ["雨"]),
-                                                      in: "今朝は雨でした。"))
-        #expect(!SoundSummaryWriter.mentionsAGivenFact(facts(sounds: ["雨"]),
+        #expect(SoundSummaryWriter.mentionsAGivenFact(facts(place: "京都"),
+                                                      in: "今朝の京都、八か月前。"))
+        #expect(!SoundSummaryWriter.mentionsAGivenFact(facts(place: "京都"),
                                                        in: "静かな朝でした。"))
     }
 
@@ -1358,7 +1378,7 @@ struct CodexReviewGuardTests {
     /// which meant a note-only capsule had no factual check at all — and a test
     /// locked that in.
     @Test func aNoteOnlyCapsuleStillRequiresGrounding() {
-        let noteOnly = facts(sounds: [], note: "the storm broke")
+        let noteOnly = facts(note: "the storm broke")
         #expect(!SoundSummaryWriter.mentionsAGivenFact(noteOnly, in: "You watched fireworks together."))
         #expect(SoundSummaryWriter.mentionsAGivenFact(noteOnly, in: "The storm you wrote about, eight months ago."))
     }
@@ -1369,13 +1389,14 @@ struct CodexReviewGuardTests {
     /// Neither checks what came back, and the place anchor is satisfied by a CJK
     /// place name sitting inside English prose.
     @Test func englishProseIsRejectedWhenTheFactsAreJapanese() {
-        let japanese = facts(sounds: ["雨"], note: "朝の音", place: "東京")
+        let japanese = facts(note: "朝の音", place: "東京")
         #expect(!SoundSummaryWriter.looksLikeTheSameScript(as: japanese,
                                                            text: "A rainy afternoon in 東京."))
         #expect(SoundSummaryWriter.looksLikeTheSameScript(as: japanese,
                                                           text: "東京の雨の朝、八か月前。"))
         // English facts are unaffected — the check only fires when the facts are CJK.
-        #expect(SoundSummaryWriter.looksLikeTheSameScript(as: facts(sounds: ["rain"]),
+        #expect(SoundSummaryWriter.looksLikeTheSameScript(as: facts(note: "the storm broke",
+                                                                    place: "Home"),
                                                           text: "A rainy afternoon."))
     }
 
