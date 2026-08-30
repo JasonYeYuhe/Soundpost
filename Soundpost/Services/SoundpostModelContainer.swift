@@ -52,8 +52,20 @@ enum SoundpostModelContainer {
     /// it. If that ever throws a schema-validation error, make `waveformSamples` an
     /// optional `[Float]?`. `ListeningConsent` joins on the same terms (M15 §4I,
     /// revised): no unique attribute, every property defaulted, and adding an entity
-    /// is purely additive so an existing store migrates lightly.
-    static var productionSchema: Schema { Schema([Capsule.self, ListeningConsent.self]) }
+    /// is purely additive so an existing store migrates lightly. `SoundRejection`
+    /// (M18 §4A) joins on the same terms again.
+    ///
+    /// **Adding to this array is not the whole job.** An entity's CloudKit record
+    /// type exists only once `-initializeCloudKitSchema` has exported a row of it in
+    /// Development, and reaches Production only through a **human deploy in the
+    /// CloudKit Console** — `cktool` has no deploy subcommand at all (M17 §14D).
+    /// Until that is done the entity is local-only, and nothing in the app or the
+    /// build says so. `scripts/cloudkit-schema.sh status` is what reads Production
+    /// back; `check-models` and `ModelRegistrationTests` are what stop an entity
+    /// never reaching this array in the first place (M18 §4H).
+    static var productionSchema: Schema {
+        Schema([Capsule.self, ListeningConsent.self, SoundRejection.self])
+    }
 
     static func makeProductionContainer() -> ProductionStore {
         let schema = productionSchema

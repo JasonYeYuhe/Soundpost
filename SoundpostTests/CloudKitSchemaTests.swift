@@ -57,7 +57,7 @@ struct CloudKitSchemaTests {
     /// perform and no CLI can (M17 §14D).
     @Test func theShippingSchemaContainsExactlyTheEntitiesWeExpect() {
         let names = Set(SoundpostModelContainer.productionSchema.entities.map(\.name))
-        #expect(names == ["Capsule", "ListeningConsent"])
+        #expect(names == ["Capsule", "ListeningConsent", "SoundRejection"])
     }
 
     /// The CloudKit rules the schema comment claims, checked rather than asserted in

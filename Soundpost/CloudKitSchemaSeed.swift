@@ -160,6 +160,13 @@ enum CloudKitSchemaSeed {
             // `.distantPast` so that if cleanup ever fails, the stray row loses to
             // every dated answer and cannot decide consent for whoever ran this.
             return ListeningConsent(enabled: true, changedAt: .distantPast)
+        case "SoundRejection":
+            // Same `.distantPast` reasoning, and two more precautions for the same
+            // case: `rejected: false` so a stray row can only ever say "not
+            // rejected", and a fresh capsule id that matches nothing in anybody's
+            // library, so it cannot hide a label on a real capsule either way.
+            return SoundRejection(capsuleID: UUID(), identifier: "",
+                                  rejected: false, changedAt: .distantPast)
         default:
             return nil
         }
