@@ -72,9 +72,8 @@ enum SoundprintDisplay {
         guard listening else { return [] }
         guard capsule.isContentVisible(now: now) else { return [] }
         if surface == .card, hasNote(capsule) { return [] }
-        let rejected = rejecting.rejectedIdentifiers(for: capsule.id)
         return Soundprint(stored: capsule.soundprintRaw)?
-            .showable().filter { !rejected.contains($0.identifier) } ?? []
+            .showable(rejecting: rejecting.sounds(for: capsule.id)) ?? []
     }
 
     /// Which of this capsule's *stored* labels the person has dismissed — the
@@ -96,7 +95,11 @@ enum SoundprintDisplay {
         listening: Bool = SoundAnalysisPreferences.mayReveal
     ) -> Set<String> {
         guard listening, capsule.isContentVisible(now: now) else { return [] }
-        let stored = Set(Soundprint(stored: capsule.soundprintRaw)?.showableIdentifiers() ?? [])
+        // Asked with `.none` on purpose: the question is which of the labels this
+        // capsule *could* show have been dismissed, so the rejections are the answer
+        // being intersected rather than a filter to apply first.
+        let stored = Set(Soundprint(stored: capsule.soundprintRaw)?
+            .showableIdentifiers(rejecting: .none) ?? [])
         return stored.intersection(rejecting.rejectedIdentifiers(for: capsule.id))
     }
 

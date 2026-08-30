@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 import UserNotifications
+import SwiftData
 import UIKit
 
 /// App-level glue for local notifications: requests permission, reconciles the
@@ -104,10 +105,33 @@ final class NotificationCoordinator: NSObject, UNUserNotificationCenterDelegate 
     /// personalized *and listening* states are folded into each request's identity
     /// via `contentVersion`, so flipping either re-issues every owned request
     /// rather than leaving a stale body baked on the lock screen (§S3 P0).
-    func sync(capsules: [Capsule], now: Date = .now) async {
+    /// - Parameter context: the store to read corrections from — **one scoped fetch
+    ///   per sync**, not one per capsule (M18 §4B). A context rather than a threaded
+    ///   index because there are eleven call sites and every one of them already has
+    ///   one; asking each to build the index would have been eleven chances to pass
+    ///   `.none` and eleven places for a stale lock-screen body to come from.
+    func sync(capsules: [Capsule], in context: ModelContext, now: Date = .now) async {
         let plan = NotificationPlanner.plan(capsules: capsules, now: now)
         let personalized = NotificationPreferences.personalized
         let listening = SoundAnalysisPreferences.isEnabled
+
+        // **A failed read suppresses every heard phrase rather than showing them
+        // all.** If the corrections cannot be read we do not know which labels were
+        // dismissed, and the two ways to be wrong are not symmetric: a generic body
+        // is calm and true, while a body carrying a phrase its owner rejected is
+        // rule 1 failing on a lock screen, where they cannot ask a follow-up
+        // question. So the soundprint is dropped from every digest and the copy falls
+        // back to what it says when there is nothing to lead with (§4C).
+        let rejections: RejectionIndex?
+        do {
+            rejections = try SoundRejectionStore.index(forCapsules: capsules.map(\.id),
+                                                       in: context, now: now)
+        } catch {
+            rejections = nil
+            Diagnostics.notice("Could not read sound corrections while rebuilding notification copy",
+                               code: (error as NSError).code)
+        }
+
         let digests = Dictionary(
             capsules.map {
                 ($0.id, NotificationCopy.Digest(
@@ -117,7 +141,8 @@ final class NotificationCoordinator: NSObject, UNUserNotificationCenterDelegate 
                     mood: $0.mood,
                     // Only ever a *fallback* for the lead phrase, and only consulted
                     // when `personalized` is on (M15 §S5).
-                    soundprint: Soundprint(stored: $0.soundprintRaw)
+                    soundprint: rejections == nil ? nil : Soundprint(stored: $0.soundprintRaw),
+                    rejected: rejections?.sounds(for: $0.id) ?? .none
                 ))
             },
             uniquingKeysWith: { first, _ in first }

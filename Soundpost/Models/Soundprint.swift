@@ -175,7 +175,15 @@ struct Soundprint: Equatable, Sendable {
                 for: label.identifier, default: defaultFloor)
     }
 
-    /// The labels a screen could put in front of someone, highest confidence first.
+    /// The labels today's **gates** still admit — the vocabulary and the floor —
+    /// before anything the *person* has said about them.
+    ///
+    /// **Not a display API, and the distinction is the same one `hasNoLabels` draws.**
+    /// This is the question `SoundprintRemediation` asks at rest, about whether the
+    /// stored bytes are still worth keeping; a render site wants `showable(rejecting:)`,
+    /// which additionally leaves out what its owner has dismissed. That is why this one
+    /// keeps a zero-argument form while the three below deliberately lost theirs
+    /// (M18 §4B): it returns `Label`s with confidences, which no screen renders.
     func showableLabels(defaultFloor: Double = SoundprintService.confidenceFloor) -> [Label] {
         labels.filter { Self.isShowable($0, defaultFloor: defaultFloor) }
     }
@@ -196,9 +204,30 @@ struct Soundprint: Equatable, Sendable {
     /// Showable labels paired with their phrases, highest confidence first. The one
     /// place the vocabulary lookup happens, so a facet and a caption can never
     /// disagree about which labels exist.
-    func showable(defaultFloor: Double = SoundprintService.confidenceFloor) -> [Showable] {
+    ///
+    /// - Parameter rejecting: the identifiers this capsule's owner has dismissed
+    ///   (M18 §4A). **There is no default, and that is the mechanism** (§4B).
+    ///
+    ///   The plan's first draft claimed every consumer read this seam and would
+    ///   therefore inherit rejection for free. Codex disproved it by reading the code:
+    ///   `SoundprintDisplay` serves the card and the detail screen, while
+    ///   `GalleryFilter` (twice — the facet and the search are separate paths),
+    ///   `CapsuleBulkExporter`, `NotificationCopy.Digest.lead`,
+    ///   `CaptureViewModel.suggestedPhrases` and `ResurfaceView` all called it
+    ///   directly. The draft's own step list named five of them and missed the reveal
+    ///   — the very surface §4D is about — so the milestone written to keep a guess
+    ///   out of generated prose would have gone on feeding it one.
+    ///
+    ///   Documentation was not going to fix that. Removing the zero-argument form
+    ///   means the build cannot finish while a consumer is unvisited: not a check that
+    ///   iterates the consumers, which is the shape this project keeps being caught
+    ///   by, but a compiler that will not produce a binary. A site that genuinely has
+    ///   nothing to apply spells `rejecting: .none` and says why.
+    func showable(rejecting: RejectedSounds,
+                  defaultFloor: Double = SoundprintService.confidenceFloor) -> [Showable] {
         showableLabels(defaultFloor: defaultFloor).compactMap { label in
-            SoundVocabulary.displayName(for: label.identifier)
+            guard !rejecting.contains(label.identifier) else { return nil }
+            return SoundVocabulary.displayName(for: label.identifier)
                 .map { Showable(identifier: label.identifier, phrase: $0) }
         }
     }
@@ -215,15 +244,17 @@ struct Soundprint: Equatable, Sendable {
     ///
     /// Empty means "nothing to show", which is the question a header should be driven
     /// by — never `hasNoLabels`.
-    func showablePhrases(defaultFloor: Double = SoundprintService.confidenceFloor) -> [String] {
-        showable(defaultFloor: defaultFloor).map(\.phrase)
+    func showablePhrases(rejecting: RejectedSounds,
+                         defaultFloor: Double = SoundprintService.confidenceFloor) -> [String] {
+        showable(rejecting: rejecting, defaultFloor: defaultFloor).map(\.phrase)
     }
 
     /// The identifiers a screen could show — and therefore the only ones a gallery
     /// facet may match on. Finding a capsule by a label it was never told about is a
     /// result the app cannot explain (§4C).
-    func showableIdentifiers(defaultFloor: Double = SoundprintService.confidenceFloor) -> [String] {
-        showable(defaultFloor: defaultFloor).map(\.identifier)
+    func showableIdentifiers(rejecting: RejectedSounds,
+                             defaultFloor: Double = SoundprintService.confidenceFloor) -> [String] {
+        showable(rejecting: rejecting, defaultFloor: defaultFloor).map(\.identifier)
     }
 
     /// Exact-token membership. **Never substring**: the classifier's own vocabulary

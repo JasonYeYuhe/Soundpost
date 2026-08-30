@@ -53,24 +53,38 @@ enum GalleryFilter {
     /// reasons: this type documents itself as pure and metadata-only, and a
     /// `UserDefaults` read down there would be one hit per capsule per keystroke over
     /// the whole library. Every other M15 gate uses the same defaulted-parameter seam.
-    static func apply(_ capsules: [Capsule], _ criteria: Criteria, now: Date = .now,
+    ///
+    /// - Parameter rejecting: what each capsule's owner has said was wrong (M18 §4A),
+    ///   resolved once by the gallery and threaded for exactly the reasons above — a
+    ///   store read down in `soundMatches` would be a fetch per capsule per keystroke.
+    ///   **No default**, unlike `listening:`: search and the sound facet are two
+    ///   separate paths through this file, and a default is how one of them comes to
+    ///   be missed while the other is fixed (§4B).
+    static func apply(_ capsules: [Capsule], _ criteria: Criteria,
+                      rejecting: RejectionIndex, now: Date = .now,
                       listening: Bool = SoundAnalysisPreferences.mayReveal) -> [Capsule] {
         let query = criteria.searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        return capsules.filter { matches($0, criteria, query: query, now: now, listening: listening) }
+        return capsules.filter {
+            matches($0, criteria, query: query, rejecting: rejecting.sounds(for: $0.id),
+                    now: now, listening: listening)
+        }
     }
 
-    static func matches(_ capsule: Capsule, _ criteria: Criteria, query: String, now: Date,
+    static func matches(_ capsule: Capsule, _ criteria: Criteria, query: String,
+                        rejecting: RejectedSounds, now: Date,
                         listening: Bool = SoundAnalysisPreferences.mayReveal) -> Bool {
         if !criteria.moods.isEmpty {
             guard let mood = capsule.mood, criteria.moods.contains(mood) else { return false }
         }
         if criteria.sealedOnly && !isSealedLineage(capsule) { return false }
         if !criteria.sounds.isEmpty && !soundFacetMatches(capsule, criteria.sounds,
+                                                          rejecting: rejecting,
                                                           now: now, listening: listening) {
             return false
         }
         guard !query.isEmpty else { return true }
-        return searchMatches(capsule, query: query, now: now, listening: listening)
+        return searchMatches(capsule, query: query, rejecting: rejecting,
+                             now: now, listening: listening)
     }
 
     static func isSealedLineage(_ capsule: Capsule) -> Bool {
@@ -80,7 +94,8 @@ enum GalleryFilter {
         }
     }
 
-    static func searchMatches(_ capsule: Capsule, query: String, now: Date,
+    static func searchMatches(_ capsule: Capsule, query: String, rejecting: RejectedSounds,
+                              now: Date,
                               listening: Bool = SoundAnalysisPreferences.mayReveal) -> Bool {
         // Hidden words — only when the capsule's content is visible (§4D P1).
         if capsule.isContentVisible(now: now) {
@@ -97,7 +112,13 @@ enum GalleryFilter {
             // surface a capsule *by the sound Soundpost heard* on a device where the
             // user has turned listening off, which is the promise in the Settings
             // footer, not a detail.
-            if listening, soundMatches(capsule, query: query) { return true }
+            //
+            // And a label its owner has dismissed is not something to find them by.
+            // M18 §5 names this as the surface that must never be dropped after the
+            // correction ships: a rejection someone can make that search still ignores
+            // is worse than no rejection at all — they said no, and the app went on
+            // using it to answer questions about their own library.
+            if listening, soundMatches(capsule, query: query, rejecting: rejecting) { return true }
         }
         // Non-sensitive, always searchable (mood label shows even on locked cards).
         if capsule.mood?.label.localizedCaseInsensitiveContains(query) == true { return true }
@@ -116,10 +137,11 @@ enum GalleryFilter {
     /// Matched against **showable** identifiers, so a facet can never surface a
     /// capsule by a label the app declined to name (§4C).
     static func soundFacetMatches(_ capsule: Capsule, _ sounds: Set<String>,
+                                  rejecting: RejectedSounds,
                                   now: Date, listening: Bool) -> Bool {
         guard listening, capsule.isContentVisible(now: now) else { return false }
         guard let soundprint = Soundprint(stored: capsule.soundprintRaw) else { return false }
-        return soundprint.showableIdentifiers().contains { sounds.contains($0) }
+        return soundprint.showableIdentifiers(rejecting: rejecting).contains { sounds.contains($0) }
     }
 
     /// Match a query against a capsule's soundprint.
@@ -132,13 +154,15 @@ enum GalleryFilter {
     /// Identifier comparison is exact-token by construction: we look up each stored
     /// identifier's phrase rather than substring-matching the stored blob, so a
     /// search for "rain" can never hit a capsule labelled `train` (M15 §4E).
-    static func soundMatches(_ capsule: Capsule, query: String) -> Bool {
+    static func soundMatches(_ capsule: Capsule, query: String,
+                             rejecting: RejectedSounds) -> Bool {
         // The phrases this capsule could actually be *shown* by. Search and display
         // must agree: finding a capsule by a label it was never told about — one
         // below today's floor — is finding something on evidence the app withheld
         // (M17 §4C).
         guard let soundprint = Soundprint(stored: capsule.soundprintRaw) else { return false }
-        return soundprint.showablePhrases().contains { matches(phrase: $0, query: query) }
+        return soundprint.showablePhrases(rejecting: rejecting)
+            .contains { matches(phrase: $0, query: query) }
     }
 
     /// Match a query against a shown phrase, requiring the match to **begin a word**.

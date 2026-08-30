@@ -49,7 +49,12 @@ final class CaptureViewModel {
     /// used to ask `!soundprint.isEmpty` — a count of *stored* labels — and then
     /// render each one only `if let phrase = displayName(for:)`, so a value holding
     /// nothing showable drew "Sounds like" over zero chips (M17 §4C).
-    var suggestedPhrases: [String] { soundprint?.showablePhrases() ?? [] }
+    ///
+    /// **`rejecting: .none`, and it is the one place in the app where that is
+    /// structurally true rather than merely convenient** (M18 §4B). A rejection is
+    /// keyed to a capsule id, and this capsule does not exist yet — it is inserted on
+    /// save. There is nothing to look up, not a lookup we have chosen to skip.
+    var suggestedPhrases: [String] { soundprint?.showablePhrases(rejecting: .none) ?? [] }
 
     let recorder: AudioRecorder
     let player: AudioPlayer
@@ -336,6 +341,17 @@ extension CaptureViewModel {
     func beginRecordingForTesting(fileName: String) {
         recorder.beginRecordingForTesting(fileName: fileName)
         phase = .recording
+    }
+
+    /// Test seam: stand in a classified clip without a classifier.
+    ///
+    /// Added in M18 §S4 because the assertion that matters here — that the capture
+    /// sheet's `rejecting: .none` still lets a *real* suggestion through — cannot be
+    /// made against a view model with no soundprint at all. Without it the test reads
+    /// "nothing in, nothing out", which is true of every implementation including a
+    /// broken one.
+    func setSoundprintForTesting(_ soundprint: Soundprint?) {
+        self.soundprint = soundprint
     }
 }
 #endif

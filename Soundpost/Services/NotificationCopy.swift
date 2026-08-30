@@ -18,6 +18,16 @@ enum NotificationCopy {
         let mood: Mood?
         /// What the on-device classifier heard, if anything (M15 §S5).
         var soundprint: Soundprint?
+        /// What this capsule's owner has said was wrong (M18 §4A).
+        ///
+        /// **On the digest rather than applied at the call site**, because the lead
+        /// is chosen here: a caller that filtered first would have to know that a
+        /// soundprint whose only showable label was dismissed must become `nil` and
+        /// not `[]`, which is exactly the "stored versus showable" confusion §4C
+        /// exists to remove. No default — a lock screen is the one surface where a
+        /// dismissed phrase reaches someone who cannot ask a follow-up question, and
+        /// a body is baked in at schedule time.
+        var rejected: RejectedSounds
 
         /// Whose words the lead is, because the two are set differently.
         ///
@@ -59,7 +69,7 @@ enum NotificationCopy {
             // had left the vocabulary — or one below a floor that has since risen —
             // returned nil here and dropped the copy to generic, even when the
             // capsule had a perfectly good second label (M17 §4C).
-            if let phrase = soundprint?.showablePhrases().first {
+            if let phrase = soundprint?.showablePhrases(rejecting: rejected).first {
                 return .heard(phrase)
             }
             return nil

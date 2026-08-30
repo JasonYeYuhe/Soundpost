@@ -44,7 +44,7 @@ struct GalleryBrowsingTests {
     }
 
     private func search(_ text: String, _ capsules: [Capsule]) -> [Capsule] {
-        GalleryFilter.apply(capsules, .init(searchText: text), now: now)
+        GalleryFilter.apply(capsules, .init(searchText: text), rejecting: .none, now: now)
     }
 
     // MARK: Visibility-aware search (the §4D P1 leak guard)
@@ -84,7 +84,7 @@ struct GalleryBrowsingTests {
         let calm = capsule(.captured, mood: .calm)
         let joyful = capsule(.captured, mood: .joyful)
         let none = capsule(.captured, mood: nil)
-        let out = GalleryFilter.apply([calm, joyful, none], .init(moods: [.calm]), now: now)
+        let out = GalleryFilter.apply([calm, joyful, none], .init(moods: [.calm]), rejecting: .none, now: now)
         #expect(out.map(\.id) == [calm.id])
     }
 
@@ -92,13 +92,13 @@ struct GalleryBrowsingTests {
         let captured = capsule(.captured)
         let sealed = capsule(.sealed)
         let resurfaced = capsule(.resurfaced)
-        let out = GalleryFilter.apply([captured, sealed, resurfaced], .init(sealedOnly: true), now: now)
+        let out = GalleryFilter.apply([captured, sealed, resurfaced], .init(sealedOnly: true), rejecting: .none, now: now)
         #expect(Set(out.map(\.id)) == [sealed.id, resurfaced.id])
     }
 
     @Test func emptyCriteriaKeepsEverything() {
         let all = [capsule(.captured), capsule(.sealed), capsule(.resurfaced)]
-        #expect(GalleryFilter.apply(all, .init(), now: now).count == 3)
+        #expect(GalleryFilter.apply(all, .init(), rejecting: .none, now: now).count == 3)
         #expect(GalleryFilter.Criteria().isActive == false)
     }
 
@@ -120,7 +120,7 @@ struct GalleryBrowsingTests {
 
         // The filter produces correct results from metadata alone.
         #expect(search("thunder", rows).count == 1)
-        #expect(GalleryFilter.apply(rows, .init(moods: [.energized]), now: now).count == 1)
+        #expect(GalleryFilter.apply(rows, .init(moods: [.energized]), rejecting: .none, now: now).count == 1)
     }
 
     // MARK: Date sectioning

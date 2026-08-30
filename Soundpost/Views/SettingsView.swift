@@ -239,7 +239,7 @@ struct SettingsView: View {
                 // — the §S3 P0, for this switch. Mirrors `deleteCloudData`.
                 Task {
                     let capsuleStore = CapsuleStore(context: modelContext)
-                    await notifications.sync(capsules: (try? capsuleStore.all()) ?? [])
+                    await notifications.sync(capsules: (try? capsuleStore.all()) ?? [], in: modelContext)
                 }
             }
         )
@@ -364,7 +364,7 @@ struct SettingsView: View {
                 capsule.serverJobSyncedAt = nil
             }
             try? capsuleStore.save()
-            await notifications.sync(capsules: (try? capsuleStore.all()) ?? [])
+            await notifications.sync(capsules: (try? capsuleStore.all()) ?? [], in: modelContext)
         }
     }
 

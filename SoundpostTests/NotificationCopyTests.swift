@@ -23,7 +23,7 @@ struct NotificationCopyTests {
         created: Date = .now,
         soundprint: Soundprint? = nil
     ) -> NotificationCopy.Digest {
-        NotificationCopy.Digest(createdAt: created, note: note, placeName: place, mood: .calm, soundprint: soundprint)
+        NotificationCopy.Digest(createdAt: created, note: note, placeName: place, mood: .calm, soundprint: soundprint, rejected: .none)
     }
 
     /// A confident single-label soundprint, in the stored provenance form.

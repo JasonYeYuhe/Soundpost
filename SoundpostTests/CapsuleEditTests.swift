@@ -234,7 +234,7 @@ struct CapsuleEditTests {
             placeName: capsule.place?.name,
             mood: capsule.mood,
             soundprint: Soundprint(stored: capsule.soundprintRaw)
-        )
+        , rejected: .none)
         let copy = NotificationCopy.make(for: item, digest: digest, personalized: true)
         return NotificationScheduler.identifier(
             for: item,

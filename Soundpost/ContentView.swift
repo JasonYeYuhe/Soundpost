@@ -107,12 +107,12 @@ struct ContentView: View {
             if presented { playback.stop() }
         }
         .onChange(of: sealSignature) { _, _ in
-            Task { await notifications.sync(capsules: capsules) }
+            Task { await notifications.sync(capsules: capsules, in: modelContext) }
         }
         .onChange(of: personalizedNotifications) { _, _ in
             // Re-issue owned requests with fresh copy when the preference flips,
             // so no stale personalized/generic body lingers on the lock screen.
-            Task { await notifications.sync(capsules: capsules) }
+            Task { await notifications.sync(capsules: capsules, in: modelContext) }
         }
         .onChange(of: notifications.pendingDeepLinkCapsuleID) { _, id in
             handleDeepLink(id)
@@ -155,8 +155,12 @@ struct ContentView: View {
     }
 
     /// Filtered + searched capsules (metadata-only, visibility-aware — §S6).
+    ///
+    /// The index is built once above and handed to the single walk `apply` already
+    /// does, so search and the sound facet honour a correction without either one
+    /// reaching for the store per capsule per keystroke (M18 §4B).
     private var displayed: [Capsule] {
-        GalleryFilter.apply(capsules, filterCriteria)
+        GalleryFilter.apply(capsules, filterCriteria, rejecting: rejectionIndex)
     }
 
     private var filterCriteria: GalleryFilter.Criteria {
@@ -482,7 +486,7 @@ struct ContentView: View {
         // — otherwise the seal sheet goes on promising a reminder the OS has since
         // refused (M17 §S4).
         await notifications.refreshAuthorization()
-        await notifications.sync(capsules: capsules)
+        await notifications.sync(capsules: capsules, in: modelContext)
         drainPendingDeepLink()
     }
 

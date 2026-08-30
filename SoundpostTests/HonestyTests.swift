@@ -159,7 +159,7 @@ struct FilterEmptyStateTests {
         capsule.mood = .calm
 
         let criteria = GalleryFilter.Criteria(moods: [.joyful])
-        #expect(GalleryFilter.apply([capsule], criteria).isEmpty)
+        #expect(GalleryFilter.apply([capsule], criteria, rejecting: .none).isEmpty)
         #expect(criteria.isActive)
         #expect(!criteria.describesASearch)
     }

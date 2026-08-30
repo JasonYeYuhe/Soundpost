@@ -126,12 +126,12 @@ struct DisplayStandingTests {
         let capsule = try rainy()
         TestSupport.withIsolatedListeningPreference(true) {
             SoundAnalysisPreferences.hasStanding = false
-            #expect(GalleryFilter.apply([capsule], .init(searchText: "rain")).isEmpty)
-            #expect(GalleryFilter.apply([capsule], .init(sounds: ["rain"])).isEmpty)
+            #expect(GalleryFilter.apply([capsule], .init(searchText: "rain"), rejecting: .none).isEmpty)
+            #expect(GalleryFilter.apply([capsule], .init(sounds: ["rain"]), rejecting: .none).isEmpty)
 
             SoundAnalysisPreferences.hasStanding = true
-            #expect(GalleryFilter.apply([capsule], .init(searchText: "rain")).count == 1)
-            #expect(GalleryFilter.apply([capsule], .init(sounds: ["rain"])).count == 1)
+            #expect(GalleryFilter.apply([capsule], .init(searchText: "rain"), rejecting: .none).count == 1)
+            #expect(GalleryFilter.apply([capsule], .init(sounds: ["rain"]), rejecting: .none).count == 1)
         }
     }
 }
@@ -149,7 +149,8 @@ struct NotificationAttributionTests {
             soundprint: sound.map {
                 Soundprint(classifier: "version1",
                            labels: [Soundprint.Label(identifier: $0, confidence: 0.91)])
-            }
+            },
+            rejected: .none
         )
     }
 

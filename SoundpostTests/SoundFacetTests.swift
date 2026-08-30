@@ -35,7 +35,7 @@ struct SoundFacetTests {
         let windy = try captured([("wind", 0.88)])
 
         let found = GalleryFilter.apply([rainy, alsoRainy, windy],
-                                        .init(sounds: ["rain"]), listening: true)
+                                        .init(sounds: ["rain"]), rejecting: .none, listening: true)
         #expect(found.count == 2)
         #expect(!found.contains { $0 === windy })
     }
@@ -47,9 +47,9 @@ struct SoundFacetTests {
         let notedRain = try captured([("wind", 0.88)], note: "rain all afternoon")
         let train = try captured([("train", 0.88)])
 
-        #expect(GalleryFilter.apply([notedRain, train], .init(sounds: ["rain"]), listening: true).isEmpty)
+        #expect(GalleryFilter.apply([notedRain, train], .init(sounds: ["rain"]), rejecting: .none, listening: true).isEmpty)
         // …while free-text search, deliberately, still finds the note.
-        #expect(GalleryFilter.apply([notedRain, train], .init(searchText: "rain"), listening: true)
+        #expect(GalleryFilter.apply([notedRain, train], .init(searchText: "rain"), rejecting: .none, listening: true)
                     .contains { $0 === notedRain })
     }
 
@@ -63,8 +63,8 @@ struct SoundFacetTests {
         #expect(phrase != "wind_rustling_leaves", "otherwise this test proves nothing")
 
         #expect(GalleryFilter.apply([leaves], .init(sounds: ["wind_rustling_leaves"]),
-                                    listening: true).count == 1)
-        #expect(GalleryFilter.apply([leaves], .init(sounds: [phrase]), listening: true).isEmpty)
+                                    rejecting: .none, listening: true).count == 1)
+        #expect(GalleryFilter.apply([leaves], .init(sounds: [phrase]), rejecting: .none, listening: true).isEmpty)
     }
 
     @Test func severalSoundsMatchAnyOfThem() throws {
@@ -73,7 +73,7 @@ struct SoundFacetTests {
         let neither = try captured([("laughter", 0.88)])
 
         let found = GalleryFilter.apply([rainy, windy, neither],
-                                        .init(sounds: ["rain", "wind"]), listening: true)
+                                        .init(sounds: ["rain", "wind"]), rejecting: .none, listening: true)
         #expect(found.count == 2)
     }
 
@@ -87,28 +87,28 @@ struct SoundFacetTests {
         sealed.sealUntil = Date.now.addingTimeInterval(86_400)
         try sealed.transition(to: .sealed)
 
-        #expect(GalleryFilter.apply([sealed], .init(sounds: ["rain"]), listening: true).isEmpty)
+        #expect(GalleryFilter.apply([sealed], .init(sounds: ["rain"]), rejecting: .none, listening: true).isEmpty)
     }
 
     @Test func theFacetIsSilentWithListeningOff() throws {
         let rainy = try captured([("rain", 0.91)])
-        #expect(GalleryFilter.apply([rainy], .init(sounds: ["rain"]), listening: false).isEmpty)
+        #expect(GalleryFilter.apply([rainy], .init(sounds: ["rain"]), rejecting: .none, listening: false).isEmpty)
     }
 
     /// A facet can only ever match a label the app was willing to name (§4C), so it
     /// cannot surface a capsule on evidence the user was never shown.
     @Test func theFacetCannotMatchALabelBelowItsFloor() throws {
         let weak = try captured([("waterfall", 0.35)])
-        #expect(GalleryFilter.apply([weak], .init(sounds: ["waterfall"]), listening: true).isEmpty)
+        #expect(GalleryFilter.apply([weak], .init(sounds: ["waterfall"]), rejecting: .none, listening: true).isEmpty)
 
         let strong = try captured([("waterfall", 0.50)])
-        #expect(GalleryFilter.apply([strong], .init(sounds: ["waterfall"]), listening: true).count == 1)
+        #expect(GalleryFilter.apply([strong], .init(sounds: ["waterfall"]), rejecting: .none, listening: true).count == 1)
     }
 
     @Test func aNeverAnalysedCapsuleIsNeverFoundByAFacet() throws {
         let capsule = try captured([("rain", 0.91)])
         capsule.soundprintRaw = nil
-        #expect(GalleryFilter.apply([capsule], .init(sounds: ["rain"]), listening: true).isEmpty)
+        #expect(GalleryFilter.apply([capsule], .init(sounds: ["rain"]), rejecting: .none, listening: true).isEmpty)
     }
 
     // MARK: How it composes
@@ -116,7 +116,7 @@ struct SoundFacetTests {
     @Test func anEmptyFacetChangesNothing() throws {
         let rainy = try captured([("rain", 0.91)])
         let windy = try captured([("wind", 0.88)])
-        #expect(GalleryFilter.apply([rainy, windy], .init(), listening: true).count == 2)
+        #expect(GalleryFilter.apply([rainy, windy], .init(), rejecting: .none, listening: true).count == 2)
     }
 
     /// The facet narrows alongside the other criteria rather than replacing them, so a
@@ -133,7 +133,7 @@ struct SoundFacetTests {
         calmWind.mood = .calm
 
         let found = GalleryFilter.apply([calmRain, joyfulRain, calmWind],
-                                        .init(moods: [.calm], sounds: ["rain"]), listening: true)
+                                        .init(moods: [.calm], sounds: ["rain"]), rejecting: .none, listening: true)
         #expect(found.count == 1)
         #expect(found.first === calmRain)
     }
@@ -170,6 +170,6 @@ struct SoundFacetTests {
         let tapped = try #require(SoundprintDisplay.heard(for: capsule, on: .detail, rejecting: .none,
                                                           listening: true).first)
         #expect(GalleryFilter.apply([capsule], .init(sounds: [tapped.identifier]),
-                                    listening: true).count == 1)
+                                    rejecting: .none, listening: true).count == 1)
     }
 }

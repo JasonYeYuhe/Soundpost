@@ -52,7 +52,8 @@ final class DeliveryAccountObserver {
             }
             guard let notifications else { return }
             let capsules = (try? CapsuleStore(context: container.mainContext).all()) ?? []
-            await notifications.sync(capsules: capsules) // reconcile under the new identity
+            // Reconcile under the new identity.
+            await notifications.sync(capsules: capsules, in: container.mainContext)
         }, center: center)
     }
 

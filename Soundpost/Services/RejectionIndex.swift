@@ -49,4 +49,38 @@ struct RejectionIndex: Equatable, Sendable {
     /// Every capsule with at least one rejection. For tests and diagnostics; no
     /// display path needs it.
     var capsuleIDs: Set<UUID> { Set(rejectedIdentifiersByCapsule.keys) }
+
+    /// This capsule's slice, in the form `Soundprint` takes.
+    func sounds(for capsuleID: UUID) -> RejectedSounds {
+        RejectedSounds(rejectedIdentifiers(for: capsuleID))
+    }
+}
+
+/// The identifiers **one capsule's** owner has dismissed (M18 §4B).
+///
+/// A separate type from `RejectionIndex` because `Soundprint` is a value parsed out
+/// of one capsule's stored string and knows nothing about capsule ids; handing it the
+/// whole index would mean handing it a `capsuleID` too, and the one honest caller
+/// that has neither — the capture sheet, where the capsule does not exist yet —
+/// would have had to invent one.
+///
+/// It exists so `.none` can be **spelled**. `Soundprint.showable*` take this with no
+/// default, so the compiler enumerates every consumer; a `Set<String>` would have
+/// worked identically except that `rejecting: []` says nothing about why, and this
+/// project's recurring failure is precisely a silence that reads as a decision.
+struct RejectedSounds: Equatable, Sendable {
+    let identifiers: Set<String>
+
+    init(_ identifiers: Set<String> = []) {
+        self.identifiers = identifiers
+    }
+
+    /// **Nothing to apply, said deliberately.** Every use is expected to carry a
+    /// comment saying why — see `CaptureViewModel.suggestedPhrases`, the one place in
+    /// the app where it is structurally true rather than merely convenient.
+    static let none = RejectedSounds()
+
+    var isEmpty: Bool { identifiers.isEmpty }
+
+    func contains(_ identifier: String) -> Bool { identifiers.contains(identifier) }
 }

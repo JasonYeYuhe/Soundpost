@@ -77,8 +77,14 @@ actor CapsuleBulkExporter {
         let base = FileManager.default.temporaryDirectory
             .appending(path: "Soundpost-Export-\(UUID().uuidString)", directoryHint: .isDirectory)
         let folder = base.appending(path: "Soundpost", directoryHint: .isDirectory)
+        // **One fetch for the whole export**, on this actor's own context (M18 §4B).
+        // The export covers the entire library, so the whole table is the scope; a
+        // per-capsule read here would be one fetch per clip inside the streaming loop
+        // the type exists to keep cheap.
+        let rejecting = try SoundRejectionStore.index(in: modelContext)
         try Self.writeBundle(in: modelContext, container: modelContainer, to: folder,
-                             audioStore: audioStore, listening: listening)
+                             audioStore: audioStore, listening: listening,
+                             rejecting: rejecting)
         let zipURL = base.appending(path: "Soundpost.zip", directoryHint: .notDirectory)
         try Self.zip(folder: folder, to: zipURL)
         return zipURL
@@ -97,6 +103,7 @@ actor CapsuleBulkExporter {
         to folder: URL,
         audioStore: AudioStore = AudioStore(),
         listening: Bool = SoundAnalysisPreferences.mayReveal,
+        rejecting: RejectionIndex,
         fileManager: FileManager = .default
     ) throws {
         try fileManager.createDirectory(at: folder, withIntermediateDirectories: true)
@@ -165,8 +172,13 @@ actor CapsuleBulkExporter {
                 // into a file they keep. `nil` rather than `[]`, because "we are not
                 // telling you what we heard" is not "we heard nothing" — and it is the
                 // value the row itself will hold once the erase catches up.
+                // Corrections apply here too (M18 §4C). An export is the copy of
+                // their data someone keeps, so writing back a label they had told the
+                // app was wrong would preserve the assertion in the one place the app
+                // can never take it back from.
                 soundsHeard: listening
-                    ? Soundprint(stored: snap.soundprintRaw)?.showablePhrases()
+                    ? Soundprint(stored: snap.soundprintRaw)?
+                        .showablePhrases(rejecting: rejecting.sounds(for: snap.id))
                     : nil,
                 audioFile: wrote ? audioName : nil
             ))

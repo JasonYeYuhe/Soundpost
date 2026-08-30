@@ -555,7 +555,7 @@ struct CapsuleDetailView: View {
                 // non-PII message to Sentry (Release) + the local log.
                 Diagnostics.notice("Seal failed at user action")
             }
-            await notifications.sync(capsules: (try? store.all()) ?? [])
+            await notifications.sync(capsules: (try? store.all()) ?? [], in: modelContext)
             if granted {
                 dismiss() // back to the gallery, where the card now shows the seal
             } else {
@@ -582,7 +582,7 @@ struct CapsuleDetailView: View {
     /// the body rather than finding the identifier already scheduled and skipping it.
     private func resyncAfterEdit() {
         let store = CapsuleStore(context: modelContext)
-        Task { await notifications.sync(capsules: (try? store.all()) ?? []) }
+        Task { await notifications.sync(capsules: (try? store.all()) ?? [], in: modelContext) }
     }
 
     private func unseal() {
@@ -593,7 +593,7 @@ struct CapsuleDetailView: View {
         } catch {
             Diagnostics.notice("Unseal failed at user action")
         }
-        Task { await notifications.sync(capsules: (try? store.all()) ?? []) }
+        Task { await notifications.sync(capsules: (try? store.all()) ?? [], in: modelContext) }
     }
 
     private func delete() {

@@ -178,9 +178,9 @@ struct VideoGateTests {
         birds.mood = .joyful
 
         let all = [rain, birds]
-        #expect(GalleryFilter.apply(all, .init(searchText: "rain")).count == 1)
-        #expect(GalleryFilter.apply(all, .init(moods: [.joyful])).count == 1)
-        #expect(GalleryFilter.apply(all, .init()).count == 2)
+        #expect(GalleryFilter.apply(all, .init(searchText: "rain"), rejecting: .none).count == 1)
+        #expect(GalleryFilter.apply(all, .init(moods: [.joyful]), rejecting: .none).count == 1)
+        #expect(GalleryFilter.apply(all, .init(), rejecting: .none).count == 2)
     }
 
     /// Export-your-data is a portability right, not a Pro feature — it must keep
@@ -201,7 +201,8 @@ struct VideoGateTests {
         try CapsuleBulkExporter.writeBundle(
             in: store.context,
             container: TestSupport.container,
-            to: folder
+            to: folder,
+            rejecting: .none
         )
         let manifest = try JSONDecoder.iso8601.decode(
             ExportManifest.self,

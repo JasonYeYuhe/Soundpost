@@ -244,9 +244,13 @@ enum ListeningConsentStore {
         let effective = try resolve(in: context)
         SoundAnalysisPreferences.isEnabled = effective
         if !effective {
+            // Everything derived from listening, including the corrections made to
+            // it (M18 §4F). This is the path that catches a withdrawal made on
+            // another device, so it has to erase as much as the Settings toggle does
+            // — otherwise "everywhere" would mean "on the phone you tapped".
             let erased = try SoundprintEraser.eraseAll(in: context)
-            if erased > 0 {
-                Diagnostics.info("Listening is off account-wide — erased soundprints that arrived here")
+            if !erased.isEmpty {
+                Diagnostics.info("Listening is off account-wide — erased what arrived here")
             }
         }
         return effective

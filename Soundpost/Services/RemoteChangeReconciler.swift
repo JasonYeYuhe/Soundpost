@@ -69,7 +69,11 @@ final class RemoteChangeReconciler {
             // mirror, so a failed apply means the bodies are rebuilt against the answer
             // this device already had — the same position the launch path takes.
             let capsules = (try? CapsuleStore(context: container.mainContext).all()) ?? []
-            await notifications.sync(capsules: capsules)
+            // The same context the capsules came from, so the one scoped rejection
+            // fetch inside `sync` sees exactly what this merge just delivered — this
+            // is §4B's "one scoped fetch per operation" for the path that is not a
+            // view and has no query.
+            await notifications.sync(capsules: capsules, in: container.mainContext)
         }, center: center)
     }
 

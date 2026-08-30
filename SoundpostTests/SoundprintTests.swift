@@ -371,7 +371,7 @@ struct SoundSuggestionTests {
     @Test func nothingIsSuggestedWhenThereIsNothingConfidentToSay() {
         let empty = Soundprint(classifier: "version1", labels: [])
         #expect(empty.hasNoLabels, "an empty soundprint renders no chips at all")
-        #expect(empty.showablePhrases().isEmpty)
+        #expect(empty.showablePhrases(rejecting: .none).isEmpty)
         #expect(Soundprint(stored: nil) == nil)
     }
 }
@@ -407,7 +407,7 @@ struct SoundSearchTests {
     /// assertions below that expect *emptiness* would have passed vacuously — closed
     /// gate, no results, green.
     private func search(_ capsules: [Capsule], _ text: String) -> [Capsule] {
-        GalleryFilter.apply(capsules, .init(searchText: text), listening: true)
+        GalleryFilter.apply(capsules, .init(searchText: text), rejecting: .none, listening: true)
     }
 
     @Test func searchingForASoundFindsTheCapsule() throws {
@@ -428,12 +428,12 @@ struct SoundSearchTests {
     /// will not do.
     @Test func withListeningOffASoundIsNotSearchableEvenBeforeTheEraseCatchesUp() throws {
         let rainy = try captured(soundLabels: ["rain"])
-        #expect(GalleryFilter.apply([rainy], .init(searchText: "rain"), listening: true).count == 1)
-        #expect(GalleryFilter.apply([rainy], .init(searchText: "rain"), listening: false).isEmpty)
+        #expect(GalleryFilter.apply([rainy], .init(searchText: "rain"), rejecting: .none, listening: true).count == 1)
+        #expect(GalleryFilter.apply([rainy], .init(searchText: "rain"), rejecting: .none, listening: false).isEmpty)
         // The rest of search is untouched — this must not silently disable finding
         // capsules by the words the user wrote themselves.
         rainy.note = "a rainy morning"
-        #expect(GalleryFilter.apply([rainy], .init(searchText: "rainy"), listening: false).count == 1)
+        #expect(GalleryFilter.apply([rainy], .init(searchText: "rainy"), rejecting: .none, listening: false).count == 1)
     }
 
     /// The trap the classifier's own vocabulary sets: it contains both `rain` and
@@ -466,7 +466,7 @@ struct SoundSearchTests {
         let plain = try captured(soundLabels: [])
         plain.soundprintRaw = nil
         #expect(search([plain], "rain").isEmpty)
-        #expect(!GalleryFilter.soundMatches(plain, query: "rain"))
+        #expect(!GalleryFilter.soundMatches(plain, query: "rain", rejecting: .none))
     }
 
     /// A label we refuse to name is not searchable either — there is no phrase to
@@ -474,7 +474,7 @@ struct SoundSearchTests {
     @Test func anUnnamedLabelIsUnsearchable() throws {
         let capsule = try captured(soundLabels: [])
         capsule.soundprintRaw = "1/version1|crying_sobbing=0.99"
-        #expect(!GalleryFilter.soundMatches(capsule, query: "crying"))
+        #expect(!GalleryFilter.soundMatches(capsule, query: "crying", rejecting: .none))
         #expect(search([capsule], "crying").isEmpty)
     }
 }
@@ -593,7 +593,8 @@ struct SoundNotificationCopyTests {
             soundprint: sound.map {
                 Soundprint(classifier: "version1",
                            labels: [Soundprint.Label(identifier: $0, confidence: 0.9)])
-            }
+            },
+            rejected: .none
         )
     }
 
@@ -856,7 +857,7 @@ struct SoundprintEraserTests {
 
         let erased = try SoundprintEraser.eraseAll(in: store.context)
 
-        #expect(erased == 2, "both the labelled and the analysed-but-empty capsule are cleared")
+        #expect(erased.soundprints == 2, "both the labelled and the analysed-but-empty capsule are cleared")
         #expect(heard.soundprintRaw == nil)
         #expect(analysedEmpty.soundprintRaw == nil, "the analysed-but-empty marker is also something it heard")
         #expect(never.soundprintRaw == nil)
@@ -885,7 +886,7 @@ struct SoundprintEraserTests {
         let store = try TestSupport.isolatedStore()
         _ = try seed(store, soundprint: nil)
         try store.save()
-        #expect(try SoundprintEraser.eraseAll(in: store.context) == 0)
+        #expect(try SoundprintEraser.eraseAll(in: store.context).isEmpty)
     }
 }
 

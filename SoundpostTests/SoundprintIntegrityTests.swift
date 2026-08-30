@@ -27,7 +27,7 @@ struct ShowableLabelTests {
     @Test func aValueHoldingOnlyOutOfVocabularyLabelsHasNothingToShow() {
         let hidden = print([("not_a_real_label", 0.99), ("crying_sobbing", 0.95)])
         #expect(!hidden.hasNoLabels, "the labels really are stored — that is the trap")
-        #expect(hidden.showablePhrases().isEmpty, "and not one of them can be rendered")
+        #expect(hidden.showablePhrases(rejecting: .none).isEmpty, "and not one of them can be rendered")
         // `showableLabels`, separately, because it is the one `SoundprintRemediation`
         // filters on — and unlike `showablePhrases` it does not launder the answer
         // through `displayName(for:)`. Asserting only on the phrases left the
@@ -43,7 +43,7 @@ struct ShowableLabelTests {
         #expect(SoundVocabulary.denied.contains("crying_sobbing"))
         #expect(!Soundprint.isShowable(.init(identifier: "crying_sobbing", confidence: 0.99)))
         #expect(print([("crying_sobbing", 0.99)]).showableLabels().isEmpty)
-        #expect(print([("crying_sobbing", 0.99)]).showablePhrases().isEmpty)
+        #expect(print([("crying_sobbing", 0.99)]).showablePhrases(rejecting: .none).isEmpty)
     }
 
     /// The floor case, and the one no render site honoured before M17: `waterfall` is
@@ -52,19 +52,19 @@ struct ShowableLabelTests {
     @Test func aLabelBelowItsOwnFloorHasNothingToShow() {
         let weak = print([("waterfall", 0.35)])
         #expect(!weak.hasNoLabels)
-        #expect(weak.showablePhrases().isEmpty, "a 0.35 waterfall was measured on empty rooms")
-        #expect(!print([("waterfall", 0.50)]).showablePhrases().isEmpty, "a confident one still shows")
+        #expect(weak.showablePhrases(rejecting: .none).isEmpty, "a 0.35 waterfall was measured on empty rooms")
+        #expect(!print([("waterfall", 0.50)]).showablePhrases(rejecting: .none).isEmpty, "a confident one still shows")
     }
 
     @Test func anOrdinaryLabelAtTheSameConfidenceIsUnaffected() {
-        #expect(print([("rain", 0.35)]).showablePhrases() == [SoundVocabulary.displayName(for: "rain")])
+        #expect(print([("rain", 0.35)]).showablePhrases(rejecting: .none) == [SoundVocabulary.displayName(for: "rain")])
     }
 
     /// Showable labels keep confidence order, so "the first phrase" means "the most
     /// confident one Soundpost can name" everywhere it is asked for.
     @Test func showablePhrasesKeepConfidenceOrderWithTheUnshowableRemoved() {
         let mixed = print([("not_a_real_label", 0.99), ("rain", 0.80), ("wind", 0.60)])
-        #expect(mixed.showablePhrases() == [
+        #expect(mixed.showablePhrases(rejecting: .none) == [
             SoundVocabulary.displayName(for: "rain"),
             SoundVocabulary.displayName(for: "wind"),
         ].compactMap { $0 })
@@ -76,7 +76,8 @@ struct ShowableLabelTests {
     @Test func theNotificationLeadFallsToTheNextShowablePhrase() {
         let digest = NotificationCopy.Digest(
             createdAt: .now, note: nil, placeName: nil, mood: nil,
-            soundprint: print([("not_a_real_label", 0.99), ("rain", 0.80)])
+            soundprint: print([("not_a_real_label", 0.99), ("rain", 0.80)]),
+            rejected: .none
         )
         #expect(digest.lead == .heard(SoundVocabulary.displayName(for: "rain") ?? ""))
     }
@@ -86,7 +87,8 @@ struct ShowableLabelTests {
     @Test func theUsersOwnWordsStillBeatTheGuess() {
         let digest = NotificationCopy.Digest(
             createdAt: .now, note: "the storm broke", placeName: "Kyoto", mood: nil,
-            soundprint: print([("rain", 0.95)])
+            soundprint: print([("rain", 0.95)]),
+            rejected: .none
         )
         #expect(digest.lead == .ownWords("the storm broke"))
     }
@@ -129,10 +131,10 @@ struct ShowableLabelTests {
         try capsule.transition(to: .captured)
         capsule.soundprintRaw = print([("waterfall", 0.35)]).stored
 
-        #expect(GalleryFilter.apply([capsule], .init(searchText: "waterfall"), listening: true).isEmpty)
+        #expect(GalleryFilter.apply([capsule], .init(searchText: "waterfall"), rejecting: .none, listening: true).isEmpty)
 
         capsule.soundprintRaw = print([("waterfall", 0.50)]).stored
-        #expect(GalleryFilter.apply([capsule], .init(searchText: "waterfall"), listening: true).count == 1,
+        #expect(GalleryFilter.apply([capsule], .init(searchText: "waterfall"), rejecting: .none, listening: true).count == 1,
                 "a confident one is still findable")
     }
 }
@@ -178,7 +180,7 @@ struct BulkExportConsentTests {
         defer { try? FileManager.default.removeItem(at: folder) }
 
         try CapsuleBulkExporter.writeBundle(in: store.context, container: TestSupport.container,
-                                            to: folder, listening: false)
+                                            to: folder, listening: false, rejecting: .none)
 
         let entry = try #require(try manifest(from: folder).capsules.first)
         #expect(entry.soundsHeard == nil, "not [] — 'we are not telling you' is not 'we heard nothing'")
@@ -194,7 +196,7 @@ struct BulkExportConsentTests {
         defer { try? FileManager.default.removeItem(at: folder) }
 
         try CapsuleBulkExporter.writeBundle(in: store.context, container: TestSupport.container,
-                                            to: folder, listening: true)
+                                            to: folder, listening: true, rejecting: .none)
 
         let entry = try #require(try manifest(from: folder).capsules.first)
         #expect(entry.soundsHeard == [SoundVocabulary.displayName(for: "rain")].compactMap { $0 })
@@ -217,7 +219,7 @@ struct BulkExportConsentTests {
         defer { try? FileManager.default.removeItem(at: folder) }
 
         try CapsuleBulkExporter.writeBundle(in: store.context, container: TestSupport.container,
-                                            to: folder, listening: true)
+                                            to: folder, listening: true, rejecting: .none)
 
         let entry = try #require(try manifest(from: folder).capsules.first)
         #expect(entry.soundsHeard == [], "analysed, and nothing it can name — which is not nil")

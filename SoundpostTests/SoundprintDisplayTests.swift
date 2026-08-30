@@ -112,7 +112,7 @@ struct SoundprintDisplayTests {
         #expect(SoundprintDisplay.phrases(for: capsule, on: .card, rejecting: .none, listening: true) == [rainPhrase])
 
         let digest = NotificationCopy.Digest(createdAt: .now, note: "   \n  ", placeName: nil,
-                                             mood: nil, soundprint: Soundprint(stored: capsule.soundprintRaw))
+                                             mood: nil, soundprint: Soundprint(stored: capsule.soundprintRaw), rejected: .none)
         #expect(digest.lead == .heard(rainPhrase), "and the two surfaces agree about what a note is")
     }
 

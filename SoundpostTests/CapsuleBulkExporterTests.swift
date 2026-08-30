@@ -36,7 +36,7 @@ struct CapsuleBulkExporterTests {
         // an `await`: its source `.m4a` vanished mid-render).
         defer { try? FileManager.default.removeItem(at: folder) }
 
-        try CapsuleBulkExporter.writeBundle(in: store.context, container: TestSupport.container, to: folder)
+        try CapsuleBulkExporter.writeBundle(in: store.context, container: TestSupport.container, to: folder, rejecting: .none)
 
         // Manifest decodes and describes both capsules.
         let manifestURL = folder.appending(path: "manifest.json")
@@ -71,7 +71,7 @@ struct CapsuleBulkExporterTests {
         // an `await`: its source `.m4a` vanished mid-render).
         defer { try? FileManager.default.removeItem(at: folder) }
 
-        try CapsuleBulkExporter.writeBundle(in: store.context, container: TestSupport.container, to: folder)
+        try CapsuleBulkExporter.writeBundle(in: store.context, container: TestSupport.container, to: folder, rejecting: .none)
 
         let decoder = JSONDecoder(); decoder.dateDecodingStrategy = .iso8601
         let manifest = try decoder.decode(ExportManifest.self, from: Data(contentsOf: folder.appending(path: "manifest.json")))

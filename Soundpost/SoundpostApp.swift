@@ -186,7 +186,9 @@ private struct RootView: View {
                     // firing on the lock screen after the switch was turned off.
                     // `NotificationPreferences.contentVersion` folds listening in for
                     // exactly this; it only works if something re-syncs.
-                    await notifications.sync(capsules: (try? CapsuleStore(context: store.container.mainContext).all()) ?? [])
+                    await notifications.sync(
+                        capsules: (try? CapsuleStore(context: store.container.mainContext).all()) ?? [],
+                        in: store.container.mainContext)
                     // Does this device have standing to analyse the EXISTING library?
                     //
                     // Distinct from "may we listen", and the distinction is the whole
