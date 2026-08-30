@@ -7,6 +7,13 @@ import UIKit
 struct CapsuleDetailView: View {
     let capsule: Capsule
 
+    /// What this person has said was wrong (M18 §4A). Threaded from the gallery's one
+    /// `@Query` rather than fetched here, so resolution happens once for the whole
+    /// library instead of once per screen — and so a rejection made here, or arriving
+    /// from another device, repaints this view through the same observation the
+    /// gallery already has (§4B).
+    let rejecting: RejectionIndex
+
     /// "Find the others that sounded like this" (M17 §S3). Passed in rather than
     /// reached for, because the gallery owns both the filter state and the navigation
     /// path — the same arrangement `CapsuleCard.onOpen` and `ResurfaceView.onOpened`
@@ -21,6 +28,9 @@ struct CapsuleDetailView: View {
     /// `AudioPlayer`, which is how a gallery clip could go on sounding underneath it.
     @Environment(PlaybackController.self) private var playback
     @State private var confirmingDelete = false
+    /// A correction that could not be written. Surfaced rather than swallowed: the
+    /// chip is still there and the person has every reason to think they removed it.
+    @State private var correctionWriteFailed = false
     @State private var showingEdit = false
     @State private var showingSeal = false
     @State private var sealedWithNotificationsOff = false
@@ -64,7 +74,17 @@ struct CapsuleDetailView: View {
     /// sealed-not-due capsule, empty with listening off, empty when nothing stored is
     /// showable — and never assembled here, so this screen and the card cannot drift.
     private var heard: [Soundprint.Showable] {
-        SoundprintDisplay.heard(for: capsule, on: .detail, listening: listeningEnabled && hasStanding)
+        SoundprintDisplay.heard(for: capsule, on: .detail, rejecting: rejecting,
+                                listening: listeningEnabled && hasStanding)
+    }
+
+    /// Whether this capsule holds a label the person has dismissed — the only thing
+    /// the way back needs to know. Not *which*: naming it would put the guess back on
+    /// the screen it was removed from (see `SoundprintDisplay.dismissedIdentifiers`).
+    private var hasDismissed: Bool {
+        !SoundprintDisplay.dismissedIdentifiers(
+            for: capsule, rejecting: rejecting,
+            listening: listeningEnabled && hasStanding).isEmpty
     }
     /// This capsule's control state, not the player's: the owner is shared now, so
     /// "playing" has to mean "playing *this*".
@@ -134,6 +154,11 @@ struct CapsuleDetailView: View {
             Button("OK", role: .cancel) { }
         } message: {
             Text("Please try again.")
+        }
+        .alert("Couldn't save that", isPresented: $correctionWriteFailed) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("Soundpost couldn't record your correction. Please try again.")
         }
         // Arithmetic-only size preflight (§4G): estimated from the clip's duration and
         // a measured per-second constant — never from a free-disk-space query, which
@@ -235,8 +260,8 @@ struct CapsuleDetailView: View {
     @ViewBuilder
     private var heardSection: some View {
         let showable = heard
-        if !showable.isEmpty {
-            VStack(spacing: 8) {
+        VStack(spacing: 8) {
+            if !showable.isEmpty {
                 Text("Soundpost heard")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
@@ -247,11 +272,23 @@ struct CapsuleDetailView: View {
                     ForEach(showable) { heardChip($0) }
                 }
             }
-            .padding(.top, 4)
+            // Outside the check above on purpose: a capsule whose only label was
+            // dismissed has nothing left to show, and that is exactly the capsule
+            // whose owner most needs the way back.
+            if hasDismissed { restoreControl }
         }
+        .padding(.top, showable.isEmpty && !hasDismissed ? 0 : 4)
     }
 
-    /// A phrase, and the way back to every other capsule that sounded like it (§S3).
+    /// A phrase, the way back to every other capsule that sounded like it (M17 §S3),
+    /// and — from M18 — the way to say it was wrong.
+    ///
+    /// **The correction is a context menu, and that is the design rather than a
+    /// compromise.** Nothing may ask whether a label was right; no prompt, no counter,
+    /// no "was this useful?" (§0B). The affordance is there when someone goes looking
+    /// for it and silent otherwise, which is what a long press is. SwiftUI also
+    /// publishes context-menu items as VoiceOver actions, so it is not a gesture only
+    /// sighted users have.
     ///
     /// The accessibility label is the whole attributed sentence because VoiceOver can
     /// land on one chip out of its header's context; the hint says what tapping does,
@@ -269,6 +306,27 @@ struct CapsuleDetailView: View {
         .buttonStyle(.plain)
         .accessibilityLabel(SoundprintDisplay.sentence(for: [item.phrase]) ?? item.phrase)
         .accessibilityHint("Find your other capsules that sounded like this")
+        .contextMenu {
+            Button(role: .destructive) { dismissSound(item.identifier) } label: {
+                Label("No, it wasn't", systemImage: "xmark.circle")
+            }
+        }
+    }
+
+    /// The way back, and it deliberately names nothing.
+    ///
+    /// A dismissed label is gone from this screen; listing it here under a different
+    /// heading would put the guess back in front of the person who said it was wrong,
+    /// which for an upsetting mislabel is worse than never having offered the
+    /// correction. So this restores everything this capsule's owner dismissed at once.
+    /// The cost is real and small: someone who dismissed two labels and wants one back
+    /// restores both and dismisses the other again.
+    private var restoreControl: some View {
+        Button("Show dismissed sounds again", action: restoreDismissedSounds)
+            .font(.caption)
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+            .padding(.top, heard.isEmpty ? 0 : 2)
     }
 
     /// **The gate sits before the menu** (M13 §4E). A free user taps one button and
@@ -432,6 +490,52 @@ struct CapsuleDetailView: View {
         .padding(.top, 48)
     }
 
+    // MARK: Saying no (M18 §S3)
+
+    /// Record that this label was wrong, and re-issue anything already carrying it.
+    ///
+    /// **The notification resync is not optional** (§4C). A lock-screen body is
+    /// rendered and baked at schedule time, and `NotificationScheduler` skips an
+    /// identifier it has already scheduled — so without this the phrase the person
+    /// just dismissed goes on firing at them on its seal date. M16 §S1 made the
+    /// request's identity include a fingerprint of its *rendered* copy, which is what
+    /// makes a plain resync enough: the body changes, the fingerprint changes, the
+    /// request is replaced. Exactly what an edit does (`resyncAfterEdit`).
+    ///
+    /// Nothing re-analyses. Rejecting "rain" says *do not show me this*, not *go and
+    /// look again* (§0B) — and a re-analysis could only ever propose the same label
+    /// from the same audio.
+    private func dismissSound(_ identifier: String) {
+        write(rejected: true, identifiers: [identifier])
+    }
+
+    private func restoreDismissedSounds() {
+        write(rejected: false,
+              identifiers: SoundprintDisplay.dismissedIdentifiers(
+                for: capsule, rejecting: rejecting,
+                listening: listeningEnabled && hasStanding))
+    }
+
+    private func write(rejected: Bool, identifiers: some Collection<String>) {
+        guard !identifiers.isEmpty else { return }
+        do {
+            for identifier in identifiers {
+                try SoundRejectionStore.set(rejected, identifier: identifier,
+                                            forCapsule: capsule.id, in: modelContext)
+            }
+        } catch {
+            // Leave no half-applied insert on the shared main context for the next
+            // unrelated save to commit — the same care `SettingsView`'s consent toggle
+            // takes. The store already drops its own pending row; this covers a
+            // partial run across several identifiers.
+            modelContext.rollback()
+            correctionWriteFailed = true
+            Diagnostics.notice("A sound correction could not be recorded")
+            return
+        }
+        resyncAfterEdit()
+    }
+
     private func markOpenedIfResurfaced() {
         guard capsule.state == .resurfaced else { return }
         let store = CapsuleStore(context: modelContext)
@@ -502,8 +606,13 @@ struct CapsuleDetailView: View {
         // or a momentarily-unresolved key and is retried by reconcile (§S4).
         DeliveryPreferences.enqueuePendingCancel(capsuleID)
         if let file = capsule.audioFileName { try? AudioStore().delete(file) }
-        modelContext.delete(capsule)
+        // Through the store, so the capsule's rejections go with it in the same save
+        // (§4F). This used to be a bare `modelContext.delete`, which is why the
+        // pruning lives in `CapsuleStore.delete` where a test can reach it rather
+        // than in this view where nothing could.
         do {
+            let store = CapsuleStore(context: modelContext)
+            try store.delete(capsule)
             try modelContext.save()
         } catch {
             Diagnostics.notice("Delete save failed at user action")

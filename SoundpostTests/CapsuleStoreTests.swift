@@ -173,7 +173,7 @@ struct CapsuleStoreTests {
         let store = try makeStore()
         let capsule = store.create()
         try store.save()
-        store.delete(capsule)
+        try store.delete(capsule)
         try store.save()
         #expect(try store.all().isEmpty)
     }

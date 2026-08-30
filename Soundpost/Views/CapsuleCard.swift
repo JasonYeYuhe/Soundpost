@@ -13,6 +13,14 @@ import UIKit
 /// control is a sibling: its own hit region, its own accessibility element.
 struct CapsuleCard: View {
     let capsule: Capsule
+    /// What this person has said was wrong (M18 §4A). Resolved once by the gallery
+    /// and handed down as a value, so a card asks it a `Set` question and never
+    /// re-runs resolution or reaches for a context on the render path (§4B).
+    ///
+    /// **There is no dismiss affordance here, deliberately** (§S3): the card has one
+    /// line, in the place the note would occupy, and no room for a decision. The card
+    /// honours a correction; the detail screen is where one is made.
+    let rejecting: RejectionIndex
     /// Opening the capsule. Passed in rather than wrapping this view in a `Button`
     /// — see the type doc.
     var onOpen: () -> Void = {}
@@ -204,7 +212,8 @@ struct CapsuleCard: View {
     /// `SoundprintDisplay` so the card, the detail screen and the reveal cannot drift
     /// apart: the phrases and the sentence they become are now one call, not two.
     private var heardSentence: String? {
-        SoundprintDisplay.sentence(for: capsule, on: .card, listening: listeningEnabled && hasStanding)
+        SoundprintDisplay.sentence(for: capsule, on: .card, rejecting: rejecting,
+                                   listening: listeningEnabled && hasStanding)
     }
 
     private var dateText: String {

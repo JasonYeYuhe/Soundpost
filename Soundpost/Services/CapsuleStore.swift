@@ -45,7 +45,25 @@ final class CapsuleStore {
         try all().filter { $0.state == .sealed }
     }
 
-    func delete(_ capsule: Capsule) {
+    /// Delete a capsule **and everything keyed to it** (M18 §4F).
+    ///
+    /// `SoundRejection` rows carry a `capsuleID` rather than a relationship — a
+    /// required relationship is CloudKit-illegal and an optional one would put a
+    /// field on `CD_Capsule`, which §4G forbids — so nothing cascades on its own and
+    /// a deleted capsule would leave its corrections in the user's iCloud forever.
+    ///
+    /// **Pruned here and nowhere else.** Sweeping rejections whose capsule is missing
+    /// would be wrong: CloudKit can deliver a rejection before the capsule it belongs
+    /// to, so "no capsule for this id" does not mean "orphan" — it frequently means
+    /// "not yet". This is the one site that knows a capsule is actually going away.
+    /// Anything left over after a delete on another device is a sync-order artefact
+    /// and stays, for the same reason `AudioOrphanAudit` counts and does not sweep.
+    ///
+    /// It throws now, and the throw is the point: it removes in the same *unsaved*
+    /// transaction as the capsule, so the row and its corrections leave together or
+    /// not at all.
+    func delete(_ capsule: Capsule) throws {
+        try SoundRejectionStore.removeAll(forCapsule: capsule.id, in: context)
         context.delete(capsule)
     }
 

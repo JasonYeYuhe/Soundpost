@@ -712,6 +712,23 @@
         }
       }
     },
+    "Couldn't save that": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保存できませんでした"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法保存"
+          }
+        }
+      }
+    },
     "Couldn't save the capsule. Please try again.": {
       "localizations": {
         "ja": {
@@ -1827,6 +1844,23 @@
         }
       }
     },
+    "No, it wasn't": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "いいえ、違います"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不，不是这个"
+          }
+        }
+      }
+    },
     "Nostalgic": {
       "localizations": {
         "ja": {
@@ -2795,6 +2829,23 @@
         }
       }
     },
+    "Show dismissed sounds again": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取り消した音をもう一度表示"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新显示已取消的声音"
+          }
+        }
+      }
+    },
     "Show your words on the lock screen": {
       "localizations": {
         "ja": {
@@ -2970,6 +3021,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "Soundpost 可以为每枚胶囊记下录音地点——不只是何时，还有何地。点按“继续”即可选择是否允许定位。"
+          }
+        }
+      }
+    },
+    "Soundpost couldn't record your correction. Please try again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Soundpost はあなたの修正を記録できませんでした。もう一度お試しください。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Soundpost 无法记录你的更正。请重试。"
           }
         }
       }

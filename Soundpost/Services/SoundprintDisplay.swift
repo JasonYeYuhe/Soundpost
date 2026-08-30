@@ -56,26 +56,60 @@ enum SoundprintDisplay {
     ///
     /// Empty means "show nothing at all" — no header, no icon, no container, which is
     /// what keeps a ghost impossible (§4C).
+    /// - Parameter rejecting: what this person has said was wrong (M18 §4A).
+    ///   **No default.** A defaulted `.none` here is how a surface comes to keep
+    ///   showing a label somebody dismissed — the same drift that let seven consumers
+    ///   of `Soundprint.showable*` disagree about the vocabulary and the floor. A
+    ///   caller with genuinely nothing to apply writes `rejecting: .none` and says
+    ///   why.
     static func heard(
         for capsule: Capsule,
         on surface: Surface,
+        rejecting: RejectionIndex,
         now: Date = .now,
         listening: Bool = SoundAnalysisPreferences.mayReveal
     ) -> [Soundprint.Showable] {
         guard listening else { return [] }
         guard capsule.isContentVisible(now: now) else { return [] }
         if surface == .card, hasNote(capsule) { return [] }
-        return Soundprint(stored: capsule.soundprintRaw)?.showable() ?? []
+        let rejected = rejecting.rejectedIdentifiers(for: capsule.id)
+        return Soundprint(stored: capsule.soundprintRaw)?
+            .showable().filter { !rejected.contains($0.identifier) } ?? []
+    }
+
+    /// Which of this capsule's *stored* labels the person has dismissed — the
+    /// question the "show them again" affordance is driven by (§S3).
+    ///
+    /// Deliberately **not** the phrases. Naming a dismissed label back to the reader
+    /// would put the guess on the screen it was removed from, under a different
+    /// heading; for someone who dismissed `crying_sobbing` that is worse than not
+    /// having offered the correction at all. So the way back says only that there is
+    /// one, and the labels themselves are gone.
+    ///
+    /// Only labels this capsule actually holds and could otherwise show count: a
+    /// rejection whose label has since left the vocabulary, or dropped below today's
+    /// floor, is nothing to restore.
+    static func dismissedIdentifiers(
+        for capsule: Capsule,
+        rejecting: RejectionIndex,
+        now: Date = .now,
+        listening: Bool = SoundAnalysisPreferences.mayReveal
+    ) -> Set<String> {
+        guard listening, capsule.isContentVisible(now: now) else { return [] }
+        let stored = Set(Soundprint(stored: capsule.soundprintRaw)?.showableIdentifiers() ?? [])
+        return stored.intersection(rejecting.rejectedIdentifiers(for: capsule.id))
     }
 
     /// Just the phrases, for a surface that renders a sentence rather than chips.
     static func phrases(
         for capsule: Capsule,
         on surface: Surface,
+        rejecting: RejectionIndex,
         now: Date = .now,
         listening: Bool = SoundAnalysisPreferences.mayReveal
     ) -> [String] {
-        heard(for: capsule, on: surface, now: now, listening: listening).map(\.phrase)
+        heard(for: capsule, on: surface, rejecting: rejecting,
+              now: now, listening: listening).map(\.phrase)
     }
 
     /// Trimmed, because `NotificationCopy.Digest.lead` trims before deciding a note
@@ -98,10 +132,12 @@ enum SoundprintDisplay {
     static func sentence(
         for capsule: Capsule,
         on surface: Surface,
+        rejecting: RejectionIndex,
         now: Date = .now,
         listening: Bool = SoundAnalysisPreferences.mayReveal
     ) -> String? {
-        sentence(for: phrases(for: capsule, on: surface, now: now, listening: listening))
+        sentence(for: phrases(for: capsule, on: surface, rejecting: rejecting,
+                              now: now, listening: listening))
     }
 
     /// The attributed sentence: "Soundpost heard rain and leaves in the wind".

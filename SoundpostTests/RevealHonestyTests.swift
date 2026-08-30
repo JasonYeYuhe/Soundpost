@@ -58,7 +58,7 @@ struct RevealHonestyTests {
                                 labels: [("rain", 0.91), ("wind_rustling_leaves", 0.62)])
         // The premise: these ARE the phrases the reveal is about to render, so a
         // prompt free of them is a real absence and not an empty soundprint.
-        #expect(SoundprintDisplay.phrases(for: heard, on: .detail, listening: true)
+        #expect(SoundprintDisplay.phrases(for: heard, on: .detail, rejecting: .none, listening: true)
                 == [rainPhrase, windPhrase])
 
         let prompt = SoundSummaryWriter.prompt(
@@ -121,7 +121,7 @@ struct RevealHonestyTests {
     @Test func theRevealsAttributedLineIsProducedForACapsuleWithShowableLabels() throws {
         let heard = try capsule(note: "the storm broke", place: "Home")
         let sentence = try #require(
-            SoundprintDisplay.sentence(for: heard, on: .detail, listening: true))
+            SoundprintDisplay.sentence(for: heard, on: .detail, rejecting: .none, listening: true))
         #expect(sentence.contains(rainPhrase))
         // Attribution is in the copy, never in the layout — a bare noun under a note
         // reads as something the person wrote about their own memory.
@@ -129,26 +129,26 @@ struct RevealHonestyTests {
         #expect(sentence == SoundprintDisplay.sentence(for: [rainPhrase]))
         // The card would say nothing here, because a note occupies the one line it
         // has. The reveal is not the card.
-        #expect(SoundprintDisplay.sentence(for: heard, on: .card, listening: true) == nil)
+        #expect(SoundprintDisplay.sentence(for: heard, on: .card, rejecting: .none, listening: true) == nil)
     }
 
     @Test func theRevealsAttributedLineIsAbsentWhenThereIsNothingShowable() throws {
         let unanalysed = try capsule(labels: [])
-        #expect(SoundprintDisplay.sentence(for: unanalysed, on: .detail, listening: true) == nil)
+        #expect(SoundprintDisplay.sentence(for: unanalysed, on: .detail, rejecting: .none, listening: true) == nil)
 
         // Stored but not showable: below today's floor, so no screen may name it and
         // neither may this one.
         let tooQuiet = try capsule(labels: [("waterfall", 0.35)])
-        #expect(SoundprintDisplay.sentence(for: tooQuiet, on: .detail, listening: true) == nil)
+        #expect(SoundprintDisplay.sentence(for: tooQuiet, on: .detail, rejecting: .none, listening: true) == nil)
 
         // And with listening off, whatever is stored.
         let heard = try capsule()
-        #expect(SoundprintDisplay.sentence(for: heard, on: .detail, listening: false) == nil)
+        #expect(SoundprintDisplay.sentence(for: heard, on: .detail, rejecting: .none, listening: false) == nil)
 
         // A sealed-not-due capsule's sound is as hidden as its words.
         let sealed = try capsule()
         sealed.sealUntil = Date.now.addingTimeInterval(86_400)
         try sealed.transition(to: .sealed)
-        #expect(SoundprintDisplay.sentence(for: sealed, on: .detail, listening: true) == nil)
+        #expect(SoundprintDisplay.sentence(for: sealed, on: .detail, rejecting: .none, listening: true) == nil)
     }
 }

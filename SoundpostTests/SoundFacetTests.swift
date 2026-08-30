@@ -154,7 +154,7 @@ struct SoundFacetTests {
     /// while a capsule plays.
     @Test func theTappablePhrasesComeFromTheCapsuleAlone() throws {
         let capsule = try captured([("rain", 0.91), ("waterfall", 0.35), ("wind", 0.60)])
-        let offered = SoundprintDisplay.heard(for: capsule, on: .detail, listening: true)
+        let offered = SoundprintDisplay.heard(for: capsule, on: .detail, rejecting: .none, listening: true)
 
         #expect(offered.map(\.identifier) == ["rain", "wind"], "showable only, confidence order")
         #expect(offered.map(\.phrase) == ["rain", "wind"].compactMap { SoundVocabulary.displayName(for: $0) })
@@ -167,7 +167,7 @@ struct SoundFacetTests {
     /// same one, which is the whole join §S3 depends on.
     @Test func tappingAPhraseFindsTheCapsuleItCameFrom() throws {
         let capsule = try captured([("rain", 0.91)])
-        let tapped = try #require(SoundprintDisplay.heard(for: capsule, on: .detail,
+        let tapped = try #require(SoundprintDisplay.heard(for: capsule, on: .detail, rejecting: .none,
                                                           listening: true).first)
         #expect(GalleryFilter.apply([capsule], .init(sounds: [tapped.identifier]),
                                     listening: true).count == 1)

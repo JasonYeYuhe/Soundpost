@@ -13,6 +13,13 @@ struct ContentView: View {
     /// every transition away from the gallery stops it.
     @Environment(PlaybackController.self) private var playback
     @Query(sort: \Capsule.createdAt, order: .reverse) private var capsules: [Capsule]
+    /// Every rejection, as one query (M18 §4B).
+    ///
+    /// **One query for the whole gallery, not one per card and not a fetch per
+    /// capsule.** The detail screen is handed the resolved index rather than running
+    /// its own, so a correction made there — or one arriving from another device —
+    /// repaints the card behind it through this same observation.
+    @Query private var rejections: [SoundRejection]
     @State private var showingCapture = false
     @State private var showingSettings = false
     @State private var path: [Capsule] = []
@@ -55,7 +62,8 @@ struct ContentView: View {
             .searchable(text: $searchText, prompt: Text("Search your sounds"))
             .navigationTitle("Soundpost")
             .navigationDestination(for: Capsule.self) {
-                CapsuleDetailView(capsule: $0, onFindSimilar: findSimilar)
+                CapsuleDetailView(capsule: $0, rejecting: rejectionIndex,
+                                  onFindSimilar: findSimilar)
             }
             .toolbar {
                 ToolbarItemGroup(placement: .topBarTrailing) {
@@ -77,7 +85,9 @@ struct ContentView: View {
             .sheet(isPresented: $showingCapture) { CaptureView() }
             .sheet(isPresented: $showingSettings) { SettingsView() }
             .fullScreenCover(item: $revealCapsule, onDismiss: requestReviewIfEarned) { capsule in
-                ResurfaceView(capsule: capsule) { reviewAfterReveal = true }
+                ResurfaceView(capsule: capsule, rejecting: rejectionIndex) {
+                    reviewAfterReveal = true
+                }
             }
         }
         .task { await refreshAndSync() }
@@ -126,6 +136,24 @@ struct ContentView: View {
         }
     }
 
+    /// The rejections, resolved once per pass (M18 §4B).
+    ///
+    /// Resolution — grouping rows by `(capsuleID, identifier)`, clamping their dates
+    /// and applying the tie-break — happens **here**, once, and every card then asks
+    /// the result a `Set` question. The shape that would have been a performance bug
+    /// is the other one: a card resolving winners for itself, or fetching, on a body
+    /// pass that already re-walks the library several times.
+    ///
+    /// Cost is O(rejection rows), and rejections are rare and deliberate by
+    /// construction — compaction leaves one per answered key. That is strictly less
+    /// than `sealSignature` below, which builds a string from every capsule on every
+    /// pass. It is still unmeasured, like every other performance claim here: nothing
+    /// in the suite seeds more than a handful of capsules, and the large-library
+    /// fixture is named as this milestone's most likely follow-on (§11).
+    private var rejectionIndex: RejectionIndex {
+        SoundRejectionStore.index(among: rejections)
+    }
+
     /// Filtered + searched capsules (metadata-only, visibility-aware — §S6).
     private var displayed: [Capsule] {
         GalleryFilter.apply(capsules, filterCriteria)
@@ -157,7 +185,9 @@ struct ContentView: View {
                                 // No wrapping `Button`: the card owns its surface tap
                                 // so its play control can be a sibling rather than a
                                 // second button nested inside this one (M16 §4E).
-                                CapsuleCard(capsule: capsule) { openCapsule(capsule) }
+                                CapsuleCard(capsule: capsule, rejecting: rejectionIndex) {
+                                    openCapsule(capsule)
+                                }
                                     .transition(.scale(scale: 0.96).combined(with: .opacity))
                             }
                         } header: {

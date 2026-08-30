@@ -9,6 +9,13 @@ import SwiftData
 /// `.resurfaced → .opened` flip that the detail view used to do silently.
 struct ResurfaceView: View {
     let capsule: Capsule
+    /// What this person has said was wrong (M18 §4A), from the gallery's one query.
+    ///
+    /// The reveal cannot make a correction — there is no affordance here, and this is
+    /// not a screen to start editing on — but it must honour one, including one that
+    /// arrives from another device while it is open. Threading the index rather than
+    /// fetching once at `.task` is what makes that live.
+    let rejecting: RejectionIndex
     /// Called once when this reveal opens a genuinely-resurfaced capsule — the
     /// ethically-correct trigger for the milestone review prompt (§S5).
     var onOpened: () -> Void = {}
@@ -193,7 +200,7 @@ struct ResurfaceView: View {
     /// this screen has room, and the guess sits below the note rather than in its
     /// place, so a capsule with a note is not a reason to say nothing.
     private var heardSentence: String? {
-        SoundprintDisplay.sentence(for: capsule, on: .detail,
+        SoundprintDisplay.sentence(for: capsule, on: .detail, rejecting: rejecting,
                                    listening: listeningEnabled && hasStanding)
     }
 

@@ -72,12 +72,12 @@ struct DisplayStandingTests {
         let capsule = try rainy()
         TestSupport.withIsolatedListeningPreference(true) {
             SoundAnalysisPreferences.hasStanding = false
-            #expect(SoundprintDisplay.phrases(for: capsule, on: .detail).isEmpty,
+            #expect(SoundprintDisplay.phrases(for: capsule, on: .detail, rejecting: .none).isEmpty,
                     "the mirror says yes — but it is a default, not an answer")
-            #expect(SoundprintDisplay.phrases(for: capsule, on: .card).isEmpty)
+            #expect(SoundprintDisplay.phrases(for: capsule, on: .card, rejecting: .none).isEmpty)
 
             SoundAnalysisPreferences.hasStanding = true
-            #expect(!SoundprintDisplay.phrases(for: capsule, on: .detail).isEmpty,
+            #expect(!SoundprintDisplay.phrases(for: capsule, on: .detail, rejecting: .none).isEmpty,
                     "and once it is an answer, the label shows")
         }
     }

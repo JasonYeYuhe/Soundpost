@@ -41,14 +41,14 @@ struct SoundprintDisplayTests {
     /// screen on a device where the user said stop.
     @Test func nothingIsShownWithListeningOff() throws {
         let capsule = try rainy()
-        #expect(SoundprintDisplay.phrases(for: capsule, on: .detail, listening: false).isEmpty)
-        #expect(SoundprintDisplay.phrases(for: capsule, on: .card, listening: false).isEmpty)
+        #expect(SoundprintDisplay.phrases(for: capsule, on: .detail, rejecting: .none, listening: false).isEmpty)
+        #expect(SoundprintDisplay.phrases(for: capsule, on: .card, rejecting: .none, listening: false).isEmpty)
     }
 
     @Test func thePhrasesAreShownWithListeningOn() throws {
         let capsule = try rainy()
-        #expect(SoundprintDisplay.phrases(for: capsule, on: .detail, listening: true) == [rainPhrase])
-        #expect(SoundprintDisplay.phrases(for: capsule, on: .card, listening: true) == [rainPhrase])
+        #expect(SoundprintDisplay.phrases(for: capsule, on: .detail, rejecting: .none, listening: true) == [rainPhrase])
+        #expect(SoundprintDisplay.phrases(for: capsule, on: .card, rejecting: .none, listening: true) == [rainPhrase])
     }
 
     // MARK: Visibility
@@ -60,8 +60,8 @@ struct SoundprintDisplayTests {
         capsule.sealUntil = Date.now.addingTimeInterval(86_400)
         try capsule.transition(to: .sealed)
 
-        #expect(SoundprintDisplay.phrases(for: capsule, on: .detail, listening: true).isEmpty)
-        #expect(SoundprintDisplay.phrases(for: capsule, on: .card, listening: true).isEmpty)
+        #expect(SoundprintDisplay.phrases(for: capsule, on: .detail, rejecting: .none, listening: true).isEmpty)
+        #expect(SoundprintDisplay.phrases(for: capsule, on: .card, rejecting: .none, listening: true).isEmpty)
     }
 
     @Test func aSealedCapsulePastItsDateShowsAgain() throws {
@@ -69,7 +69,7 @@ struct SoundprintDisplayTests {
         capsule.sealUntil = Date.now.addingTimeInterval(-86_400)
         try capsule.transition(to: .sealed)
 
-        #expect(SoundprintDisplay.phrases(for: capsule, on: .detail, listening: true) == [rainPhrase])
+        #expect(SoundprintDisplay.phrases(for: capsule, on: .detail, rejecting: .none, listening: true) == [rainPhrase])
     }
 
     /// The clock is a parameter, so "not due" and "due" are the same capsule seen from
@@ -80,9 +80,9 @@ struct SoundprintDisplayTests {
         capsule.sealUntil = opensAt
         try capsule.transition(to: .sealed)
 
-        #expect(SoundprintDisplay.phrases(for: capsule, on: .detail,
+        #expect(SoundprintDisplay.phrases(for: capsule, on: .detail, rejecting: .none,
                                           now: opensAt.addingTimeInterval(-1), listening: true).isEmpty)
-        #expect(SoundprintDisplay.phrases(for: capsule, on: .detail,
+        #expect(SoundprintDisplay.phrases(for: capsule, on: .detail, rejecting: .none,
                                           now: opensAt, listening: true) == [rainPhrase])
     }
 
@@ -93,7 +93,7 @@ struct SoundprintDisplayTests {
     /// second surface. The guess fills a silence; it never competes.
     @Test func aCardWithANoteShowsNoGuess() throws {
         let capsule = try rainy(note: "the storm broke")
-        #expect(SoundprintDisplay.phrases(for: capsule, on: .card, listening: true).isEmpty)
+        #expect(SoundprintDisplay.phrases(for: capsule, on: .card, rejecting: .none, listening: true).isEmpty)
     }
 
     /// And the detail screen still shows it, because there it sits *below* the note
@@ -101,7 +101,7 @@ struct SoundprintDisplayTests {
     /// difference between the two cases.
     @Test func theDetailScreenShowsTheGuessBeneathANote() throws {
         let capsule = try rainy(note: "the storm broke")
-        #expect(SoundprintDisplay.phrases(for: capsule, on: .detail, listening: true) == [rainPhrase])
+        #expect(SoundprintDisplay.phrases(for: capsule, on: .detail, rejecting: .none, listening: true) == [rainPhrase])
     }
 
     /// A note of spaces is not a note. `Digest.lead` trims before deciding, and if
@@ -109,7 +109,7 @@ struct SoundprintDisplayTests {
     /// capsule.
     @Test func aWhitespaceOnlyNoteDoesNotSuppressTheGuess() throws {
         let capsule = try rainy(note: "   \n  ")
-        #expect(SoundprintDisplay.phrases(for: capsule, on: .card, listening: true) == [rainPhrase])
+        #expect(SoundprintDisplay.phrases(for: capsule, on: .card, rejecting: .none, listening: true) == [rainPhrase])
 
         let digest = NotificationCopy.Digest(createdAt: .now, note: "   \n  ", placeName: nil,
                                              mood: nil, soundprint: Soundprint(stored: capsule.soundprintRaw))
@@ -121,20 +121,20 @@ struct SoundprintDisplayTests {
     @Test func aCapsuleWhoseLabelsAreAllUnshowableShowsNothing() throws {
         let capsule = try rainy(labels: [("waterfall", 0.35), ("crying_sobbing", 0.99)])
         #expect(Soundprint(stored: capsule.soundprintRaw)?.hasNoLabels == false, "stored, though")
-        #expect(SoundprintDisplay.phrases(for: capsule, on: .detail, listening: true).isEmpty)
-        #expect(SoundprintDisplay.phrases(for: capsule, on: .card, listening: true).isEmpty)
+        #expect(SoundprintDisplay.phrases(for: capsule, on: .detail, rejecting: .none, listening: true).isEmpty)
+        #expect(SoundprintDisplay.phrases(for: capsule, on: .card, rejecting: .none, listening: true).isEmpty)
     }
 
     @Test func aNeverAnalysedCapsuleShowsNothing() throws {
         let capsule = try rainy()
         capsule.soundprintRaw = nil
-        #expect(SoundprintDisplay.phrases(for: capsule, on: .detail, listening: true).isEmpty)
+        #expect(SoundprintDisplay.phrases(for: capsule, on: .detail, rejecting: .none, listening: true).isEmpty)
     }
 
     @Test func anAnalysedButSilentCapsuleShowsNothing() throws {
         let capsule = try rainy()
         capsule.soundprintRaw = Soundprint.emptyMarker(classifier: "version1")
-        #expect(SoundprintDisplay.phrases(for: capsule, on: .detail, listening: true).isEmpty)
+        #expect(SoundprintDisplay.phrases(for: capsule, on: .detail, rejecting: .none, listening: true).isEmpty)
     }
 
     // MARK: Attribution is in the copy (§4A rule 1)
