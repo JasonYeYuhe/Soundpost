@@ -922,8 +922,9 @@ shipped unsymbolicated again, silently, if the script had not been fixed first.
 
 ### 15C. Still open
 
-1. **Release 1.7.0 when Apple approves it** — `scripts/asc.py release`, which acts only
-   on `PENDING_DEVELOPER_RELEASE`. Deliberately left to a human.
+1. ~~**Release 1.7.0**~~ — **approved and LIVE 2026-08-29**, `READY_FOR_SALE`,
+   submission `a977308d` COMPLETE. It went out on auto-release, so no release request
+   was needed. **M16 and M17 are in users' hands.**
 2. **Confirm M10 end to end** (above).
 3. **The cold-launch deep link on a real device** — M17's one unverified item, now
    twice-modified and more worth checking than before.
