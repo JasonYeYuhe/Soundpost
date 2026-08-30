@@ -10,9 +10,15 @@ import AVFoundation
 /// without interleaving on the shared store.
 @MainActor
 enum TestSupport {
+    /// **The app's own schema, never a copy of its entity list** (M18 §4H). It was
+    /// spelled `for: Capsule.self, ListeningConsent.self`, which is one more list
+    /// deriving nothing: an entity added to the app but not here would leave every
+    /// test in the suite running against a store that does not have it, and the
+    /// failure would read as the feature being broken rather than the fixture being
+    /// short.
     static let container: ModelContainer = {
         try! ModelContainer(
-            for: Capsule.self, ListeningConsent.self,
+            for: SoundpostModelContainer.productionSchema,
             // `cloudKitDatabase: .none`: the default is `.automatic`, which — because
             // the app carries the CloudKit entitlement — makes even this in-memory
             // store spin up a mirroring delegate that then fails with
@@ -69,7 +75,7 @@ enum TestSupport {
     static func isolatedStore() throws -> CapsuleStore {
         // `ModelContext` retains its container, so the store keeps it alive.
         let container = try ModelContainer(
-            for: Capsule.self, ListeningConsent.self,
+            for: SoundpostModelContainer.productionSchema,
             configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         )
         return CapsuleStore(context: ModelContext(container))

@@ -8,10 +8,13 @@ import SwiftData
 enum DemoData {
     @MainActor
     static let container: ModelContainer = {
-        // Mirrors the production schema — a screenshot build that reaches Settings
-        // would otherwise trap the moment the Listening toggle wrote its record.
+        // **Is** the production schema, rather than a hand-kept copy of its entity
+        // list (M18 §4H). A screenshot build that reaches Settings would otherwise
+        // trap the moment the Listening toggle wrote a record for an entity this
+        // container had never heard of — and the copy would fall behind silently, the
+        // way every other list derived from `Schema([...])` by hand has.
         let container = try! ModelContainer(
-            for: Capsule.self, ListeningConsent.self,
+            for: SoundpostModelContainer.productionSchema,
             configurations: ModelConfiguration(isStoredInMemoryOnly: true)
         )
         seed(into: container.mainContext)

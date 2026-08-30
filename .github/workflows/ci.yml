@@ -53,6 +53,14 @@ jobs:
       # build-upload-asc.sh, behind a CK_SKIP_SCHEMA_CHECK escape, on a path an Xcode
       # Organizer upload skips entirely. This part needs neither, and catches the
       # drift when it is introduced rather than whenever someone next runs the seed.
+      # The other half of the same failure, and the half that had no check at all
+      # (M18 §4H). A `@Model` left out of `Schema([...])` is invisible to the schema
+      # gate, the seed and the container simultaneously — four green gates over a
+      # feature that silently does not sync in Production. This reads the source;
+      # `ModelRegistrationTests` asks the built binary the same question.
+      - name: CloudKit model registration (every @Model is in the shipping schema)
+        run: ./scripts/cloudkit-schema.sh check-models
+
       - name: CloudKit seed coverage (every entity can be created in Development)
         run: ./scripts/cloudkit-schema.sh check-seed
 

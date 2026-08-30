@@ -42,17 +42,39 @@ die() { printf '\033[31m✗ %s\033[0m\n' "$1" >&2; exit 1; }
 note() { printf '  %s\n' "$1"; }
 ok() { printf '\033[32m✓ %s\033[0m\n' "$1"; }
 
+# The entity names in the production `Schema([...])`, from source.
+#
+# Match `Schema([...])` wherever it appears, not `let schema = Schema([...])`. The
+# first version pinned the assignment form and broke the day that declaration became
+# a computed property — leaving this script extracting an EMPTY list and therefore
+# checking nothing, which is the precise failure it exists to prevent.
+schema_entities() {
+  sed -n 's/.*Schema(\[\([^]]*\)\]).*/\1/p' \
+    "$PROJECT_DIR/Soundpost/Services/SoundpostModelContainer.swift" \
+    | head -1 | tr ',' '\n' | sed 's/\.self//g; s/[[:space:]]//g' | grep -v '^$' || true
+}
+
+# Every `@Model` class the app DECLARES, wherever it lives.
+#
+# This is the one list here that is not derived from `Schema([...])`, and that is the
+# whole point (M18 §4H). Everything else in this file — the expectation below, the
+# seed check, the container, the schema test — reads that array, so a `@Model` left
+# out of it is invisible to all of them at once and the feature it belongs to simply
+# does not sync, in Production only. A check that iterates an artefact cannot fail
+# for what is missing from the artefact.
+#
+# `^@Model$` anchored, so `@ModelActor` and a `@Model` mentioned in a doc comment are
+# not matched; the class name is taken from the next declaration line.
+declared_models() {
+  grep -rh -A3 '^@Model[[:space:]]*$' "$PROJECT_DIR/Soundpost" --include='*.swift' 2>/dev/null \
+    | sed -n 's/^\(final \)\{0,1\}class \([A-Za-z_][A-Za-z0-9_]*\).*/\2/p' | sort -u || true
+}
+
 # The record types the app's schema implies: every @Model in the production Schema([...]),
 # prefixed CD_ the way NSPersistentCloudKitContainer names them. Derived from source
 # rather than hard-coded, so adding an entity cannot silently escape this check.
 expected_types() {
-  # Match `Schema([...])` wherever it appears, not `let schema = Schema([...])`.
-  # The first version pinned the assignment form and broke the day that declaration
-  # became a computed property — leaving this script extracting an EMPTY list and
-  # therefore checking nothing, which is the precise failure it exists to prevent.
-  sed -n 's/.*Schema(\[\([^]]*\)\]).*/\1/p' \
-    "$PROJECT_DIR/Soundpost/Services/SoundpostModelContainer.swift" \
-    | head -1 | tr ',' '\n' | sed 's/\.self//g; s/[[:space:]]//g' | grep -v '^$' | sed 's/^/CD_/' || true
+  schema_entities | sed 's/^/CD_/'
 
   # Plus every record type the app builds by hand with CloudKit's own API. These
   # carry no `CD_` prefix because `NSPersistentCloudKitContainer` never sees them,
@@ -271,9 +293,57 @@ cmd_check_seed() {
   ok "Seed covers every entity in the shipping schema."
 }
 
+# Offline check, safe for CI: every `@Model` the app declares must be in the shipping
+# `Schema([...])`.
+#
+# The trap this closes was already set, in the exact file M18 had to edit, and two
+# reviewers found it independently. Add `@Model final class SoundRejection` and forget
+# the schema line, and FOUR gates stay green at once: the container never mirrors it,
+# so CloudKit never creates the record type; `expected_types()` above is derived from
+# that same array, so it compares only what is listed; `CloudKitSchemaSeed` iterates
+# `container.schema.entities`, so it has nothing to seed; and the schema unit test
+# asserted membership of two known names, which a third entity cannot fail.
+#
+# So this reads the SOURCE rather than the schema. `ModelRegistrationTests` asks the
+# same question of the built binary via the Objective-C runtime. Two checks over two
+# different artefacts, deliberately: the answer to "a list nobody updated" must not
+# itself be a list somebody has to update.
+cmd_check_models() {
+  require_expected_types
+  local declared registered missing=""
+  declared="$(declared_models)"
+  registered="$(schema_entities)"
+
+  # Never let an empty scan read as "nothing is missing" — the same refusal
+  # `require_expected_types` makes about the other side of this comparison.
+  if [ -z "$declared" ]; then
+    die "Found no @Model declarations under Soundpost/ at all.
+    Refusing to report on a source tree this script cannot see — an empty scan
+    would pass every check while verifying nothing."
+  fi
+
+  while read -r m; do
+    [ -z "$m" ] && continue
+    printf '%s\n' "$registered" | grep -qx "$m" || missing="$missing$m"$'\n'
+  done <<< "$declared"
+
+  if [ -n "$missing" ]; then
+    printf '\033[31m✗ @Model types the app declares that are NOT in Schema([...]):\033[0m\n' >&2
+    printf '%s' "$missing" | sed 's/^/  - /' >&2
+    die "Add each to SoundpostModelContainer.productionSchema, and a seed row to
+    CloudKitSchemaSeed.seedRow(for:).
+    Until then CloudKit never creates its record type, this script's own expectation
+    is derived from that array so it cannot notice, and the feature does not sync in
+    Production. Nothing throws; nothing reports; it is simply absent."
+  fi
+
+  ok "Every @Model the app declares is in the shipping schema ($(printf '%s' "$declared" | tr '\n' ' '))."
+}
+
 case "${1:-status}" in
-  status)      cmd_status ;;
-  promote)     cmd_promote ;;
-  check-seed)  cmd_check_seed ;;
-  *) die "usage: $0 [status|promote|check-seed]" ;;
+  status)       cmd_status ;;
+  promote)      cmd_promote ;;
+  check-seed)   cmd_check_seed ;;
+  check-models) cmd_check_models ;;
+  *) die "usage: $0 [status|promote|check-seed|check-models]" ;;
 esac

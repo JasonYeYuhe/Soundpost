@@ -40,12 +40,24 @@ struct CloudKitSchemaTests {
         #expect(container.schema.entities.count == schema.entities.count)
     }
 
-    /// Both entities are present and named as expected — so a schema that silently
-    /// lost one cannot pass the load test above by loading less.
-    @Test func theShippingSchemaContainsBothEntities() {
+    /// The schema is **exactly** these entities — so a schema that silently lost one
+    /// cannot pass the load test above by loading less, and one that silently gained
+    /// one cannot pass this.
+    ///
+    /// It was two `contains` assertions, which is a containment check: a third entity
+    /// could not fail it, and neither could a fourth (M18 §4H). That mattered because
+    /// three other gates are blind in the same direction at the same time — the
+    /// CloudKit schema script, the seed, and the container itself all derive their
+    /// idea of the app from `Schema([...])`, so nothing anywhere could fail for an
+    /// entity missing from it.
+    ///
+    /// The set is written out on purpose. Adding an entity has to be a deliberate
+    /// edit here, next to a comment explaining that the CloudKit Development →
+    /// Production deploy is a **human step in the Console** that this test cannot
+    /// perform and no CLI can (M17 §14D).
+    @Test func theShippingSchemaContainsExactlyTheEntitiesWeExpect() {
         let names = Set(SoundpostModelContainer.productionSchema.entities.map(\.name))
-        #expect(names.contains("Capsule"))
-        #expect(names.contains("ListeningConsent"))
+        #expect(names == ["Capsule", "ListeningConsent"])
     }
 
     /// The CloudKit rules the schema comment claims, checked rather than asserted in

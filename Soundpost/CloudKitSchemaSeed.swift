@@ -38,6 +38,30 @@ enum CloudKitSchemaSeed {
         let entities = container.schema.entities.map(\.name).sorted()
         print("SCHEMA-SEED entities in schema: \(entities)")
 
+        // **Checked before anything is inserted, and it ABORTS** (M18 §4H).
+        //
+        // It used to print a line and `continue`, so an entity with no seed row cost
+        // one message in the middle of a long log and the run still ended with
+        // `SCHEMA-SEED cleaned up` — a success line over a record type that was never
+        // created. That is the same false green as the fixed 20-second wait and the
+        // promote that could not promote (M17 §15A), in the tool the whole release is
+        // gated on. A seed that cannot cover the schema has not half worked.
+        //
+        // Ahead of the iCloud check because it is a defect in this source rather than
+        // in the machine: it is true on every device, so someone whose simulator is
+        // signed out should still learn about it on the run where it exists.
+        let missing = Self.entitiesWithoutASeedRow(in: container.schema)
+        guard missing.isEmpty else {
+            print("""
+                SCHEMA-SEED ✗ no seed row defined for: \(missing.joined(separator: ", ")). \
+                NOTHING was seeded by this run. Add a case to \
+                CloudKitSchemaSeed.seedRow(for:) for each — without one its CD_ record \
+                type is never created in CloudKit Development, so it can never be \
+                promoted to Production, and the feature silently does not sync there.
+                """)
+            return
+        }
+
         // Without an iCloud account there is no export, so no record type is created —
         // and every other line below still prints exactly as it does on a good run.
         // That is worth failing loudly for: this seed was verified on a simulator with
@@ -62,17 +86,12 @@ enum CloudKitSchemaSeed {
         // whatever entities the schema grows next" — so the next entity added would
         // have got no seed at all, and the failure would have looked identical to
         // this one: a record type missing from Development for no visible reason.
-        // `Capsule` is excluded deliberately: it needs real audio to be meaningful,
-        // and `CD_Capsule` has existed in both environments since M9.
         var inserted: [any PersistentModel] = []
-        for entity in container.schema.entities where entity.name != "Capsule" {
-            guard let model = seedRow(for: entity.name) else {
-                print("SCHEMA-SEED ✗ no seed row defined for \(entity.name) — add one here or its record type will never be created")
-                continue
-            }
+        for name in Self.seedableEntities(in: container.schema) {
+            guard let model = seedRow(for: name) else { continue }   // ruled out above
             context.insert(model)
             inserted.append(model)
-            print("SCHEMA-SEED inserted \(entity.name)")
+            print("SCHEMA-SEED inserted \(name)")
         }
         guard !inserted.isEmpty else {
             print("SCHEMA-SEED ✗ nothing to seed; no record types will be created")
@@ -110,11 +129,31 @@ enum CloudKitSchemaSeed {
         }
     }
 
+    /// The one entity the seed is allowed not to cover.
+    ///
+    /// `Capsule` needs real audio to be meaningful, and `CD_Capsule` has existed in
+    /// both environments since M9. Named rather than written inline in a `where`
+    /// clause, so a test can assert it is the *only* exemption — an unexplained skip
+    /// is how a second one gets added quietly.
+    static let seedExemptEntity = "Capsule"
+
+    /// The entities this seed is responsible for creating record types for.
+    static func seedableEntities(in schema: Schema) -> [String] {
+        schema.entities.map(\.name).filter { $0 != seedExemptEntity }.sorted()
+    }
+
+    /// Which of those it cannot build a row for — the question `run` asks before it
+    /// inserts anything, and the one `ModelRegistrationTests` asks of the shipping
+    /// schema without needing an iCloud account or a device.
+    static func entitiesWithoutASeedRow(in schema: Schema) -> [String] {
+        seedableEntities(in: schema).filter { seedRow(for: $0) == nil }
+    }
+
     /// One throwaway row per entity the seed knows how to create.
     ///
-    /// A `nil` here is reported loudly rather than skipped quietly, so adding an
-    /// entity without adding its seed row fails visibly instead of leaving a record
-    /// type uncreated.
+    /// A `nil` here **aborts the run**, so adding an entity without adding its seed
+    /// row fails loudly instead of leaving a record type uncreated behind a line
+    /// saying `cleaned up`.
     private static func seedRow(for entityName: String) -> (any PersistentModel)? {
         switch entityName {
         case "ListeningConsent":
