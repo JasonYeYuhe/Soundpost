@@ -13,9 +13,23 @@ enum DemoData {
         // trap the moment the Listening toggle wrote a record for an entity this
         // container had never heard of — and the copy would fall behind silently, the
         // way every other list derived from `Schema([...])` by hand has.
+        // **`cloudKitDatabase: .none` is load-bearing, and its absence was a live
+        // data-loss-shaped bug.** `isStoredInMemoryOnly: true` sounds like it settles
+        // the question and does not: the CloudKit parameter defaults to `.automatic`,
+        // and because the app carries the iCloud entitlement SwiftData spins up a
+        // mirroring delegate for this store too. So the "throwaway" demo library was
+        // **exporting its six sample capsules into the real user's iCloud**, from
+        // where the production container imported them straight back — one copy per
+        // `-seedSampleData` launch, in their actual gallery, on every device.
+        //
+        // `SoundpostModelContainer` documents this exact trap on its own rung 2 and
+        // fixes it there; this container never got the same line. Found 2026-08-31
+        // by reading a device's store during an unrelated sync test, after twelve
+        // demo capsules and a demo correction had reached a real account.
         let container = try! ModelContainer(
             for: SoundpostModelContainer.productionSchema,
-            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true,
+                                               cloudKitDatabase: .none)
         )
         seed(into: container.mainContext)
         return container
