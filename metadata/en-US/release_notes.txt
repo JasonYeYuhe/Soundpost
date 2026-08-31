@@ -1,7 +1,4 @@
-• What Soundpost heard is now on the capsule itself. It has recognised sounds on your device since 1.6.0 and then kept them to itself — now your capsule says so, in your language, and always as what it is: something Soundpost heard, never a claim about your memory.
-• Tap a sound to find the other capsules that sounded like it.
-• You can change a capsule after saving it — your one line, the mood, the place's name, the echo date. The recording itself, and when you made it, stay as they were.
-• Play a capsule straight from the gallery.
-• A recording in progress can no longer be lost to a stray swipe, and throwing one away asks first.
-• The listening setting now follows your iCloud account instead of a single phone. Turn it off anywhere and it goes off on your other devices too — and what Soundpost had already heard is erased from them as well. Each device applies it the next time you open it.
-• Two messages in Settings that had been appearing in English now show in your own language.
+• When Soundpost gets a sound wrong, you can now say so. Press and hold a sound on a capsule and choose "No, it wasn't." It leaves the card, the capsule, search, the sound filter, your export and the lock screen — and you can bring it back whenever you like.
+• Nothing ever asks you to do this, and nothing counts how often you do.
+• Your corrections follow your iCloud account, the same way your capsules do.
+• The resurface screen no longer describes a sound as though it were a fact. What Soundpost heard is still shown there, attributed as what it is — a guess by a machine — and the sentence beside it is now written only from your own note and the place you tagged.
