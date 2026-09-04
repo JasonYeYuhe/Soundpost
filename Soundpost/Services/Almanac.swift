@@ -15,7 +15,8 @@ import Foundation
 ///
 /// So nothing in this file touches `UNUserNotificationCenter`, `NotificationPlanner`
 /// or `NotificationScheduler`, and two tests keep it that way:
-/// `theAlmanacNamesNoNotificationAPI` reads this file, and
+/// `theAlmanacAndItsCallSitesNameNoNotificationAPI` reads this file and the two
+/// that render it, and
 /// `theAlmanacCannotEvictASealFromTheBudget` fills the 64 slots with seals and
 /// requires the plan to be unchanged by a library full of anniversaries.
 enum Almanac {
@@ -94,12 +95,17 @@ enum Almanac {
             // hour, which truncates to zero, and the `yearsAgo > 0` guard below then
             // drops the anniversary entirely. Noon exists in every zone on every day.
             //
-            // The `?? capsule.createdAt` fallbacks are unreachable for noon and are
-            // there because `date(bySettingHour:)` is optional, not because a zone
-            // without a midday is expected.
-            let made = calendar.date(bySettingHour: 12, minute: 0, second: 0,
-                                     of: capsule.createdAt) ?? capsule.createdAt
-            let today = calendar.date(bySettingHour: 12, minute: 0, second: 0, of: now) ?? now
+            // **No fallback to the raw date.** `date(bySettingHour:)` is optional and
+            // the first version wrote `?? capsule.createdAt`, which looks harmless and
+            // is the bug coming back: an anchored noon against an unanchored 20:00 is
+            // a year minus eight hours, truncates to zero, and the guard below drops
+            // the anniversary — silently, in the one case the fallback exists for.
+            // Noon exists everywhere; if Foundation ever says otherwise, showing
+            // nothing is the honest answer and not a quietly wrong number.
+            guard let made = calendar.date(bySettingHour: 12, minute: 0, second: 0,
+                                           of: capsule.createdAt),
+                  let today = calendar.date(bySettingHour: 12, minute: 0, second: 0, of: now)
+            else { return nil }
             guard calendar.compare(made, to: today, toGranularity: .year) == .orderedAscending,
                   let yearsAgo = calendar.dateComponents([.year], from: made, to: today).year,
                   yearsAgo > 0 else { return nil }
