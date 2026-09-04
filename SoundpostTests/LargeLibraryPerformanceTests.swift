@@ -191,6 +191,116 @@ struct LargeLibraryPerformanceTests {
             """)
     }
 
+    /// The two library walks that were **not** the rejection index, measured because
+    /// a third review pass named them and guessing which of three costs matters is how
+    /// the first one got missed (§4B-iii).
+    ///
+    /// `sealSignature` is the one worth having measured. It feeds `.onChange`, so
+    /// SwiftUI evaluates it on **every body pass** — every keystroke, every sheet, every
+    /// `scenePhase` transition — and it used to build one interpolated string per
+    /// capsule and join them. The hash costs a fraction of that and is fixed-width, so
+    /// the comparison SwiftUI does afterwards stops being proportional to the library
+    /// too. Both figures are recorded; the ratio is the assertion, as everywhere else
+    /// in this suite.
+    @Test func theOtherPerPassLibraryWalksAreLinearAndCheap() throws {
+        let small = try LargeLibrary.makeStore()
+        let large = try LargeLibrary.makeStore()
+        try LargeLibrary.seed(capsules: 1_000, rejectingEvery: 7, in: small)
+        try LargeLibrary.seed(capsules: 4_000, rejectingEvery: 7, in: large)
+        let smallRows = try small.fetch(FetchDescriptor<Capsule>())
+        let largeRows = try large.fetch(FetchDescriptor<Capsule>())
+
+        let s1 = bestOfThree(repeating: 20) { _ = UpcomingResurfaces.sealSignature(smallRows) }
+        let s4 = bestOfThree(repeating: 20) { _ = UpcomingResurfaces.sealSignature(largeRows) }
+        let n1 = bestOfThree(repeating: 20) { _ = UpcomingResurfaces.nearest(smallRows, now: LargeLibrary.epoch) }
+        let n4 = bestOfThree(repeating: 20) { _ = UpcomingResurfaces.nearest(largeRows, now: LargeLibrary.epoch) }
+
+        let sealRatio = seconds(s4) / max(seconds(s1), 1e-9)
+        let nearRatio = seconds(n4) / max(seconds(n1), 1e-9)
+        print("""
+            M19 §4B  the other per-pass walks
+              sealSignature      1,000: \(String(format: "%.3f", seconds(s1) * 1000 / 20)) ms  \
+            4,000: \(String(format: "%.3f", seconds(s4) * 1000 / 20)) ms  \
+            ratio: \(String(format: "%.2f", sealRatio))×
+              UpcomingResurfaces 1,000: \(String(format: "%.3f", seconds(n1) * 1000 / 20)) ms  \
+            4,000: \(String(format: "%.3f", seconds(n4) * 1000 / 20)) ms  \
+            ratio: \(String(format: "%.2f", nearRatio))×
+            """)
+        #expect(sealRatio < 8, "sealSignature is \(String(format: "%.1f", sealRatio))× — not a linear walk")
+        #expect(nearRatio < 8, "UpcomingResurfaces.nearest is \(String(format: "%.1f", nearRatio))× — not a linear walk")
+        // The premise `nearest` needs and did not have: candidates to sort. Timed with
+        // `now:` defaulted, every seeded seal is long expired and this was a walk that
+        // produced nothing and sorted an empty array.
+        #expect(UpcomingResurfaces.nearest(largeRows, now: LargeLibrary.epoch).count == 3)
+
+        // **What the signature is for**, not merely that it is a function of its input.
+        // The first version of these premises compared libraries of different sizes and
+        // a library against itself-minus-one, all of which `return capsules.count`
+        // satisfies — and a signature that is only the count never changes when a seal
+        // date does, so `.onChange` never fires and the notification re-sync silently
+        // stops. That mutation survived; these are the assertions that kill it.
+        let before = UpcomingResurfaces.sealSignature(largeRows)
+        #expect(UpcomingResurfaces.sealSignature(largeRows) == before, "not stable within a run")
+
+        let sealed = try #require(largeRows.first { $0.state == .sealed })
+        let wasSealedUntil = sealed.sealUntil
+        sealed.sealUntil = wasSealedUntil?.addingTimeInterval(86_400)
+        #expect(UpcomingResurfaces.sealSignature(largeRows) != before,
+                "moving a seal date left the signature unchanged — .onChange would not re-sync")
+        sealed.sealUntil = wasSealedUntil
+        #expect(UpcomingResurfaces.sealSignature(largeRows) == before, "and it is reversible")
+
+        // The other half of why it is a *signature*: an edit that changes nothing about
+        // when a notification should fire must not churn the scheduler.
+        let noted = try #require(largeRows.first { $0.note != nil })
+        let wasNote = noted.note
+        noted.note = "an edit that has nothing to do with scheduling"
+        #expect(UpcomingResurfaces.sealSignature(largeRows) == before,
+                "editing a note changed the seal signature; every keystroke would re-sync")
+        noted.note = wasNote
+    }
+
+    /// A filtered pass does not pay for the strip it is not showing, and an empty
+    /// library pays for nothing at all.
+    @Test func aPassOnlyBuildsWhatItWillShow() throws {
+        let context = try LargeLibrary.makeStore()
+        try LargeLibrary.seed(capsules: 200, rejectingEvery: 3, in: context)
+        let capsules = try context.fetch(FetchDescriptor<Capsule>())
+        let rejections = try context.fetch(FetchDescriptor<SoundRejection>())
+
+        let unfiltered = GalleryPass.make(capsules: capsules, rejections: rejections,
+                                          criteria: GalleryFilter.Criteria(),
+                                          now: LargeLibrary.epoch, listening: true)
+        let filtered = GalleryPass.make(capsules: capsules, rejections: rejections,
+                                        criteria: GalleryFilter.Criteria(searchText: "rain"),
+                                        now: LargeLibrary.epoch, listening: true)
+        // The shape the fixture claims, asserted here because a mutation that stopped
+        // seeding seals altogether was survived by every test in this file: echoes
+        // alone kept the strip populated, and nothing else looked at the lineage.
+        let sealedCount = capsules.filter { $0.state == .sealed }.count
+        #expect(sealedCount > 0, "the fixture seeded no sealed capsules")
+        #expect(capsules.contains { !$0.isContentVisible(now: LargeLibrary.epoch) },
+                "no capsule is sealed-not-due, so the hidden-content branch never runs")
+        #expect(!GalleryFilter.apply(capsules, GalleryFilter.Criteria(sealedOnly: true),
+                                     rejecting: unfiltered.rejecting,
+                                     now: LargeLibrary.epoch, listening: true).isEmpty,
+                "the sealedOnly filter matches nothing in this fixture")
+        #expect(!unfiltered.upcoming.isEmpty, "the fixture seeds sealed capsules, so the strip has items")
+        #expect(filtered.upcoming.isEmpty, "a filtered gallery hides the strip and must not compute it")
+
+        // An empty library resolves nothing, even holding rejection rows.
+        let counter = SoundRejectionStore.Counter()
+        var empty: GalleryPass?
+        SoundRejectionStore.$resolveCounter.withValue(counter) {
+            empty = GalleryPass.make(capsules: [], rejections: rejections,
+                                     criteria: GalleryFilter.Criteria(),
+                                     now: LargeLibrary.epoch, listening: true)
+        }
+        #expect(counter.count == 0, "an empty library resolved the index \(counter.count) time(s)")
+        #expect(try #require(empty).isEmpty)
+        #expect(!rejections.isEmpty, "and there were rows it could have walked, so this is not a count of nothing")
+    }
+
     // MARK: Counts — immune to load entirely
 
     /// **M18 §4B's claim, as an integer.** "One scoped fetch per operation, never one
@@ -313,12 +423,27 @@ struct LargeLibraryPerformanceTests {
         #expect(capsules.count == 4_000)
         #expect(rejections.count == 572 * 3, "seeded \(rejections.count) rejection rows")
 
+        // Both sizes, because the name says "no matter how many" and one size cannot
+        // establish that. One is the interesting one: a `make` that resolved per
+        // capsule would return 1 for a single-capsule library and look correct.
+        for capsuleCount in [1, 4_000] {
+            let counter = SoundRejectionStore.Counter()
+            SoundRejectionStore.$resolveCounter.withValue(counter) {
+                _ = GalleryPass.make(capsules: Array(capsules.prefix(capsuleCount)),
+                                     rejections: rejections,
+                                     criteria: GalleryFilter.Criteria(searchText: "rain"),
+                                     now: LargeLibrary.epoch, listening: true)
+            }
+            #expect(counter.count == 1,
+                    "\(capsuleCount) capsules resolved the index \(counter.count) times")
+        }
+
         let counter = SoundRejectionStore.Counter()
         var pass: GalleryPass?
         SoundRejectionStore.$resolveCounter.withValue(counter) {
             pass = GalleryPass.make(capsules: capsules, rejections: rejections,
                                     criteria: GalleryFilter.Criteria(searchText: "rain"),
-                                    listening: true)
+                                    now: LargeLibrary.epoch, listening: true)
         }
         let made = try #require(pass)
 
@@ -353,18 +478,32 @@ struct LargeLibraryPerformanceTests {
         let url = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent()
             .appending(path: "Soundpost/ContentView.swift")
-        let source = try #require(try? String(contentsOf: url, encoding: .utf8))
+        let raw = try #require(try? String(contentsOf: url, encoding: .utf8))
+        // Whitespace-normalised before counting. `GalleryPass.make (` is correct code
+        // and a textual guard that reddens on a stray space is a guard people learn to
+        // edit around.
+        let source = raw.replacingOccurrences(of: " (", with: "(")
 
         let passes = source.components(separatedBy: "GalleryPass.make(").count - 1
         #expect(passes == 1, "ContentView builds \(passes) gallery passes; it should build one")
 
-        let resolves = source.components(separatedBy: "SoundRejectionStore.index(").count - 1
+        // The **whole type**, not `.index`. `SoundRejectionStore.winners(among:)` is a
+        // second route to the same walk, and the first version of this guard named only
+        // the first one — the same narrowness that let the original bug through.
+        let resolves = source.components(separatedBy: "SoundRejectionStore").count - 1
         #expect(resolves == 0, """
-            ContentView resolves the rejection index itself, \(resolves) time(s). It \
-            walks every row in the table, and anything reachable by name from a body \
-            is eventually read inside a ForEach — which is the bug that shipped. The \
-            gallery and both sheets read `pass.rejecting`.
+            ContentView names SoundRejectionStore \(resolves) time(s). Resolving walks \
+            every row in the table, and anything reachable by name from a body is \
+            eventually read inside a ForEach — which is the bug that shipped. The \
+            gallery, the detail screen and the reveal all read `pass.rejecting`.
             """)
+
+        // What this cannot see, stated rather than implied: a resolver reached through
+        // a helper or an extension defined elsewhere — `rejections.resolved` — names
+        // none of these strings. No source guard can close that, and the reason this
+        // one is still worth having is that it is not carrying the weight alone:
+        // `GalleryPass` stores its results, so the failure mode it protects against
+        // needs someone to write a new resolver rather than to read an existing one.
     }
 
     // MARK: The structural half — a card cannot reach the store even if it wanted to
@@ -405,8 +544,8 @@ struct LargeLibraryPerformanceTests {
             // miss entirely: `@Query private var rejections: [SoundRejection]` names
             // none of them and would give a per-capsule view the whole table.
             for read in ["SoundRejectionStore.index", "SoundRejectionStore.rows",
-                         "SoundRejectionStore.winners", "FetchDescriptor<SoundRejection>",
-                         "[SoundRejection]"] {
+                         "SoundRejectionStore.winners", "FetchDescriptor<SoundRejection",
+                         "[SoundRejection]", "Array<SoundRejection"] {
                 #expect(!source.contains(read), """
                     \(relative) contains `\(read)`. The gallery resolves the index once \
                     per pass and hands it down; a per-capsule view resolving its own is \

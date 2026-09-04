@@ -114,7 +114,7 @@ struct ContentView: View {
             // must not be sounding underneath it.
             if presented { playback.stop() }
         }
-        .onChange(of: sealSignature) { _, _ in
+        .onChange(of: UpcomingResurfaces.sealSignature(capsules)) { _, _ in
             Task { await notifications.sync(capsules: capsules, in: modelContext) }
         }
         .onChange(of: personalizedNotifications) { _, _ in
@@ -166,10 +166,6 @@ struct ContentView: View {
                                sealedOnly: sealedOnly, sounds: filterSounds)
     }
 
-    /// The nearest upcoming resurfaces/echoes for the anticipation strip (§S8).
-    private var upcoming: [PlannedNotification] {
-        UpcomingResurfaces.nearest(capsules)
-    }
 
     /// - Parameter pass: built once in `body`. Taken as a parameter rather than read
     ///   from a property so that this view cannot be rendered without one having been
@@ -179,7 +175,7 @@ struct ContentView: View {
             LazyVStack(spacing: 16, pinnedViews: [.sectionHeaders]) {
                 // "Coming up" anticipation strip — only on the unfiltered home view,
                 // so it stays a calm header, not chrome layered over a search.
-                if !filterCriteria.isActive && !upcoming.isEmpty { upcomingStrip }
+                if !pass.upcoming.isEmpty { upcomingStrip(pass.upcoming) }
                 filterBar
                 if pass.isEmpty {
                     noMatches
@@ -257,7 +253,9 @@ struct ContentView: View {
     /// secondary chrome — no counters, no engagement loops (§4D).
     // MARK: Upcoming strip (§S8)
 
-    private var upcomingStrip: some View {
+    /// - Parameter upcoming: from the pass, computed once. It used to be a computed
+    ///   property this read a second time.
+    private func upcomingStrip(_ upcoming: [PlannedNotification]) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Coming up")
                 .font(.subheadline.weight(.semibold))
@@ -464,13 +462,6 @@ struct ContentView: View {
 
     /// Changes whenever a capsule's seal or echo scheduling changes, so we
     /// re-sync notifications.
-    private var sealSignature: String {
-        capsules
-            .map {
-                "\($0.id.uuidString)|\($0.state.rawValue)|\($0.sealUntil?.timeIntervalSince1970 ?? 0)|\($0.echoAt?.timeIntervalSince1970 ?? 0)"
-            }
-            .joined(separator: ",")
-    }
 
     /// Normalize any pre-§S2 antisocial-hour seals/echoes to 09:00 local, flip any
     /// due seals to `.resurfaced`, then reconcile scheduled notifications. The

@@ -296,17 +296,53 @@ implementation. Resolution and reading are different costs. §4B promised a buil
 as its own guard and S1 did not write one; that omission is what let this stand.
 
 The fix is a value, not a smaller function. `GalleryPass` holds the index, the filtered
-capsules and the sections as **stored** properties, `body` makes one and hands it to the
-gallery and to both sheets, and `ContentView` no longer names the resolver at all.
-Reading a stored property cannot recompute it, which is the property the old code
-lacked — it was not written wrong, it read correctly at every use site, and that is
-exactly why nobody saw it.
+capsules, the sections and the anticipation strip as **stored** properties; `body` makes
+one and hands it to the gallery, to the pushed detail screen and to the reveal cover;
+and `ContentView` no longer names `SoundRejectionStore` at all. Reading a stored
+property cannot recompute it, which is the property the old code lacked — it was not
+written wrong, it read correctly at every use site, and that is exactly why nobody
+saw it.
 
-What remains true after the fix: filtering 4,000 capsules with an active search costs
-~65 ms, once per body pass rather than three times. Not a regression — that is what
-walking a large library costs — but it is a visible hitch per keystroke, and it is the
-honest answer to "is the gallery fast enough at 4,000?": *not obviously*. A debounced
-or cached search is a §11 candidate with a measurement behind it instead of a hunch.
+### 4B-iii. The same shape, twice more, found by looking for it
+
+Once the pattern had a name, two more instances were sitting in the same file, and a
+third review pass named them. Both were computed properties read from `body`:
+
+| walk | when | 1,000 | 4,000 | ratio |
+|---|---|---|---|---|
+| `UpcomingResurfaces.sealSignature` | every body pass, via `.onChange` | **1.9 ms** | **8.0 ms** | **4.12×** |
+| `UpcomingResurfaces.nearest` | twice per unfiltered pass | **2.5 ms** | **10.2 ms** | **4.16×** |
+
+Linear, and an order of magnitude below the filter — so neither was the emergency the
+first one was, and saying so is the point of having measured rather than guessed.
+Both are fixed anyway, because the fixes are smaller than the argument for keeping
+them: `sealSignature` is a `Hasher` instead of one interpolated string per capsule
+joined into a library-sized string that SwiftUI then compares on every pass, and
+`upcoming` is a stored property on the pass, computed under the same condition that
+decides whether the strip is shown — so the filtered case now pays nothing, where the
+computed property paid twice.
+
+`nearest` is also the second measurement in this milestone that was **timing nothing**.
+The fixture stopped every capsule at `.captured` with no `sealUntil` and no `echoAt`,
+so its `compactMap` produced no candidates and its sort ran over an empty array; the
+figure above is 10.2 ms, against 6.1 ms for the version that found nothing. The fixture
+now seals every 8th capsule and gives every 9th of the rest a future echo, which also
+gives `Criteria.sealedOnly` and the hidden-content branch of `isContentVisible`
+something to walk for the first time.
+
+### 4B-iv. What is left, and what it costs
+
+A body pass over 4,000 capsules with an active search now costs, in `GalleryPass.make`
+alone, **~27 ms to resolve the rejections plus ~65 ms to filter — about 93 ms** — and a
+keystroke is a body pass. Naming only the filter's 65 ms, as an earlier draft of this
+section did, understates it by 40%.
+
+None of that is a regression; it is what walking a large library costs, and it is now
+paid once per pass rather than three times plus once per card. But it is the honest
+answer to "is the gallery fast enough at 4,000?": *not obviously*. Two §11 candidates
+now have measurements behind them instead of hunches — debouncing the search, and
+moving the gallery into a child view so that presenting a sheet or a `scenePhase`
+change does not rebuild a pass that has not changed.
 
 ---
 

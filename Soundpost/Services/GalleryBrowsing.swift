@@ -243,6 +243,17 @@ struct GalleryPass {
     let capsules: [Capsule]
     /// Those capsules bucketed for display.
     let sections: [(section: GallerySection, capsules: [Capsule])]
+    /// The anticipation strip's items, or empty when a filter is active and the strip
+    /// is not shown.
+    ///
+    /// Here for the same reason the index is: `upcoming` was a computed property read
+    /// twice per body pass — once for `!upcoming.isEmpty` and once by the `ForEach`
+    /// that renders it — and each read walked and sorted the whole library. Computing
+    /// it under the same condition that decides whether it is shown means the
+    /// filtered case pays nothing, which the computed property also did not manage:
+    /// `!filterCriteria.isActive && !upcoming.isEmpty` evaluates left to right, so it
+    /// was free while filtering and doubled while not.
+    let upcoming: [PlannedNotification]
 
     var isEmpty: Bool { capsules.isEmpty }
     var count: Int { capsules.count }
@@ -258,11 +269,20 @@ struct GalleryPass {
         now: Date = .now,
         listening: Bool = SoundAnalysisPreferences.mayReveal
     ) -> GalleryPass {
+        // An empty library resolves nothing. The gallery is not shown at all in that
+        // case, and a person who has deleted every capsule can still have rejection
+        // rows: walking them to build an index nothing will read is work the computed
+        // properties this replaced did not do, because they sat in the `else` branch.
+        guard !capsules.isEmpty else {
+            return GalleryPass(rejecting: .none, capsules: [], sections: [], upcoming: [])
+        }
         let rejecting = SoundRejectionStore.index(among: rejections, now: now)
         let shown = GalleryFilter.apply(capsules, criteria, rejecting: rejecting,
                                         now: now, listening: listening)
         return GalleryPass(rejecting: rejecting, capsules: shown,
-                           sections: GallerySection.grouped(shown, now: now))
+                           sections: GallerySection.grouped(shown, now: now),
+                           upcoming: criteria.isActive ? []
+                                                       : UpcomingResurfaces.nearest(capsules, now: now))
     }
 }
 

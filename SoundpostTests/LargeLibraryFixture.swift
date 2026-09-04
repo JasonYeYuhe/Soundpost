@@ -54,7 +54,7 @@ enum LargeLibrary {
         rejectingEvery nth: Int = 0,
         answersPerKey: Int = 1,
         in context: ModelContext,
-        now: Date = Date(timeIntervalSince1970: 1_780_000_000)
+        now: Date = LargeLibrary.epoch
     ) throws -> [UUID] {
         var random = SplitMix64(seed: 0x5011_4D90_57AB_1E01)
         var ids: [UUID] = []
@@ -82,6 +82,26 @@ enum LargeLibrary {
             if index % 4 != 0 {
                 capsule.place = Place(latitude: 35.7, longitude: 139.7,
                                       name: Self.places[(index / 4) % Self.places.count])
+            }
+            // **A sealed lineage, and echoes.** Every capsule used to stop at
+            // `.captured` with no `sealUntil` and no `echoAt`, which left three things
+            // untested at scale and one measurement meaningless:
+            // `Criteria.sealedOnly` matched nothing, `isContentVisible` was true for
+            // every row so the hidden-content branch never ran, and
+            // `UpcomingResurfaces.nearest` was timed over a `compactMap` that produced
+            // no candidates and a sort of an empty array. A fixture that exercises one
+            // branch of every fork is the only kind worth measuring against.
+            //
+            // Every 8th is sealed with a future date (~12%, enough that the strip and
+            // the filter have material without hiding so much of the library that the
+            // display counts stop meaning anything), and every 9th of the rest carries
+            // a future echo.
+            if index % 8 == 0 {
+                capsule.sealUntil = now.addingTimeInterval(Double(86_400 * (1 + index % 30)))
+                capsule.sealTimeZoneID = "Asia/Tokyo"
+                try capsule.transition(to: .sealed)
+            } else if index % 9 == 0 {
+                capsule.echoAt = now.addingTimeInterval(Double(3_600 * (1 + index % 48)))
             }
             let vocabulary = Self.identifiers
             let first = vocabulary[Int(random.next() % UInt64(vocabulary.count))]
@@ -114,6 +134,16 @@ enum LargeLibrary {
         try context.save()
         return ids
     }
+
+    /// The fixture's clock. **Pass it to anything that takes a `now:`.**
+    ///
+    /// Every seeded date is relative to this, and it is a fixed point in the past —
+    /// which is what makes the fixture deterministic and is also a trap: a caller that
+    /// lets `now:` default to `.now` sees every future-dated seal as long expired.
+    /// `UpcomingResurfaces.nearest` returned an empty array for exactly that reason,
+    /// and the measurement built on it was timing a `compactMap` that produced no
+    /// candidates and a sort of nothing.
+    static let epoch = Date(timeIntervalSince1970: 1_780_000_000)
 
     /// Real identifiers, so the vocabulary and floor lookups do the work they do in
     /// production rather than falling out early on an unknown label.
