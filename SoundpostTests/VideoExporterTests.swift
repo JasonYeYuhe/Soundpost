@@ -16,6 +16,38 @@ private typealias Capsule = Soundpost.Capsule
 /// thread rather than the test's. Lock-guarded so the test can poll `latest` while
 /// the export is still running — that is what lets the cancel test fire off observed
 /// state instead of a hopeful sleep.
+/// Cancels a task the first time reported progress crosses a threshold.
+///
+/// The callback fires from inside the render, before the `Task` value exists in the
+/// test, so arming and attaching race by construction. Both orders are handled: a
+/// threshold crossed before `attach` cancels at `attach` instead. `Task.cancel()` is
+/// idempotent, so a callback that keeps firing costs nothing.
+private final class CancelAtThreshold: @unchecked Sendable {
+    private let threshold: Double
+    private let lock = NSLock()
+    private var task: Task<Void, Error>?
+    private var armed = false
+
+    init(_ threshold: Double) { self.threshold = threshold }
+
+    func attach(_ task: Task<Void, Error>) {
+        lock.lock()
+        self.task = task
+        let alreadyArmed = armed
+        lock.unlock()
+        if alreadyArmed { task.cancel() }
+    }
+
+    func progressed(to value: Double) {
+        guard value >= threshold else { return }
+        lock.lock()
+        armed = true
+        let task = self.task
+        lock.unlock()
+        task?.cancel()
+    }
+}
+
 private final class ProgressRecorder: @unchecked Sendable {
     private let lock = NSLock()
     private var recorded: [Double] = []
@@ -410,27 +442,42 @@ struct VideoExporterTests {
         #expect(values.count <= 101, "progress was reported \(values.count) times")
     }
 
-    /// Cancel has to actually stop the work and leave nothing behind. Timed off
-    /// observed *progress* rather than a sleep, so it is genuinely mid-render.
+    /// Cancel has to actually stop the work and leave nothing behind.
+    ///
+    /// **Cancelled from inside the progress callback, not from a polling loop.** This
+    /// test used to wait for `observed.latest >= 0.05` in 10 ms sleeps and then cancel,
+    /// which is a race the test loses under load: while the machine is busy the polling
+    /// task can be starved long enough for all ninety frames to finish between two
+    /// wakeups, and the cancel then arrives after the export has already returned a
+    /// finished file. It fails as three separate expectations — no error thrown,
+    /// progress at 1.0, an .mp4 on disk — which reads like a broken cancel rather than
+    /// a late one. Seen for real on 2026-09-05 in a full-suite run on a loaded machine,
+    /// green 3/3 in isolation immediately after.
+    ///
+    /// `export` invokes `progress` synchronously in its render loop between frames, and
+    /// checks cancellation between frames, so cancelling from within the callback lands
+    /// at a known frame no matter how the scheduler behaves.
     @Test func cancellingMidRenderStopsAndLeavesNoFile() async throws {
         let fixture = try makeFixture(seconds: 3.0)
         defer { try? FileManager.default.removeItem(at: fixture.root) }
 
         let input = try VideoExporter.input(for: fixture.capsule, in: fixture.workspace)
         let observed = ProgressRecorder()
-        let task = Task { try await VideoExporter.export(input) { observed.record($0) } }
-
-        // Wait until frames are genuinely being written (90 frames total, so 5% is
-        // very early and leaves the great majority of the render still to do).
-        var waited = 0
-        while observed.latest < 0.05 && waited < 500 {
-            try await Task.sleep(for: .milliseconds(10))
-            waited += 1
+        // 90 frames total, so 5% is very early and leaves the great majority of the
+        // render still to do.
+        let trigger = CancelAtThreshold(0.05)
+        // The result is discarded so the box can be typed `Task<Void, Error>` and stay
+        // independent of what `export` returns.
+        let task = Task {
+            _ = try await VideoExporter.export(input) {
+                observed.record($0)
+                trigger.progressed(to: $0)
+            }
         }
-        #expect(observed.latest > 0, "the render never started, so this proves nothing")
+        trigger.attach(task)
 
-        task.cancel()
         await #expect(throws: CancellationError.self) { _ = try await task.value }
+        #expect(observed.latest > 0, "the render never started, so this proves nothing")
 
         // It stopped early…
         #expect(observed.latest < 1.0)

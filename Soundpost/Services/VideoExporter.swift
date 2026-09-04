@@ -494,10 +494,17 @@ enum VideoExporter {
                 throw VideoExportError.writerFailed("finish (status \(writer.status.rawValue))")
             }
         } catch {
-            // Cancel first so the writer releases the file, then remove the partial
-            // output: a half-written .mp4 must never reach the share sheet. This is
-            // the cancellation path too — a user cancel arrives here as
-            // `CancellationError`, and leaves nothing behind either.
+            // A half-written .mp4 must never reach the share sheet. This is the
+            // cancellation path too — a user cancel arrives here as `CancellationError`,
+            // and leaves nothing behind either.
+            //
+            // Two mechanisms, deliberately kept both: `cancelWriting()` discards the
+            // file the writer owns, and the unlink covers the cases where it does not —
+            // a failure after `finishWriting`, or a writer already out of `.writing`.
+            // On the cancel path they are redundant, and it is `cancelWriting()` that
+            // does the removing: deleting the unlink alone leaves the test green
+            // (measured 2026-09-05). Neither line is dead; whichever is dropped, the
+            // other still has to be the one that covers its own case.
             if writer.status == .writing { writer.cancelWriting() }
             reader.cancelReading()
             try? FileManager.default.removeItem(at: input.outputURL)
@@ -549,9 +556,15 @@ enum VideoExporter {
         var reportedPercent = -1
 
         while !videoDone || !audioDone {
-            // The single cancellation point. A user's Cancel lands here between
-            // frames, so it takes effect within one frame's work rather than at the
-            // end of the render.
+            // The cancellation point that carries the *promptness* promise: a user's
+            // Cancel lands here between frames, so it takes effect within one frame's
+            // work rather than at the end of the render.
+            //
+            // It is not the only place cancellation can surface — the back-pressure
+            // `Task.sleep` below throws `CancellationError` too, and with this line
+            // deleted a cancel still eventually escapes through it. So a test that only
+            // asserts "cancel throws" cannot tell you this line is here; what it
+            // protects is *when*, not *whether* (measured 2026-09-05).
             try Task.checkCancellation()
             var progressed = false
 
