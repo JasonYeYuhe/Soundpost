@@ -74,7 +74,21 @@ struct CloudKitFieldCoverageTests {
                             "no checked-in \(environment) schema — run cloudkit-schema.sh check-fields")
     }
 
-    /// Record type → its `CD_` field names, parsed out of a `.ckdb` export.
+    /// Record type → **every** field name, parsed out of a `.ckdb` export.
+    ///
+    /// The first version kept only lines beginning with `CD_`, which was the whole
+    /// vocabulary of the question it was written for — the CoreData-mirrored entities.
+    /// It also meant `DeliveryIdentity`, this container's one hand-made record type
+    /// (M10 §S1), parsed as having **no fields at all**, so `userKey` could vanish from
+    /// Production and `productionHoldsEveryFieldDevelopmentDoes` would report green
+    /// over an empty set. That is this file's own subject, committed inside the file
+    /// about it.
+    ///
+    /// So it keeps every field line and rejects only what is structurally not one: the
+    /// `GRANT` clauses and the type's opening and closing lines. Quotes are stripped
+    /// because the metadata fields are spelled `"___etag"`, and splitting is on any
+    /// whitespace rather than on a literal space, so a tab-separated export cannot
+    /// fold a field name together with its type into one token that matches nothing.
     private func recordTypes(in schema: String) -> [String: Set<String>] {
         var types: [String: Set<String>] = [:]
         var current: String?
@@ -86,8 +100,10 @@ struct CloudKitFieldCoverageTests {
                 types[current!] = []
             } else if trimmed.hasPrefix(");") {
                 current = nil
-            } else if let type = current, trimmed.hasPrefix("CD_") {
-                types[type]?.insert(String(trimmed.prefix { $0 != " " }))
+            } else if let type = current, !trimmed.isEmpty, !trimmed.hasPrefix("GRANT ") {
+                if let name = trimmed.split(whereSeparator: \.isWhitespace).first {
+                    types[type]?.insert(name.trimmingCharacters(in: CharacterSet(charactersIn: "\"")))
+                }
             }
         }
         return types
@@ -100,14 +116,34 @@ struct CloudKitFieldCoverageTests {
         // subject is a check that could not fail for what was missing from it.
         #expect(development["CD_Capsule"]?.contains("CD_soundprintRaw") == true,
                 "the snapshot did not parse — got \(development.keys.sorted())")
+        // And it parsed the hand-made type too, whose fields carry no `CD_` prefix.
+        // This is the premise the first parser could not have stated, because it was
+        // the thing it got wrong.
+        #expect(development["DeliveryIdentity"]?.contains("userKey") == true,
+                "the parser is blind to record types CoreData did not create")
 
         var missing: Set<String> = []
         for entity in SoundpostModelContainer.productionSchema.entities {
             let recordType = "CD_\(entity.name)"
             let fields = try #require(development[recordType],
                                       "\(recordType) is not in the CloudKit schema at all")
-            for property in entity.properties where !fields.contains("CD_\(property.name)") {
-                missing.insert("\(recordType).CD_\(property.name)")
+            for property in entity.properties {
+                // `CD_<name>` holds for attributes, the composite ones (`mood`,
+                // `place`, `state`) included — those mirror as a single BYTES column.
+                // It does NOT hold for relationships: CloudKit mirrors a to-many as an
+                // auxiliary record type, not as a field, so this loop would demand a
+                // `CD_` column that is never going to exist and report a phantom gap.
+                // The model has no relationships today. This fails loudly on the day
+                // one is added rather than confusingly.
+                #expect(!(property is Schema.Relationship), """
+                    \(recordType).\(property.name) is a relationship. CloudKit mirrors \
+                    those as auxiliary record types rather than as a CD_ field, so this \
+                    gate's derivation does not describe them and needs extending before \
+                    that relationship ships.
+                    """)
+                if !fields.contains("CD_\(property.name)") {
+                    missing.insert("\(recordType).CD_\(property.name)")
+                }
             }
         }
 

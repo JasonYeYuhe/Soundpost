@@ -182,10 +182,20 @@ was written off, and §4C required an experiment before building anything on top
 
 **The experiment was run on 2026-09-05 and the conclusion is wrong.**
 
-* `CD_audioData` is `BYTES` and is present in the export, carrying
-  `QUERYABLE SORTABLE`. Every field in either export carries an index annotation:
-  **there are no unindexed fields for it to omit.** CoreData indexes everything it
-  mirrors, so the mechanism §14D proposed has no instance.
+* **The export emits unindexed fields.** `Users.roles LIST<INT64>` and every metadata
+  field (`"___createTime" TIMESTAMP`, `"___etag" STRING`, …) appear in both exports
+  carrying no index annotation at all. That is a direct counter-example to the stated
+  mechanism, visible in the checked-in artefact.
+
+  A first draft of this section argued the weaker and wronger version — "every field
+  carries an index annotation, so there are nothing unindexed to omit" — which is
+  false of the same file it was arguing from, and an external review caught it. It is
+  worth keeping the correction visible: an argument from *absence of instances* is
+  exactly the move this project keeps getting wrong, and here there was a positive
+  instance sitting twenty lines further down.
+* `CD_audioData` is `BYTES` and is present, carrying `QUERYABLE SORTABLE` — so the
+  externally-stored blob, the most plausible candidate for special treatment, is
+  mirrored and exported like anything else.
 * Read field by field against the CloudKit Console's own Development schema for
   `CD_Capsule`, the export matches **exactly** — the same fifteen record fields, the
   same index sets, the same six metadata fields, and the same one absent.
@@ -219,17 +229,43 @@ It has never been written a non-nil value — consistent with M10 far-future sea
 delivery never having worked in a shipped build — which is precisely why CoreData
 never created it.
 
-**The consequence is latent, not live.** While the field is nil everywhere, every
-device keeps its backstop: notifications still fire, and nothing is lost. But the
-moment server delivery starts working, one device sets the flag, the others never
-learn, and both the push and a local backstop fire. The bug M10 §4D's dedup section
-was written to prevent is armed and waiting behind a field that does not exist.
+**A first draft of this section called the consequence "latent, not live". That was
+too comfortable, and the review that caught it was right.** The two preconditions for
+the server path to complete are both already met in the field:
+
+* `SupabaseDeliveryBackend.functionsURL` is a hard-coded live URL, so
+  `backend.isConfigured` is **true in every shipped build**;
+* `DeliveryIdentity` reached **Production on 2026-08-28**, so
+  `identity.currentUserKey()` — the guard that used to make `reconcile` return early —
+  now returns a key for any signed-in user.
+
+So for a signed-in person with more than one device who seals a capsule more than 24h
+out, the sequence is: device A registers the job and sets `serverJobSyncedAt`; device
+A drops its local backstop; CloudKit **strips the field** because the schema has no
+column for it; device B syncs, sees `nil`, and keeps a local backstop for a seal the
+server already owns. On the day, device B gets the push *and* its own local
+notification.
+
+The delivery-time dedup M10 §4D added does not save it. `removeLocalSealRequests` runs
+from `willPresent` (foreground only) and `didReceive` (the user tapped) — neither
+fires for a push that arrives while the app is backgrounded and is not tapped, which
+is the ordinary case for a notification about a capsule opening. And
+`apns-collapse-id` collapses pushes against pushes, not a push against a local
+request.
+
+**What is genuinely unknown is whether the rest of the server path completes** — M18's
+record says far-future seal delivery has never been confirmed end to end. If it still
+fails somewhere else, `serverJobSyncedAt` is never set and nothing happens. That is
+the honest position, and it cuts the other way too: **the field has to be deployed
+before server delivery is confirmed working, or confirming it is what produces the
+duplicates.** It belongs before the next release, not after.
 
 Closing it needs a write of a non-nil value into Development and then a human deploy
-in the CloudKit Console (§4G) — both owner-owned steps. Until then it is recorded in
-`CloudKitFieldCoverageTests.knownAbsent` as an **equality**, not an allow-list: a
-second missing field fails, and so does this one being fixed without the record being
-updated. A gap that can be forgotten is the shape this project keeps rediscovering.
+in the CloudKit Console (§4G) — both owner-owned steps, now recorded in §8. Until
+then it is in `CloudKitFieldCoverageTests.knownAbsent` as an **equality**, not an
+allow-list: a second missing field fails, and so does this one being fixed without
+the record being updated. A gap that can be forgotten is the shape this project keeps
+rediscovering.
 
 ### 4C-ii. So the gate compares the app to the server, not the server to itself
 
@@ -481,8 +517,23 @@ milestone, which adds no category.
 
 ## 8. Human-in-the-loop checklist (needs Jason)
 
+0. **Deploy `CD_Capsule.CD_serverJobSyncedAt`, before the next release** (§4C-i).
+   The field the M10 cross-device backstop-drop depends on has never existed in
+   CloudKit, and both preconditions for the server path to complete are now met in the
+   field (`isConfigured` is a hard-coded live URL; `DeliveryIdentity` reached
+   Production 2026-08-28). Two steps, both owner-owned:
+   (a) make one signed-in device write a non-nil value — sealing a capsule more than
+       24h out on a signed-in device is what does it — so CoreData creates the field
+       in Development;
+   (b) deploy Development → Production in the CloudKit Console (`cktool` has no
+       deploy subcommand).
+   Then `scripts/cloudkit-schema.sh check-fields`, and remove the entry from
+   `CloudKitFieldCoverageTests.knownAbsent` — the suite fails until it is removed,
+   which is deliberate.
 1. **Release 1.8.0 when it is approved** — `python3 scripts/asc.py release`.
    `releaseType MANUAL`, unlike 1.7.0's auto-release: approved is not released.
+   **Item 0 first**: releasing is not what arms the duplicate — the field being
+   absent already does — but it is the moment more devices start running the path.
 2. **Production sync for corrections is still unverified** (M18). Two TestFlight
    devices, three minutes. If it fails, the 1.8.0 release note promising corrections
    follow iCloud must be corrected in 1.9.0.

@@ -239,27 +239,16 @@ cmd_promote() {
   echo "Then verify from here — it reads Production back, it does not trust the click:"
   echo "  $0 status"
   echo
+  # Everything below this `die` used to be the post-import verification, and it has
+  # been unreachable since the note above was written — `die` exits. Deleted rather
+  # than left in place: twenty lines of "verify what this run promoted" sitting under
+  # a command that promotes nothing is a reader being told the wrong thing by code
+  # that cannot run, which is worse than the absence it was covering for.
+  #
+  # The verification itself is not lost. `status` reads Production back, and
+  # `check-fields` compares both environments against a checked-in snapshot and the
+  # app's own schema (M19 §4C-ii). Verify with those, after the Console click.
   die "nothing was deployed by this run; see the steps above"
-
-  # Verify what this run was actually able to promote — the types Development held.
-  # Checking the full expectation here would report a *successful* partial promotion
-  # as a failure, which is the worst way to be wrong: it reads as "the import broke"
-  # when the import worked and the remaining type was never in scope.
-  fetch production "$WORK/prod-after.ckdb"
-  while read -r t; do
-    [ -z "$t" ] && continue
-    types_in "$WORK/dev.ckdb" | grep -qx "$t" || continue
-    types_in "$WORK/prod-after.ckdb" | grep -qx "$t" || die "$t still missing from Production after import"
-  done < <(expected_types)
-
-  if [ -n "$absent" ]; then
-    ok "Production now has everything Development could supply."
-    printf '\033[33m! Still missing (never in Development):\033[0m\n'
-    printf '%s' "$absent" | sed 's/^/  - /'
-    printf '\033[33m  The features that need them still do not work. Re-run status after seeding.\033[0m\n'
-  else
-    ok "Production now has every record type the app's schema implies."
-  fi
 }
 
 # Offline check, safe for CI: every entity the app ships must have a seed row, or its
@@ -357,6 +346,9 @@ cmd_check_models() {
 # That is a real case in this container right now: CD_Capsule.CD_serverJobSyncedAt.
 cmd_check_fields() {
   local snap="$PROJECT_DIR/docs/cloudkit-schema"
+  # `cp` into a directory that does not exist fails, and `set -e` would abort here on
+  # a fresh checkout with no explanation.
+  mkdir -p "$snap"
   local drifted=""
   for env in DEVELOPMENT PRODUCTION; do
     fetch "$env" "$WORK/$env.ckdb"
