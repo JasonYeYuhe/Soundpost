@@ -786,6 +786,21 @@ reachable today.
 
 ### 14D. The delta was NOT measured — and what the deployment actually contained
 
+> **Superseded in part by M19 §4C (2026-09-05).** The conclusion below — that
+> `export-schema` omits *unindexed* fields — is wrong. Every field in either export
+> carries an index annotation, `CD_audioData` (BYTES) included; there are no unindexed
+> fields to omit, and read field by field against the CloudKit Console the export
+> matches exactly. What actually happened is that CoreData creates a Development field
+> only when a record carrying a value for it is first written, so `CD_soundprintRaw`
+> was genuinely absent when this export was taken and had been created by the time the
+> Console deploy ran. The correction matters because it points at a different check:
+> the untrustworthy comparison is not Dev against Prod, it is either of them against
+> what the **app declares**. M19 §4C-i found a field missing from both.
+>
+> Everything below about the *process* failure — a diff over whatever subset the tool
+> chose to serialise, presented as a complete one — stands, and is why the experiment
+> was run before anything was built on it.
+
 **This section previously claimed the Dev→Prod delta had been verified by field and
 was exactly `DeliveryIdentity(userKey)`. That was wrong, and the correction matters
 more than the original claim did.**

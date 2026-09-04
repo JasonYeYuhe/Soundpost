@@ -98,7 +98,7 @@ Verified against `master` @ `4b21faf`, 1.7.0 **live** (`READY_FOR_SALE`), 529 te
 | Why a mutable synced row loses an answer | `ListeningConsentStore.set`'s doc comment |
 | Reveal prose is generated from labels **as facts**, unattributed | `SoundSummaryWriter.swift:339` instructions, `:354` prompt |
 | The schema gate sees record **types**, derived from `Schema([...])` | `scripts/cloudkit-schema.sh:48` |
-| `cktool export-schema` omits unindexed fields — no CLI diff is field-complete | M17 §14D |
+| ~~`cktool export-schema` omits unindexed fields~~ — **false, corrected by M19 §4C**: the export matches the Console field for field. The real gap is that neither environment holds a field the app declares but has never written | M17 §14D, M19 §4C |
 | `promote` cannot deploy; the Console is the only path | M17 §14D, `cloudkit-schema.sh` |
 | Orphaned audio is counted, never swept, and why | `Services/AudioOrphanAudit.swift` |
 | CloudKit Production holds CD_Capsule (+CD_soundprintRaw), CD_ListeningConsent, DeliveryIdentity, Users | `cloudkit-schema.sh status` |
@@ -297,7 +297,8 @@ pay the cost. **This is the one product call in M18 that Jason may want to overt
 
 The promotion for `SoundRejection` is a **new record type**, which
 `cloudkit-schema.sh status` can see. Nothing else about the tooling improved: the
-export still omits unindexed fields and `promote` still cannot deploy. So the sequence
+export was believed to omit unindexed fields (M19 §4C found otherwise) and `promote`
+still cannot deploy. So the sequence
 is fixed and non-negotiable:
 
 1. `-initializeCloudKitSchema` on a simulator signed into iCloud — **run it twice**;

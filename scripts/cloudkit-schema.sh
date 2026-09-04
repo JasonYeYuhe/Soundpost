@@ -340,10 +340,53 @@ cmd_check_models() {
   ok "Every @Model the app declares is in the shipping schema ($(printf '%s' "$declared" | tr '\n' ' '))."
 }
 
+# ---- check-fields: the checked-in snapshot must still be what the server says ----
+#
+# `CloudKitFieldCoverageTests` compares the app's declared fields against
+# `docs/cloudkit-schema/*.ckdb`, offline, so it runs in CI and in the suite. That is
+# only worth anything while those files are what the server actually holds. This is
+# what refreshes them and fails if they had drifted.
+#
+# It exists because of what M19 §4C found. M17 §14D concluded `export-schema` "omits
+# unindexed fields" and wrote off every gate built on it. Checked field by field
+# against the CloudKit Console's own Development schema on 2026-09-05, the export
+# matches exactly — same fields, same index sets. The export is field-complete for
+# what the server HOLDS. What no diff between two server environments can see is a
+# field the app declares that neither environment has, because CoreData creates a
+# Development field only when a record carrying a value for it is first written.
+# That is a real case in this container right now: CD_Capsule.CD_serverJobSyncedAt.
+cmd_check_fields() {
+  local snap="$PROJECT_DIR/docs/cloudkit-schema"
+  local drifted=""
+  for env in DEVELOPMENT PRODUCTION; do
+    fetch "$env" "$WORK/$env.ckdb"
+    if [ ! -f "$snap/$env.ckdb" ]; then
+      cp "$WORK/$env.ckdb" "$snap/$env.ckdb"
+      printf '  wrote a first snapshot for %s\n' "$env"
+    elif ! diff -q "$snap/$env.ckdb" "$WORK/$env.ckdb" >/dev/null; then
+      printf '\033[31m✗ %s has drifted from the checked-in snapshot:\033[0m\n' "$env" >&2
+      # `|| true`: `diff` exits 1 when files differ, and this file runs under
+      # `set -o pipefail`, so the pipeline's status is 1 and `set -e` aborts here —
+      # after the message and before the refresh below. The first version of this
+      # function printed "drifted", promised a refresh, and exited without doing it.
+      diff "$snap/$env.ckdb" "$WORK/$env.ckdb" | sed 's/^/    /' >&2 || true
+      cp "$WORK/$env.ckdb" "$snap/$env.ckdb"
+      drifted="$drifted $env"
+    fi
+  done
+  if [ -n "$drifted" ]; then
+    die "Snapshots refreshed for$drifted. Commit them, and read the diff before you do:
+    a field appearing in DEVELOPMENT still needs a human deploy in the Console to
+    reach PRODUCTION, and CloudKitFieldCoverageTests.knownAbsent may need updating."
+  fi
+  ok "Both schema snapshots match the server."
+}
+
 case "${1:-status}" in
   status)       cmd_status ;;
   promote)      cmd_promote ;;
   check-seed)   cmd_check_seed ;;
   check-models) cmd_check_models ;;
-  *) die "usage: $0 [status|promote|check-seed|check-models]" ;;
+  check-fields) cmd_check_fields ;;
+  *) die "usage: $0 [status|promote|check-seed|check-models|check-fields]" ;;
 esac

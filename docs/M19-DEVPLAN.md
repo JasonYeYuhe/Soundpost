@@ -173,29 +173,77 @@ person's iCloud on 2026-08-31 (`a3139db`). Every fixture container passes
 `cloudKitDatabase: .none`, and `DemoDataIsolationTests` is the guard that already
 exists for the same mistake.
 
-### 4C. The schema tool begins with an experiment, because the premise is in doubt
+### 4C. The schema tool begins with an experiment — and the premise was false
 
-M17 §14D states that `cktool export-schema` omits unindexed fields, and offers
-`CD_soundprintRaw` as proof: `grep -c soundprintRaw` over both exports returned 0.
+M17 §14D states that `cktool export-schema` omits unindexed fields, offering
+`CD_soundprintRaw` as proof: it was missing from both exports while the CloudKit
+Console listed it as a field to deploy. On that basis every gate built on the export
+was written off, and §4C required an experiment before building anything on top of it.
 
-**That is no longer true.** On 2026-09-01 the same grep returns 1, and
-`CD_soundprintRaw` appears in both exports carrying `QUERYABLE SEARCHABLE SORTABLE`.
-Either the field gained an index during the M18 deploy, or the original diagnosis was
-wrong about the mechanism. Nobody knows which, and the difference decides what can be
-built:
+**The experiment was run on 2026-09-05 and the conclusion is wrong.**
 
-- if the export omits **unindexed** fields, and CoreData+CloudKit indexes everything
-  it mirrors on deploy, then a post-deploy export *is* field-complete and the tool is
-  a straightforward derive-and-compare;
-- if it omits fields for some other reason, no diff built on it can be trusted and
-  the honest deliverable is a **recorded human confirmation** — a checked-in snapshot
-  of what the Console showed, dated and signed off — rather than a script that
-  pretends to know.
+* `CD_audioData` is `BYTES` and is present in the export, carrying
+  `QUERYABLE SORTABLE`. Every field in either export carries an index annotation:
+  **there are no unindexed fields for it to omit.** CoreData indexes everything it
+  mirrors, so the mechanism §14D proposed has no instance.
+* Read field by field against the CloudKit Console's own Development schema for
+  `CD_Capsule`, the export matches **exactly** — the same fifteen record fields, the
+  same index sets, the same six metadata fields, and the same one absent.
 
-So **S2 starts by measuring**: add a field that CoreData will not index, export, and
-look. Only then choose. Building the clever version first is precisely how §14D's
-diff came to be presented as complete when it was not — and that mistake was made
-while writing the section congratulating the project for catching such mistakes.
+So the export **is** field-complete for what the server holds, and a Dev→Prod diff
+built on it can be trusted. §14D should be read as corrected by this section.
+
+**What actually happened in M17** is a different mechanism with the same symptom.
+CoreData creates a Development field the first time a record carrying a value for it
+is written; a field nothing has ever written does not exist server-side at all.
+`CD_soundprintRaw` was genuinely absent from Development when M17 exported, and had
+been created by the time the Console deploy was run. Not an export defect — an export
+taken before the field existed.
+
+The distinction decides what is worth building, and it is the opposite of what §14D
+implied. A diff between two server environments cannot see a field the **app**
+declares that neither environment has, because it is missing from both and the
+comparison is symmetric. That is not hypothetical:
+
+### 4C-i. `Capsule.serverJobSyncedAt` is not in the CloudKit schema. It never was.
+
+`CD_Capsule` has fifteen fields in Development and the same fifteen in Production.
+`Capsule` declares sixteen. The one the server has never heard of is
+`serverJobSyncedAt` — M10 §4D's cross-device coordination flag, whose own doc comment
+says it is "synced to the user's other devices via M9 CloudKit", and which
+`NotificationPlanner` reads to decide whether a device may drop its **local**
+notification backstop. It is the mechanism that makes exactly one notification fire
+per resurfacing across a person's devices.
+
+It has never been written a non-nil value — consistent with M10 far-future seal
+delivery never having worked in a shipped build — which is precisely why CoreData
+never created it.
+
+**The consequence is latent, not live.** While the field is nil everywhere, every
+device keeps its backstop: notifications still fire, and nothing is lost. But the
+moment server delivery starts working, one device sets the flag, the others never
+learn, and both the push and a local backstop fire. The bug M10 §4D's dedup section
+was written to prevent is armed and waiting behind a field that does not exist.
+
+Closing it needs a write of a non-nil value into Development and then a human deploy
+in the CloudKit Console (§4G) — both owner-owned steps. Until then it is recorded in
+`CloudKitFieldCoverageTests.knownAbsent` as an **equality**, not an allow-list: a
+second missing field fails, and so does this one being fixed without the record being
+updated. A gap that can be forgotten is the shape this project keeps rediscovering.
+
+### 4C-ii. So the gate compares the app to the server, not the server to itself
+
+`CloudKitFieldCoverageTests` derives the expected fields from the app's **runtime**
+`Schema` — the same not-a-list discipline as M18 §4H's `ModelRegistrationTests`, which
+reads the built binary rather than a hand-kept array — and compares them against a
+checked-in export in `docs/cloudkit-schema/`. It runs offline, so it is in the suite
+and in CI. `scripts/cloudkit-schema.sh check-fields` re-exports and fails if those
+snapshots have drifted, so the thing the test reads cannot go stale silently.
+
+Writing that subcommand produced one more instance of the family, in the tool itself:
+`diff … | sed …` under `set -o pipefail` returns 1, so `set -e` aborted the function
+**after** printing "drifted" and promising a refresh and **before** performing it. It
+reported the problem and did not do the thing it said it would.
 
 ### 4D. The almanac shows up in the gallery, not on the lock screen
 
