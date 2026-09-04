@@ -294,11 +294,13 @@ enum AppEnvironment {
     /// states the app actually produces, from the real UI, with real demo data. This
     /// enters the real views by setting the same state a tap would — it does not
     /// assemble a picture of them.
+    #if DEBUG
     static var screenshotScreen: String? {
         guard let index = CommandLine.arguments.firstIndex(of: "-screenshotScreen"),
               CommandLine.arguments.indices.contains(index + 1) else { return nil }
         return CommandLine.arguments[index + 1]
     }
+    #endif
 
     /// Debug-only: run the headless audio-pipeline self-test instead of the UI.
     static var isAudioSelfTest: Bool {

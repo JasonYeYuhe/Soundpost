@@ -27,8 +27,16 @@ def read_png(path):
         body = data[pos + 8:pos + 8 + length]
         if kind == b"IHDR":
             width, height, depth, colour = struct.unpack(">IIBB", body[:10])
+            interlace = body[12]
             if depth != 8 or colour not in (2, 6):
                 raise ValueError(f"{path}: depth {depth} colour {colour} unsupported")
+            # Adam7 stores seven sub-images rather than full scanlines. The loop below
+            # would read them as rows and either raise or, worse, produce plausible
+            # noise that passes a variance test — a check reporting "not blank" about
+            # garbage. `simctl io screenshot` never emits one; if that ever changes,
+            # this says so instead of guessing.
+            if interlace != 0:
+                raise ValueError(f"{path}: interlaced PNGs are not decoded here")
             channels = 3 if colour == 2 else 4
         elif kind == b"IDAT":
             idat += body

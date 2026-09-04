@@ -38,7 +38,10 @@ CLAIMS = {
         "search":     ["音から思い出を探せる", "どんな音だったか"],
     },
     "zh-Hans": {
-        "listening":  ["听出那段录音里是什么", "只在设备上聆听"],
+        # Distinct phrases per claim. `只在设备上聆听` used to satisfy both, so one
+        # string was carrying two guarantees — and a rewrite dropping the paragraph
+        # that says WHERE the listening happens would have left both green.
+        "listening":  ["听出那段录音里是什么", "为听到的声音命名"],
         "on-device":  ["完全在你的 iPhone 上完成", "只在设备上聆听"],
         "correction": ["不是这个"],
         "search":     ["凭声音找回", "那时听起来是什么"],
