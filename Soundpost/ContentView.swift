@@ -51,18 +51,26 @@ struct ContentView: View {
     private var palette: MoodPalette { MoodPalette(stored: moodPaletteRaw) }
 
     var body: some View {
-        NavigationStack(path: $path) {
+        // **The one resolution.** Held in a `let` for the whole body evaluation and
+        // handed to the gallery and to both one-capsule sheets, so there is no
+        // computed property anywhere in this file that returns a `RejectionIndex` —
+        // which is what made the old bug invisible. `contentViewResolvesRejections\
+        // OnlyThroughOnePass` is the guard, and it can be a simple "this file never
+        // calls the resolver" because of this line.
+        let pass = GalleryPass.make(capsules: capsules, rejections: rejections,
+                                    criteria: filterCriteria)
+        return NavigationStack(path: $path) {
             Group {
                 if capsules.isEmpty {
                     emptyState
                 } else {
-                    gallery
+                    gallery(pass)
                 }
             }
             .searchable(text: $searchText, prompt: Text("Search your sounds"))
             .navigationTitle("Soundpost")
             .navigationDestination(for: Capsule.self) {
-                CapsuleDetailView(capsule: $0, rejecting: rejectionIndex,
+                CapsuleDetailView(capsule: $0, rejecting: pass.rejecting,
                                   onFindSimilar: findSimilar)
             }
             .toolbar {
@@ -85,7 +93,7 @@ struct ContentView: View {
             .sheet(isPresented: $showingCapture) { CaptureView() }
             .sheet(isPresented: $showingSettings) { SettingsView() }
             .fullScreenCover(item: $revealCapsule, onDismiss: requestReviewIfEarned) { capsule in
-                ResurfaceView(capsule: capsule, rejecting: rejectionIndex) {
+                ResurfaceView(capsule: capsule, rejecting: pass.rejecting) {
                     reviewAfterReveal = true
                 }
             }
@@ -136,32 +144,22 @@ struct ContentView: View {
         }
     }
 
-    /// The rejections, resolved once per pass (M18 §4B).
-    ///
-    /// Resolution — grouping rows by `(capsuleID, identifier)`, clamping their dates
-    /// and applying the tie-break — happens **here**, once, and every card then asks
-    /// the result a `Set` question. The shape that would have been a performance bug
-    /// is the other one: a card resolving winners for itself, or fetching, on a body
-    /// pass that already re-walks the library several times.
-    ///
-    /// Cost is O(rejection rows), and rejections are rare and deliberate by
-    /// construction — compaction leaves one per answered key. That is strictly less
-    /// than `sealSignature` below, which builds a string from every capsule on every
-    /// pass. It is still unmeasured, like every other performance claim here: nothing
-    /// in the suite seeds more than a handful of capsules, and the large-library
-    /// fixture is named as this milestone's most likely follow-on (§11).
-    private var rejectionIndex: RejectionIndex {
-        SoundRejectionStore.index(among: rejections)
-    }
+    // There is deliberately no `rejectionIndex` computed property here any more.
+    //
+    // There was one, and its own doc comment described the design correctly —
+    // resolution "happens here, once, and every card then asks the result a `Set`
+    // question". That was M18 §4B's argument, and it was not what the code did: a
+    // computed property is evaluated at every use, and `rejecting: rejectionIndex`
+    // sat inside a `ForEach`. Every rendered card walked the whole rejection table,
+    // and so did each of the three reads of `displayed`. The comment ended by
+    // admitting the cost was "still unmeasured"; M19 §4B measured it (§4B-ii).
+    //
+    // The lesson is not that the property was written wrong — it read correctly at
+    // every use site, which is exactly why nobody saw it. It is that a resolver
+    // reachable by name from anywhere in a `body` will eventually be read inside a
+    // loop. `GalleryPass` stores its results, `body` builds one, and this file no
+    // longer contains a call to the resolver at all.
 
-    /// Filtered + searched capsules (metadata-only, visibility-aware — §S6).
-    ///
-    /// The index is built once above and handed to the single walk `apply` already
-    /// does, so search and the sound facet honour a correction without either one
-    /// reaching for the store per capsule per keystroke (M18 §4B).
-    private var displayed: [Capsule] {
-        GalleryFilter.apply(capsules, filterCriteria, rejecting: rejectionIndex)
-    }
 
     private var filterCriteria: GalleryFilter.Criteria {
         GalleryFilter.Criteria(searchText: searchText, moods: filterMoods,
@@ -173,23 +171,26 @@ struct ContentView: View {
         UpcomingResurfaces.nearest(capsules)
     }
 
-    private var gallery: some View {
+    /// - Parameter pass: built once in `body`. Taken as a parameter rather than read
+    ///   from a property so that this view cannot be rendered without one having been
+    ///   made, and cannot make a second.
+    private func gallery(_ pass: GalleryPass) -> some View {
         ScrollView {
             LazyVStack(spacing: 16, pinnedViews: [.sectionHeaders]) {
                 // "Coming up" anticipation strip — only on the unfiltered home view,
                 // so it stays a calm header, not chrome layered over a search.
                 if !filterCriteria.isActive && !upcoming.isEmpty { upcomingStrip }
                 filterBar
-                if displayed.isEmpty {
+                if pass.isEmpty {
                     noMatches
                 } else {
-                    ForEach(GallerySection.grouped(displayed), id: \.section.id) { group in
+                    ForEach(pass.sections, id: \.section.id) { group in
                         Section {
                             ForEach(group.capsules) { capsule in
                                 // No wrapping `Button`: the card owns its surface tap
                                 // so its play control can be a sibling rather than a
                                 // second button nested inside this one (M16 §4E).
-                                CapsuleCard(capsule: capsule, rejecting: rejectionIndex) {
+                                CapsuleCard(capsule: capsule, rejecting: pass.rejecting) {
                                     openCapsule(capsule)
                                 }
                                     .transition(.scale(scale: 0.96).combined(with: .opacity))
@@ -202,7 +203,7 @@ struct ContentView: View {
                 storageFooter
             }
             .padding()
-            .animation(.spring(duration: 0.35), value: displayed.count)
+            .animation(.spring(duration: 0.35), value: pass.count)
         }
     }
 

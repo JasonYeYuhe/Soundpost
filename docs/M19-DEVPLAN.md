@@ -239,39 +239,74 @@ the version that starts lying.
 ### 4B-i. The measurements (S1, taken 2026-09-05)
 
 Recorded here because §10 asks for a number rather than a paragraph. iPhone 17
-simulator, best of three, in-memory store. Each measured block is repeated until it
-takes tens of milliseconds — see below for why that mattered.
+simulator, best of three, in-memory store. **The table is per call.** Each block is
+timed as a repeated loop — 3, 5 or 200 iterations, enough to take tens of
+milliseconds — and the figure below is that total divided by the count. The test's
+own console output prints the same per-call figure; it used to print the loop total
+under a per-call label, which made the lookup row look 200× more expensive than it is.
 
 | Operation | small | large | ratio |
 |---|---|---|---|
-| `GalleryFilter.apply`, search active | 1,000 caps → **17.0 ms** | 4,000 caps → **68.7 ms** | **4.04×** |
-| `SoundRejectionStore.index(among:)`, 3 answers/key | 3,000 rows → **7.3 ms** | 12,000 rows → **28.4 ms** | **3.87×** |
-| `RejectionIndex.sounds(for:)` × every capsule | 1,000 → **0.128 ms** | 4,000 → **0.525 ms** | **4.11×** |
+| `GalleryFilter.apply`, search active | 1,000 caps → **16.4 ms** | 4,000 caps → **65.3 ms** | **3.98×** |
+| `SoundRejectionStore.index(among:)`, 3 answers/key | 3,000 rows → **6.8 ms** | 12,000 rows → **27.5 ms** | **4.04×** |
+| `RejectionIndex.sounds(for:)` × every capsule | 1,000 → **0.12 ms** | 4,000 → **0.49 ms** | **4.16×** |
 
-All three are linear. M18 §4B's argument survives contact with a measurement, and
-the lookup it worried most about costs ~0.13 µs per capsule — the cheapest thing here.
-
-**One number is worth carrying forward rather than celebrating.** Filtering 4,000
-capsules with an active search is ~69 ms, and `displayed` is a computed property read
-from `body`. That is not a bug and not a regression — it is linear, and it is the cost
-of walking a large library — but at that size it is a visible hitch per keystroke, and
-it is the honest answer to "is the gallery fast enough at 4,000?": *not obviously*.
-Nothing in this milestone changes it; a debounced or cached search is now a §11
-candidate with a measurement behind it instead of a hunch.
+All three are linear. Every algorithm M18 §4B chose is the right one, and the lookup
+it worried most about costs ~0.12 µs per capsule — the cheapest thing here.
 
 **Two things an external review changed about how these were taken**, both of which
-had made the first set of numbers less trustworthy than they looked:
+had made the first set less trustworthy than it looked:
 
-* The measured blocks were originally as short as **0.12 ms**. At that scale the
-  "a ratio cancels load" argument fails: a macOS scheduling slice is 5–10 ms and the
-  thread can migrate between a performance and an efficiency core between two samples,
-  either of which moves a sub-millisecond figure by more than the signal. The blocks
-  are now repeated to tens of milliseconds.
-* `index(among:)` was measured against **one answer per key**, where
-  `winner(amongRowsForOneKey:)` is `Array.max(by:)` over a single element and returns
+* Blocks as short as **0.12 ms** were being timed. At that scale the "a ratio cancels
+  load" argument fails: a scheduling slice is 5–10 ms, and a thread can move between a
+  performance and an efficiency core between two samples. Either moves a
+  sub-millisecond figure by more than the signal.
+* `index(among:)` was measured with **one answer per key**, where
+  `winner(amongRowsForOneKey:)` is `max(by:)` over a single element and returns
   *without calling the comparator*. The clamping, the ordering and the tie-break — the
-  whole algorithm the row claims to measure — never ran. It is now three answers per
-  key, which is also the shape a real library carries between compactions.
+  whole algorithm the row claims to time — never ran. Three answers per key now, which
+  is also the shape a real library carries between compactions.
+
+### 4B-ii. What the measurements were actually for
+
+The three rows above say every algorithm was chosen correctly. The gallery was still
+slow, and the reason had nothing to do with any of them.
+
+`ContentView` exposed the resolved rejections as a computed property:
+
+```swift
+private var rejectionIndex: RejectionIndex { SoundRejectionStore.index(among: rejections) }
+private var displayed: [Capsule] { GalleryFilter.apply(capsules, filterCriteria, rejecting: rejectionIndex) }
+```
+
+and its body read them like stored values — `displayed` three times (the empty check,
+the sections, the animation value) and `rejectionIndex` **once per rendered card**,
+inside the `ForEach`. Every card walked the entire rejection table. At 4,000 capsules
+that is 27 ms per visible card plus three full filters, several hundred milliseconds
+of main thread per body pass, and a keystroke triggers a body pass.
+
+**Nothing in the suite could see it, and the reason is the interesting part.** M18 §4B
+argued the case correctly and at length — resolution happens once in the gallery,
+never per card — and the property's own doc comment restated it. The code did the
+opposite for two milestones. The counters that were supposed to prove it counted
+*fetches*, and the gallery holds its rejections in a `@Query`: it performs **zero**
+fetches, so `theWholeTableIndexIsOneFetch` and
+`theDisplayPolicyCostsNoFetchesPerCapsule` were both green over the broken
+implementation. Resolution and reading are different costs. §4B promised a build count
+as its own guard and S1 did not write one; that omission is what let this stand.
+
+The fix is a value, not a smaller function. `GalleryPass` holds the index, the filtered
+capsules and the sections as **stored** properties, `body` makes one and hands it to the
+gallery and to both sheets, and `ContentView` no longer names the resolver at all.
+Reading a stored property cannot recompute it, which is the property the old code
+lacked — it was not written wrong, it read correctly at every use site, and that is
+exactly why nobody saw it.
+
+What remains true after the fix: filtering 4,000 capsules with an active search costs
+~65 ms, once per body pass rather than three times. Not a regression — that is what
+walking a large library costs — but it is a visible hitch per keystroke, and it is the
+honest answer to "is the gallery fast enough at 4,000?": *not obviously*. A debounced
+or cached search is a §11 candidate with a measurement behind it instead of a hunch.
 
 ---
 

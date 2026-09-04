@@ -30,6 +30,10 @@ struct LargeLibraryPerformanceTests {
     /// waking up; the minimum of three is the closest cheap estimate of "how long
     /// this takes when the machine is not interfering", which is the quantity the
     /// ratio is about.
+    /// Returns the **total for `repeating` iterations**, not the per-call time. Every
+    /// caller that prints a per-call figure divides — the printed line used to show
+    /// the loop total under a per-call label, which made
+    /// `RejectionIndex.sounds(for:)` look 200× more expensive than it is.
     private func bestOfThree(repeating: Int = 1, _ body: () -> Void) -> Duration {
         var best = Duration.seconds(3600)
         for _ in 0..<3 {
@@ -87,11 +91,14 @@ struct LargeLibraryPerformanceTests {
         let ratio = seconds(t4) / max(seconds(t1), 1e-9)
         print("""
             M19 §4B  GalleryFilter.apply
-              1,000 capsules: \(String(format: "%.2f", seconds(t1) * 1000)) ms
-              4,000 capsules: \(String(format: "%.2f", seconds(t4) * 1000)) ms
+              1,000 capsules: \(String(format: "%.2f", seconds(t1) * 1000 / 3)) ms
+              4,000 capsules: \(String(format: "%.2f", seconds(t4) * 1000 / 3)) ms
               ratio: \(String(format: "%.2f", ratio))×  (linear ≈ 4, quadratic ≈ 16)
             """)
-        #expect(ratio < 10, "4× the capsules cost \(String(format: "%.1f", ratio))× the time — that is not a linear walk")
+        // 8, not 10. Clean is 3.9–4.0× and the quadratic mutation is 15.7×, so the
+        // bound sits nearly four standard deviations from the signal on both sides;
+        // 10 was closer to the failure it was meant to catch than to the truth.
+        #expect(ratio < 8, "4× the capsules cost \(String(format: "%.1f", ratio))× the time — that is not a linear walk")
         // And the premise: the filter is actually doing work, not returning early.
         #expect(!GalleryFilter.apply(largeRows, criteria, rejecting: largeIndex, listening: true).isEmpty)
     }
@@ -138,8 +145,8 @@ struct LargeLibraryPerformanceTests {
         let ratio = seconds(t4) / max(seconds(t1), 1e-9)
         print("""
             M19 §4B  SoundRejectionStore.index(among:) — 3 answers per key
-              1,000 keys / 3,000 rows:  \(String(format: "%.2f", seconds(t1) * 1000)) ms
-              4,000 keys / 12,000 rows: \(String(format: "%.2f", seconds(t4) * 1000)) ms
+              1,000 keys / 3,000 rows:  \(String(format: "%.2f", seconds(t1) * 1000 / 5)) ms
+              4,000 keys / 12,000 rows: \(String(format: "%.2f", seconds(t4) * 1000 / 5)) ms
               ratio: \(String(format: "%.2f", ratio))×
             """)
         #expect(ratio < 8)
@@ -174,8 +181,8 @@ struct LargeLibraryPerformanceTests {
         let ratio = seconds(t4) / max(seconds(t1), 1e-9)
         print("""
             M19 §4B  RejectionIndex.sounds(for:) over every capsule
-              1,000 lookups against 1,000 keys: \(String(format: "%.2f", seconds(t1) * 1000)) ms
-              4,000 lookups against 4,000 keys: \(String(format: "%.2f", seconds(t4) * 1000)) ms
+              1,000 lookups against 1,000 keys: \(String(format: "%.2f", seconds(t1) * 1000 / 200)) ms
+              4,000 lookups against 4,000 keys: \(String(format: "%.2f", seconds(t4) * 1000 / 200)) ms
               ratio: \(String(format: "%.2f", ratio))×  (hash ≈ 4, scan ≈ 16)
             """)
         #expect(ratio < 8, """
@@ -198,7 +205,7 @@ struct LargeLibraryPerformanceTests {
         // read the table would satisfy it, which is the bug most worth catching here.
         let wanted = Array(ids.prefix(200))
 
-        let counter = SoundRejectionStore.FetchCounter()
+        let counter = SoundRejectionStore.Counter()
         let index = try SoundRejectionStore.$fetchCounter.withValue(counter) {
             try SoundRejectionStore.index(forCapsules: wanted, in: context)
         }
@@ -224,7 +231,7 @@ struct LargeLibraryPerformanceTests {
         let context = try LargeLibrary.makeStore()
         try LargeLibrary.seed(capsules: 2_000, rejectingEvery: 5, in: context)
 
-        let counter = SoundRejectionStore.FetchCounter()
+        let counter = SoundRejectionStore.Counter()
         let index = try SoundRejectionStore.$fetchCounter.withValue(counter) {
             try SoundRejectionStore.index(in: context)
         }
@@ -249,17 +256,115 @@ struct LargeLibraryPerformanceTests {
         let index = try SoundRejectionStore.index(in: context)
         let capsules = try context.fetch(FetchDescriptor<Capsule>())
 
-        let counter = SoundRejectionStore.FetchCounter()
+        // **Both surfaces.** `.card` alone was not enough: it returns at
+        // `if surface == .card, hasNote(capsule)`, and the fixture gives notes to two
+        // of every three capsules, so two thirds of this loop used to be a note check
+        // and nothing else. `.detail` has no such short-circuit — it is the surface
+        // that always reaches `Soundprint(stored:)` — and it is what
+        // `CapsuleDetailView` and `ResurfaceView` actually render.
+        let counter = SoundRejectionStore.Counter()
         var shown = 0
+        var reached = 0
         SoundRejectionStore.$fetchCounter.withValue(counter) {
             for capsule in capsules {
-                shown += SoundprintDisplay.heard(for: capsule, on: .card, rejecting: index,
-                                                 listening: true).count
+                for surface in [SoundprintDisplay.Surface.card, .detail] {
+                    let heard = SoundprintDisplay.heard(for: capsule, on: surface,
+                                                       rejecting: index, listening: true)
+                    shown += heard.count
+                    if !heard.isEmpty { reached += 1 }
+                }
             }
         }
         #expect(counter.count == 0,
                 "the display policy performed \(counter.count) store reads over \(capsules.count) capsules")
         #expect(shown > 0, "and it actually produced labels, so this is not a count of nothing")
+        // The premise the `.card`-only version could not state: the loop got past the
+        // note short-circuit often enough for the count to mean something.
+        #expect(reached > capsules.count,
+                "only \(reached) of \(capsules.count * 2) calls produced anything — too many returned early")
+    }
+
+    /// **The count M19 §4B promised and M18 §4B assumed**: `RejectionIndex` is built
+    /// once per gallery pass, not once per card.
+    ///
+    /// This is the assertion that was missing for two milestones, and the gallery was
+    /// wrong for both of them. No fetch counter could have found it: the gallery holds
+    /// its rejections in a `@Query` and performs **zero** fetches, so
+    /// `theWholeTableIndexIsOneFetch` and `theDisplayPolicyCostsNoFetchesPerCapsule`
+    /// were both green over an implementation that walked the whole rejection table
+    /// once per rendered card. Resolution and reading are different costs and need
+    /// different counters.
+    ///
+    /// It counts a `GalleryPass`, not a `ContentView`: a body is not something this
+    /// suite can evaluate without a UI-test target, which the milestone does not have.
+    /// What makes that enough is that the pass now holds its three results in stored
+    /// properties, so a view cannot recompute them by reading them —
+    /// `contentViewMakesExactlyOneGalleryPass` covers the remaining half, that the
+    /// view builds one pass rather than one per card.
+    @Test func aGalleryPassResolvesTheIndexOnceNoMatterHowManyCapsules() throws {
+        let context = try LargeLibrary.makeStore()
+        try LargeLibrary.seed(capsules: 4_000, rejectingEvery: 7, answersPerKey: 3, in: context)
+        let capsules = try context.fetch(FetchDescriptor<Capsule>())
+        let rejections = try context.fetch(FetchDescriptor<SoundRejection>())
+        // Every 7th capsule is answered, three times each: 572 keys, 1,716 rows. Stated
+        // exactly rather than as `> 0`, so a fixture change that quietly stopped
+        // seeding rejections would fail here instead of turning the count below into
+        // a measurement of nothing.
+        #expect(capsules.count == 4_000)
+        #expect(rejections.count == 572 * 3, "seeded \(rejections.count) rejection rows")
+
+        let counter = SoundRejectionStore.Counter()
+        var pass: GalleryPass?
+        SoundRejectionStore.$resolveCounter.withValue(counter) {
+            pass = GalleryPass.make(capsules: capsules, rejections: rejections,
+                                    criteria: GalleryFilter.Criteria(searchText: "rain"),
+                                    listening: true)
+        }
+        let made = try #require(pass)
+
+        #expect(counter.count == 1, """
+            one pass over 4,000 capsules resolved the rejection index \(counter.count) \
+            times. It walks every row in the table; once per card is the whole table \
+            per card, and no fetch counter can see it because there is no fetch.
+            """)
+        // The premises, so a count of one cannot be a count of nothing having happened.
+        #expect(!made.isEmpty, "the pass filtered everything away, so it proves nothing")
+        #expect(made.sections.reduce(0) { $0 + $1.capsules.count } == made.count)
+        #expect(!made.rejecting.isEmpty, "and the index it resolved actually holds rejections")
+    }
+
+    /// The other half: the view builds **one** pass, and never resolves for itself.
+    ///
+    /// The first version of this guard counted `SoundRejectionStore.index(` and
+    /// required exactly one, on the reasoning that ContentView legitimately resolves
+    /// for its two sheets. **It would not have caught the bug it was written for.**
+    /// The shipped defect had exactly one such call — inside a computed property — and
+    /// resolved the whole table per card anyway, because the count of *call sites* and
+    /// the count of *evaluations* are different numbers and only the second one
+    /// matters. A guard that passes on the code that motivated it is not a guard.
+    ///
+    /// So the property is gone and the assertion is zero, which is a thing source text
+    /// can actually establish: `body` builds one `GalleryPass` and hands it down, and
+    /// this file no longer names the resolver at all. Still weak in the usual ways —
+    /// a second construction spelled differently slips past — but the strength here is
+    /// structural rather than textual: `GalleryPass` stores its three results, so no
+    /// amount of reading them recomputes anything.
+    @Test func contentViewResolvesRejectionsOnlyThroughOnePass() throws {
+        let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appending(path: "Soundpost/ContentView.swift")
+        let source = try #require(try? String(contentsOf: url, encoding: .utf8))
+
+        let passes = source.components(separatedBy: "GalleryPass.make(").count - 1
+        #expect(passes == 1, "ContentView builds \(passes) gallery passes; it should build one")
+
+        let resolves = source.components(separatedBy: "SoundRejectionStore.index(").count - 1
+        #expect(resolves == 0, """
+            ContentView resolves the rejection index itself, \(resolves) time(s). It \
+            walks every row in the table, and anything reachable by name from a body \
+            is eventually read inside a ForEach — which is the bug that shipped. The \
+            gallery and both sheets read `pass.rejecting`.
+            """)
     }
 
     // MARK: The structural half — a card cannot reach the store even if it wanted to
@@ -284,6 +389,7 @@ struct LargeLibraryPerformanceTests {
             .deletingLastPathComponent().deletingLastPathComponent()
         for relative in ["Soundpost/Views/CapsuleCard.swift",
                          "Soundpost/Views/CapsuleDetailView.swift",
+                         "Soundpost/Views/ResurfaceView.swift",
                          "Soundpost/Services/SoundprintDisplay.swift"] {
             let url = root.appending(path: relative)
             let source = try #require(try? String(contentsOf: url, encoding: .utf8),
@@ -295,8 +401,12 @@ struct LargeLibraryPerformanceTests {
             // moved to the gallery. Forbidding the type name outright reddened this
             // test against correct code — a bound that is wrong in the safe-looking
             // direction is still wrong.
+            // `[SoundRejection]` catches the idiomatic SwiftUI route the first three
+            // miss entirely: `@Query private var rejections: [SoundRejection]` names
+            // none of them and would give a per-capsule view the whole table.
             for read in ["SoundRejectionStore.index", "SoundRejectionStore.rows",
-                         "FetchDescriptor<SoundRejection>"] {
+                         "SoundRejectionStore.winners", "FetchDescriptor<SoundRejection>",
+                         "[SoundRejection]"] {
                 #expect(!source.contains(read), """
                     \(relative) contains `\(read)`. The gallery resolves the index once \
                     per pass and hands it down; a per-capsule view resolving its own is \

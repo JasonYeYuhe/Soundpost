@@ -57,15 +57,45 @@ enum SoundRejectionStore {
     /// answer `SoundAnalysisPreferences.defaultsSuiteName` already uses for the same
     /// problem. Unbound — which is every Release build and every non-measuring test —
     /// this is `nil` and costs one optional check.
-    @TaskLocal static var fetchCounter: FetchCounter?
+    @TaskLocal static var fetchCounter: Counter?
 
-    /// `@unchecked Sendable` because it holds a mutable count. Safe by construction:
-    /// `withValue`'s body is synchronous, so the only writer is the task that bound
-    /// it, and a task tree that spawns concurrent children is not something any
-    /// caller here does.
-    final class FetchCounter: @unchecked Sendable {
-        private(set) var count = 0
-        func increment() { count += 1 }
+    /// How many times the table has been **resolved** into a `RejectionIndex`, on the
+    /// same task-local terms.
+    ///
+    /// A separate question from the fetch count, and M19 §4B named it as its own
+    /// guard: "`RejectionIndex` is built once per gallery pass, not once per card."
+    /// The fetch counter cannot answer it — the gallery holds its rows in a `@Query`
+    /// and never fetches at all, so a body that resolved those rows once per card
+    /// would show a fetch count of zero and look perfect. That is exactly the bug
+    /// this counter found in `ContentView` (§4B-ii).
+    @TaskLocal static var resolveCounter: Counter?
+
+    /// `@unchecked Sendable` because it holds a mutable count, with a lock rather than
+    /// an argument.
+    ///
+    /// The argument it used to carry — "`withValue`'s body is synchronous, so the only
+    /// writer is the task that bound it" — is true of every caller today and is not a
+    /// property of the type. A measured body that awaited anything, or bound the
+    /// counter around a `TaskGroup`, would race, and the failure would be a wrong
+    /// count rather than a crash: an instrument that lies quietly. A lock costs
+    /// nothing in a DEBUG-only counter, and removes the caveat instead of documenting
+    /// it.
+    final class Counter: @unchecked Sendable {
+        private let lock = NSLock()
+        private var value = 0
+
+        var count: Int {
+            lock.lock()
+            defer { lock.unlock() }
+            return value
+        }
+
+        func increment() {
+            lock.lock()
+            value += 1
+            lock.unlock()
+        }
+
         init() {}
     }
     #endif
@@ -108,7 +138,16 @@ enum SoundRejectionStore {
     }
 
     /// The winners, as the value type every display path takes.
+    ///
+    /// **Build this once per render pass.** It walks every row in the table, and the
+    /// gallery's `@Query` holds all of them, so a view that resolves it per card pays
+    /// the whole table per card — a cost no fetch counter can see, because there is no
+    /// fetch. `GalleryPass` is the shape that makes it once, and
+    /// `aGalleryPassResolvesTheIndexOnce` is the assertion.
     static func index(among rows: [SoundRejection], now: Date = .now) -> RejectionIndex {
+        #if DEBUG
+        resolveCounter?.increment()
+        #endif
         var byCapsule: [UUID: Set<String>] = [:]
         for (key, row) in winners(among: rows, now: now) where row.rejected {
             byCapsule[key.capsuleID, default: []].insert(key.identifier)

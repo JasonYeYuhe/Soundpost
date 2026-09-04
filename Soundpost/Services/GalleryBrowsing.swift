@@ -207,6 +207,65 @@ enum GalleryFilter {
     }
 }
 
+/// **One gallery render's worth of work, done once** (M19 §4B).
+///
+/// The gallery needs three things from a body pass: the resolved rejections, the
+/// filtered capsules, and those capsules bucketed into sections. Each is derived from
+/// the one before it, and `ContentView` used to expose them as three computed
+/// properties — which is how they came to be recomputed four times per pass and, in
+/// the case of the index, **once per card**:
+///
+///     private var rejectionIndex: RejectionIndex { .index(among: rejections) }
+///     private var displayed: [Capsule] { GalleryFilter.apply(capsules, …) }
+///     …
+///     if displayed.isEmpty { … }                                   // 1
+///     ForEach(GallerySection.grouped(displayed)) { group in        // 2
+///         ForEach(group.capsules) { capsule in
+///             CapsuleCard(capsule: capsule, rejecting: rejectionIndex)   // per card
+///     …
+///     .animation(.spring, value: displayed.count)                  // 3
+///
+/// Nothing there is obviously wrong to read, which is the point: a computed property
+/// looks like a stored one at every use site, and SwiftUI evaluates each use. M18 §4B
+/// argued at length that resolution must happen "once, in the gallery, not per card",
+/// M19 §4B promised a count to prove it, and in between the code did the opposite for
+/// two milestones without a single test noticing — the fetch counters could not see
+/// it, because a `@Query`-backed gallery performs no fetches at all.
+///
+/// So the pass is a value with stored properties. Held once and read as often as the
+/// body likes, it cannot be recomputed by being read; and a call site that wanted the
+/// per-card cost back would have to build a second pass inside the loop, which is
+/// visible in a way `rejecting: rejectionIndex` was not.
+struct GalleryPass {
+    /// Resolved once. Handed to every card, every detail sheet and the filter itself.
+    let rejecting: RejectionIndex
+    /// The capsules that survived the criteria, newest-first as they arrived.
+    let capsules: [Capsule]
+    /// Those capsules bucketed for display.
+    let sections: [(section: GallerySection, capsules: [Capsule])]
+
+    var isEmpty: Bool { capsules.isEmpty }
+    var count: Int { capsules.count }
+
+    /// - Parameter rejections: the gallery's `@Query` rows, unresolved. Taken as rows
+    ///   rather than as a `RejectionIndex` so that resolving them is *this* type's
+    ///   job and happens exactly once — a caller that could pass an index could also
+    ///   build one per card, which is the mistake being removed.
+    static func make(
+        capsules: [Capsule],
+        rejections: [SoundRejection],
+        criteria: GalleryFilter.Criteria,
+        now: Date = .now,
+        listening: Bool = SoundAnalysisPreferences.mayReveal
+    ) -> GalleryPass {
+        let rejecting = SoundRejectionStore.index(among: rejections, now: now)
+        let shown = GalleryFilter.apply(capsules, criteria, rejecting: rejecting,
+                                        now: now, listening: listening)
+        return GalleryPass(rejecting: rejecting, capsules: shown,
+                           sections: GallerySection.grouped(shown, now: now))
+    }
+}
+
 /// Date-bucketed gallery sections (M12 §S6): "This month / Earlier this year /
 /// Older". Grouping is over `createdAt` only (metadata), preserving input order
 /// within a bucket (the gallery feeds capsules newest-first).
