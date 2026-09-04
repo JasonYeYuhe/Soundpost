@@ -236,6 +236,29 @@ in any earlier year*, and the strip is absent when there is no match. Absent is 
 fine outcome; inventing a near-miss ("11 months ago") to have something to show is
 the version that starts lying.
 
+### 4B-i. The measurements (S1, taken 2026-09-05)
+
+Recorded here because §10 asks for a number rather than a paragraph. iPhone 17
+simulator, best of three, in-memory store:
+
+| Operation | 1,000 | 4,000 | ratio |
+|---|---|---|---|
+| `GalleryFilter.apply` (search active) | 19.73 ms | 79.42 ms | **4.02×** |
+| `SoundRejectionStore.index(among:)` | 3.25 ms | 13.06 ms | **4.02×** |
+| `RejectionIndex.sounds(for:)` × every capsule | 0.12 ms | 0.52 ms | **4.19×** |
+
+All three are linear. M18 §4B's argument survives contact with a measurement, and
+`RejectionIndex` costs ~0.13 µs per capsule — the part that argument was most
+worried about is the cheapest thing here.
+
+**One number is worth carrying forward rather than celebrating.** Filtering 4,000
+capsules with an active search takes ~79 ms, and `displayed` is a computed property
+read from `body`. That is not a bug and not a regression — it is linear, and it is
+the cost of walking a large library — but at that size it is a visible hitch per
+keystroke, and it is the honest answer to "is the gallery fast enough at 4,000?":
+*not obviously*. Nothing in this milestone changes it; a debounced or cached search
+is a candidate for §11 now that there is a number to justify it instead of a hunch.
+
 ---
 
 ## 5. Work breakdown (sequenced; each step compiles + passes + commits)

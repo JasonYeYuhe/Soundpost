@@ -21,6 +21,36 @@ import SwiftData
 /// decide the answer for every label on every capsule.
 enum SoundRejectionStore {
 
+    // MARK: The one door every SoundRejection fetch goes through
+
+    /// Every read of this table, in one place.
+    ///
+    /// It exists to make a claim countable. M18 §4B argues that the display paths do
+    /// **one scoped fetch per operation, never one per capsule** — and that argument
+    /// has until now been a paragraph in a doc comment, which is exactly the kind of
+    /// thing this project has repeatedly discovered to be false while everything
+    /// stayed green. Routing every fetch through one function turns it into an
+    /// integer a test can assert on (M19 §4B).
+    private static func fetchRows(_ descriptor: FetchDescriptor<SoundRejection>,
+                                  in context: ModelContext) throws -> [SoundRejection] {
+        #if DEBUG
+        fetchCount += 1
+        #endif
+        return try context.fetch(descriptor)
+    }
+
+    #if DEBUG
+    /// How many times this table has been read since `resetFetchCount()`.
+    ///
+    /// `nonisolated(unsafe)` for the same reason `AudioRecorder.observerTokens` is:
+    /// it is touched from one place at a time and never concurrently. Test-only —
+    /// the counter does not exist in a Release build, so nothing ships a global
+    /// mutable counter on a path the gallery drives.
+    nonisolated(unsafe) static var fetchCount = 0
+
+    static func resetFetchCount() { fetchCount = 0 }
+    #endif
+
     // MARK: Resolution
 
     /// A timestamp clamped to the present.
@@ -74,7 +104,7 @@ enum SoundRejectionStore {
     /// For the gallery, which already holds the whole library in a `@Query` and would
     /// gain nothing from a narrower fetch.
     static func index(in context: ModelContext, now: Date = .now) throws -> RejectionIndex {
-        index(among: try context.fetch(FetchDescriptor<SoundRejection>()), now: now)
+        index(among: try fetchRows(FetchDescriptor<SoundRejection>(), in: context), now: now)
     }
 
     /// The rejections for a known set of capsules — **one fetch, not one per capsule**.
@@ -91,9 +121,9 @@ enum SoundRejectionStore {
                       now: Date = .now) throws -> RejectionIndex {
         guard !capsuleIDs.isEmpty else { return .none }
         let wanted = Set(capsuleIDs)
-        let rows = try context.fetch(
+        let rows = try fetchRows(
             FetchDescriptor<SoundRejection>(
-                predicate: #Predicate { wanted.contains($0.capsuleID) }))
+                predicate: #Predicate { wanted.contains($0.capsuleID) }), in: context)
         return index(among: rows, now: now)
     }
 
@@ -101,10 +131,10 @@ enum SoundRejectionStore {
     static func rows(for key: SoundRejection.Key, in context: ModelContext) throws -> [SoundRejection] {
         let capsuleID = key.capsuleID
         let identifier = key.identifier
-        return try context.fetch(
+        return try fetchRows(
             FetchDescriptor<SoundRejection>(
                 predicate: #Predicate { $0.capsuleID == capsuleID && $0.identifier == identifier },
-                sortBy: [SortDescriptor(\.changedAt)]))
+                sortBy: [SortDescriptor(\.changedAt)]), in: context)
     }
 
     // MARK: Writing
@@ -212,7 +242,7 @@ enum SoundRejectionStore {
     /// Returns how many keys were settled.
     @discardableResult
     static func settleFutureDatedAnswers(in context: ModelContext, now: Date = .now) throws -> Int {
-        let all = try context.fetch(FetchDescriptor<SoundRejection>())
+        let all = try fetchRows(FetchDescriptor<SoundRejection>(), in: context)
         var grouped: [SoundRejection.Key: [SoundRejection]] = [:]
         for row in all { grouped[row.key, default: []].append(row) }
 
@@ -263,8 +293,8 @@ enum SoundRejectionStore {
     /// and its rejections leave together or not at all.
     @discardableResult
     static func removeAll(forCapsule capsuleID: UUID, in context: ModelContext) throws -> Int {
-        let rows = try context.fetch(
-            FetchDescriptor<SoundRejection>(predicate: #Predicate { $0.capsuleID == capsuleID }))
+        let rows = try fetchRows(
+            FetchDescriptor<SoundRejection>(predicate: #Predicate { $0.capsuleID == capsuleID }), in: context)
         for row in rows { context.delete(row) }
         return rows.count
     }
@@ -284,7 +314,7 @@ enum SoundRejectionStore {
     /// to overturn).
     @discardableResult
     static func eraseAll(in context: ModelContext) throws -> Int {
-        let rows = try context.fetch(FetchDescriptor<SoundRejection>())
+        let rows = try fetchRows(FetchDescriptor<SoundRejection>(), in: context)
         guard !rows.isEmpty else { return 0 }
         for row in rows { context.delete(row) }
         try context.save()
