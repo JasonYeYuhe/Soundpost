@@ -456,8 +456,8 @@ struct ContentView: View {
     /// memory (docs/M9-DEVPLAN.md risks), and post-backfill the source files are
     /// gone anyway.
     private var storageString: String {
-        let bytes = capsules.reduce(Int64(0)) { $0 + Int64($1.durationSeconds * 8_000) }
-        return ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
+        ByteCountFormatter.string(fromByteCount: GalleryStorage.byteCount(capsules),
+                                  countStyle: .file)
     }
 
     /// Changes whenever a capsule's seal or echo scheduling changes, so we
@@ -550,6 +550,12 @@ struct ContentView: View {
     }
 
     private func handleDeepLink(_ id: UUID?) {
+        // `capsules.map(\.id)` is an allocation proportional to the library, and this
+        // runs on every `.onChange(of: capsules.count)` and every `refreshAndSync`.
+        // `pendingLink(nil, …)` returns `.none` without looking at the ids, so asking
+        // first costs nothing and skips the allocation in the overwhelmingly common
+        // case where there is no pending link at all.
+        guard let id else { return }
         switch CapsuleOpenRoute.pendingLink(id, among: capsules.map(\.id)) {
         case .open(let found):
             guard let capsule = capsules.first(where: { $0.id == found }) else { return }

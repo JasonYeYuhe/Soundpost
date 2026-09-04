@@ -286,6 +286,22 @@ struct GalleryPass {
     }
 }
 
+/// The gallery footer's "N capsules, M on this device" figure.
+///
+/// Extracted from `ContentView` for the same reason `sealSignature` was: it is an O(N)
+/// walk evaluated on every gallery pass — `storageFooter` is a direct child of the
+/// `LazyVStack`, not a lazily-built row — and a private computed property is not
+/// something a test can put a number on. It is cheap (a `reduce` over stored doubles,
+/// no allocation per element), and §4B-iii records the number rather than asserting
+/// anything about how it feels.
+enum GalleryStorage {
+    /// The library's approximate size on disk, in bytes. 8 kB/s is the recorder's
+    /// bitrate; this is a footer, not an accounting.
+    static func byteCount(_ capsules: [Capsule]) -> Int64 {
+        capsules.reduce(Int64(0)) { $0 + Int64($1.durationSeconds * 8_000) }
+    }
+}
+
 /// Date-bucketed gallery sections (M12 §S6): "This month / Earlier this year /
 /// Older". Grouping is over `createdAt` only (metadata), preserving input order
 /// within a bucket (the gallery feeds capsules newest-first).

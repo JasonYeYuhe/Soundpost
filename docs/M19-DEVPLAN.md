@@ -310,8 +310,9 @@ third review pass named them. Both were computed properties read from `body`:
 
 | walk | when | 1,000 | 4,000 | ratio |
 |---|---|---|---|---|
-| `UpcomingResurfaces.sealSignature` | every body pass, via `.onChange` | **1.9 ms** | **8.0 ms** | **4.12×** |
-| `UpcomingResurfaces.nearest` | twice per unfiltered pass | **2.5 ms** | **10.2 ms** | **4.16×** |
+| `UpcomingResurfaces.sealSignature` | every body pass, via `.onChange` | **1.9 ms** | **7.8 ms** | **4.03×** |
+| `UpcomingResurfaces.nearest` | twice per unfiltered pass | **2.5 ms** | **10.2 ms** | **4.13×** |
+| `GalleryStorage.byteCount` | every gallery pass (the footer is not a lazy row) | **0.6 ms** | **2.4 ms** | **3.98×** |
 
 Linear, and an order of magnitude below the filter — so neither was the emergency the
 first one was, and saying so is the point of having measured rather than guessed.
@@ -335,7 +336,14 @@ something to walk for the first time.
 A body pass over 4,000 capsules with an active search now costs, in `GalleryPass.make`
 alone, **~27 ms to resolve the rejections plus ~65 ms to filter — about 93 ms** — and a
 keystroke is a body pass. Naming only the filter's 65 ms, as an earlier draft of this
-section did, understates it by 40%.
+section did, understates it by 40%. Adding the walks in §4B-iii that a filtered pass
+still pays — the seal signature and the storage footer — the honest figure is
+**~103 ms per keystroke at 4,000 capsules**.
+
+The remaining per-pass walks that are *not* measured, because they are bounded rather
+than linear: `upcomingCard` resolves each strip item back to its capsule with
+`capsules.first(where:)`, at most three scans, and only on an unfiltered pass. Named
+here so that "everything in this body was measured" is not claimed when it was not.
 
 None of that is a regression; it is what walking a large library costs, and it is now
 paid once per pass rather than three times plus once per card. But it is the honest

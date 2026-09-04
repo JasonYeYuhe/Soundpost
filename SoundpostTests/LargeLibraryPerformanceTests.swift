@@ -81,11 +81,18 @@ struct LargeLibraryPerformanceTests {
         let largeIndex = try SoundRejectionStore.index(in: large)
         let criteria = GalleryFilter.Criteria(searchText: "rain")
 
+        // `now: LargeLibrary.epoch`, not the default. Letting it default to `.now`
+        // puts every seeded seal months in the past, so `isContentVisible` is true for
+        // the whole library and the hidden-content branch — the one that makes a
+        // sealed capsule's note and sound unsearchable — is never walked. The fixture
+        // seals one capsule in eight precisely so that it is.
         let t1 = bestOfThree(repeating: 3) {
-            _ = GalleryFilter.apply(smallRows, criteria, rejecting: smallIndex, listening: true)
+            _ = GalleryFilter.apply(smallRows, criteria, rejecting: smallIndex,
+                                    now: LargeLibrary.epoch, listening: true)
         }
         let t4 = bestOfThree(repeating: 3) {
-            _ = GalleryFilter.apply(largeRows, criteria, rejecting: largeIndex, listening: true)
+            _ = GalleryFilter.apply(largeRows, criteria, rejecting: largeIndex,
+                                    now: LargeLibrary.epoch, listening: true)
         }
 
         let ratio = seconds(t4) / max(seconds(t1), 1e-9)
@@ -100,7 +107,10 @@ struct LargeLibraryPerformanceTests {
         // 10 was closer to the failure it was meant to catch than to the truth.
         #expect(ratio < 8, "4× the capsules cost \(String(format: "%.1f", ratio))× the time — that is not a linear walk")
         // And the premise: the filter is actually doing work, not returning early.
-        #expect(!GalleryFilter.apply(largeRows, criteria, rejecting: largeIndex, listening: true).isEmpty)
+        #expect(!GalleryFilter.apply(largeRows, criteria, rejecting: largeIndex,
+                                     now: LargeLibrary.epoch, listening: true).isEmpty)
+        // And the branch is genuinely reached: some capsules are hidden at this clock.
+        #expect(largeRows.contains { !$0.isContentVisible(now: LargeLibrary.epoch) })
     }
 
     /// The same question for the resolution M18 §4A built — the part §4B moved off
@@ -210,6 +220,8 @@ struct LargeLibraryPerformanceTests {
         let smallRows = try small.fetch(FetchDescriptor<Capsule>())
         let largeRows = try large.fetch(FetchDescriptor<Capsule>())
 
+        let g1 = bestOfThree(repeating: 20) { _ = GalleryStorage.byteCount(smallRows) }
+        let g4 = bestOfThree(repeating: 20) { _ = GalleryStorage.byteCount(largeRows) }
         let s1 = bestOfThree(repeating: 20) { _ = UpcomingResurfaces.sealSignature(smallRows) }
         let s4 = bestOfThree(repeating: 20) { _ = UpcomingResurfaces.sealSignature(largeRows) }
         let n1 = bestOfThree(repeating: 20) { _ = UpcomingResurfaces.nearest(smallRows, now: LargeLibrary.epoch) }
@@ -217,6 +229,7 @@ struct LargeLibraryPerformanceTests {
 
         let sealRatio = seconds(s4) / max(seconds(s1), 1e-9)
         let nearRatio = seconds(n4) / max(seconds(n1), 1e-9)
+        let storeRatio = seconds(g4) / max(seconds(g1), 1e-9)
         print("""
             M19 §4B  the other per-pass walks
               sealSignature      1,000: \(String(format: "%.3f", seconds(s1) * 1000 / 20)) ms  \
@@ -225,9 +238,15 @@ struct LargeLibraryPerformanceTests {
               UpcomingResurfaces 1,000: \(String(format: "%.3f", seconds(n1) * 1000 / 20)) ms  \
             4,000: \(String(format: "%.3f", seconds(n4) * 1000 / 20)) ms  \
             ratio: \(String(format: "%.2f", nearRatio))×
+              storage footer    1,000: \(String(format: "%.3f", seconds(g1) * 1000 / 20)) ms  \
+            4,000: \(String(format: "%.3f", seconds(g4) * 1000 / 20)) ms  \
+            ratio: \(String(format: "%.2f", storeRatio))×
             """)
         #expect(sealRatio < 8, "sealSignature is \(String(format: "%.1f", sealRatio))× — not a linear walk")
         #expect(nearRatio < 8, "UpcomingResurfaces.nearest is \(String(format: "%.1f", nearRatio))× — not a linear walk")
+        #expect(storeRatio < 8, "GalleryStorage.byteCount is \(String(format: "%.1f", storeRatio))× — not a linear walk")
+        #expect(GalleryStorage.byteCount(largeRows) > GalleryStorage.byteCount(smallRows),
+                "the storage figure ignores its input")
         // The premise `nearest` needs and did not have: candidates to sort. Timed with
         // `now:` defaulted, every seeded seal is long expired and this was a walk that
         // produced nothing and sorted an empty array.
@@ -249,6 +268,17 @@ struct LargeLibraryPerformanceTests {
                 "moving a seal date left the signature unchanged — .onChange would not re-sync")
         sealed.sealUntil = wasSealedUntil
         #expect(UpcomingResurfaces.sealSignature(largeRows) == before, "and it is reversible")
+
+        // Every field the signature claims to cover, one at a time. Covering only
+        // `sealUntil` left `hasher.combine(capsule.echoAt)` deletable with the suite
+        // still green — and an echo is a notification exactly as a seal is.
+        let echoing = try #require(largeRows.first { $0.echoAt != nil })
+        let wasEcho = echoing.echoAt
+        echoing.echoAt = wasEcho?.addingTimeInterval(3_600)
+        #expect(UpcomingResurfaces.sealSignature(largeRows) != before,
+                "moving an echo date left the signature unchanged")
+        echoing.echoAt = wasEcho
+        #expect(UpcomingResurfaces.sealSignature(largeRows) == before)
 
         // The other half of why it is a *signature*: an edit that changes nothing about
         // when a notification should fire must not churn the scheduler.
@@ -379,7 +409,8 @@ struct LargeLibraryPerformanceTests {
             for capsule in capsules {
                 for surface in [SoundprintDisplay.Surface.card, .detail] {
                     let heard = SoundprintDisplay.heard(for: capsule, on: surface,
-                                                       rejecting: index, listening: true)
+                                                       rejecting: index,
+                                                       now: LargeLibrary.epoch, listening: true)
                     shown += heard.count
                     if !heard.isEmpty { reached += 1 }
                 }
