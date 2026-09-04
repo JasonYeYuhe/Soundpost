@@ -243,6 +243,9 @@ struct GalleryPass {
     let capsules: [Capsule]
     /// Those capsules bucketed for display.
     let sections: [(section: GallerySection, capsules: [Capsule])]
+    /// This day's entries from earlier years (M19 §4D), or empty when a filter is
+    /// active and the strip is not shown. Same terms as `upcoming` below.
+    let almanac: [Almanac.Entry]
     /// The anticipation strip's items, or empty when a filter is active and the strip
     /// is not shown.
     ///
@@ -274,13 +277,19 @@ struct GalleryPass {
         // rows: walking them to build an index nothing will read is work the computed
         // properties this replaced did not do, because they sat in the `else` branch.
         guard !capsules.isEmpty else {
-            return GalleryPass(rejecting: .none, capsules: [], sections: [], upcoming: [])
+            return GalleryPass(rejecting: .none, capsules: [], sections: [],
+                               almanac: [], upcoming: [])
         }
         let rejecting = SoundRejectionStore.index(among: rejections, now: now)
         let shown = GalleryFilter.apply(capsules, criteria, rejecting: rejecting,
                                         now: now, listening: listening)
         return GalleryPass(rejecting: rejecting, capsules: shown,
                            sections: GallerySection.grouped(shown, now: now),
+                           // Both strips are computed under the condition that decides
+                           // whether they render, so a filtered gallery pays for
+                           // neither. `Almanac.entries` walks the whole library once.
+                           almanac: criteria.isActive ? []
+                                                      : Almanac.entries(among: capsules, now: now),
                            upcoming: criteria.isActive ? []
                                                        : UpcomingResurfaces.nearest(capsules, now: now))
     }

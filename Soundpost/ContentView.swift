@@ -176,6 +176,7 @@ struct ContentView: View {
                 // "Coming up" anticipation strip — only on the unfiltered home view,
                 // so it stays a calm header, not chrome layered over a search.
                 if !pass.upcoming.isEmpty { upcomingStrip(pass.upcoming) }
+                if !pass.almanac.isEmpty { almanacStrip(pass.almanac, rejecting: pass.rejecting) }
                 filterBar
                 if pass.isEmpty {
                     noMatches
@@ -267,6 +268,76 @@ struct ContentView: View {
                 .padding(.vertical, 2)
             }
         }
+    }
+
+
+    /// **What this day sounded like in an earlier year** (M19 §4D).
+    ///
+    /// The same shape as "Coming up" — present when there is something to show, absent
+    /// otherwise, and never a reason for the phone to light up. Deliberately below it:
+    /// what is coming is a promise the person made, and this is a nicety.
+    ///
+    /// Unlike an upcoming *seal* card, these cards may show content, because
+    /// `Almanac.entries` has already excluded everything that is not visible. A
+    /// sealed-not-due capsule cannot reach this strip.
+    private func almanacStrip(_ entries: [Almanac.Entry], rejecting: RejectionIndex) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("On this day")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.secondary)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 10) {
+                    ForEach(entries) { almanacCard($0, rejecting: rejecting) }
+                }
+                .padding(.vertical, 2)
+            }
+        }
+    }
+
+    /// One earlier year. Tapping opens the capsule — its content is visible by
+    /// construction, so arriving there is simply the thing the card is about (the same
+    /// reasoning that lets an echo card open and stops a seal card from doing so).
+    private func almanacCard(_ entry: Almanac.Entry, rejecting: RejectionIndex) -> some View {
+        Button { openCapsule(entry.capsule) } label: {
+            VStack(alignment: .leading, spacing: 6) {
+                Image(systemName: "calendar")
+                    .foregroundStyle(.secondary)
+                // The year itself, not "2 years ago". A count of years has to be
+                // pluralised in three languages for a string that is less precise than
+                // the number it is derived from — and `RelativeDateTimeFormatter`,
+                // which does the pluralising, works from the raw interval and would
+                // say "11 months ago" about a genuine anniversary across a leap year.
+                // The year is exact, needs no plural, and is what someone would say.
+                Text(entry.capsule.createdAt, format: .dateTime.year())
+                    .font(.subheadline.weight(.medium))
+                    .lineLimit(1)
+                switch Almanac.line(for: entry, rejecting: rejecting) {
+                case .note(let note):
+                    Text(note)
+                        .font(.caption)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                case .heard(let sentence):
+                    // Italic and secondary, as everywhere the app renders a guess: a
+                    // machine's line must not be dressed as something the person wrote
+                    // (§4A rule 1). The sentence carries its own attribution.
+                    Text(sentence)
+                        .font(.caption)
+                        .italic()
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                case nil:
+                    EmptyView()
+                }
+            }
+            .padding(12)
+            .frame(width: 170, alignment: .leading)
+            .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 14))
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+        .accessibilityHint("Opens this capsule")
     }
 
     /// **An echo card opens its capsule; a seal card does not** (M17 §S4).

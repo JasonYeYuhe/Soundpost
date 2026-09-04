@@ -316,6 +316,20 @@ struct LargeLibraryPerformanceTests {
                                      now: LargeLibrary.epoch, listening: true).isEmpty,
                 "the sealedOnly filter matches nothing in this fixture")
         #expect(!unfiltered.upcoming.isEmpty, "the fixture seeds sealed capsules, so the strip has items")
+
+        // The almanac is on exactly the same terms: computed under the condition that
+        // decides whether it renders, so a filtered gallery pays for neither strip.
+        // The fixture's capsules are one hour apart from the epoch backwards, so a day
+        // exactly a year on from any of them has matches.
+        let anniversary = Calendar.current.date(byAdding: .year, value: 1, to: LargeLibrary.epoch)!
+        let onTheDay = GalleryPass.make(capsules: capsules, rejections: rejections,
+                                        criteria: GalleryFilter.Criteria(),
+                                        now: anniversary, listening: true)
+        let searching = GalleryPass.make(capsules: capsules, rejections: rejections,
+                                         criteria: GalleryFilter.Criteria(searchText: "rain"),
+                                         now: anniversary, listening: true)
+        #expect(!onTheDay.almanac.isEmpty, "a year on from the fixture's own clock, nothing matched")
+        #expect(searching.almanac.isEmpty, "a filtered gallery hides the almanac and must not compute it")
         #expect(filtered.upcoming.isEmpty, "a filtered gallery hides the strip and must not compute it")
 
         // An empty library resolves nothing, even holding rejection rows.

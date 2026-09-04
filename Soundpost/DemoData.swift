@@ -49,21 +49,35 @@ enum DemoData {
         // A `nil` note is what the card treats as a silence for the guess to fill;
         // the phrases themselves are looked up at render time, so these stay correct
         // in every language.
+        // `yearsAgo` rather than more `daysAgo`, and it matters: M19 §4D's almanac
+        // matches the **same calendar day** in an earlier year, so a sample placed
+        // with `-365 * 86_400` would land on the wrong day whenever a leap day fell in
+        // between and the strip would be missing from a screenshot for reasons nobody
+        // would find. The demo library has to be built by the same rule the feature
+        // is.
         let samples: [(mood: Mood, note: String?, place: String?, duration: Double,
-                       daysAgo: Double, sounds: [String])] = [
+                       daysAgo: Double, yearsAgo: Int, sounds: [String])] = [
             (.calm, String(localized: "Rain on the window this morning"), String(localized: "Home"),
-             12, 0, ["rain", "raindrop"]),
+             12, 0, 0, ["rain", "raindrop"]),
             (.joyful, String(localized: "Kids laughing at the park"), String(localized: "Ueno Park"),
-             8, 1, ["laughter", "chatter"]),
+             8, 1, 0, ["laughter", "chatter"]),
             (.nostalgic, String(localized: "The old train crossing bell"), nil,
-             17, 3, ["train"]),
+             17, 3, 0, ["train"]),
             (.tender, String(localized: "Her humming in the kitchen"), String(localized: "Home"),
-             22, 6, ["water_tap_faucet"]),
+             22, 6, 0, ["water_tap_faucet"]),
             // No note: the one card that shows what Soundpost heard.
-            (.calm, nil, String(localized: "Home"), 9, 8, ["bird_chirp_tweet", "wind_rustling_leaves"]),
+            (.calm, nil, String(localized: "Home"), 9, 8, 0, ["bird_chirp_tweet", "wind_rustling_leaves"]),
+            // **On this day, last year** (M19 §4D). No note, so the almanac card
+            // shows what Soundpost heard — which is the whole point of a strip
+            // called "what this day sounded like".
+            (.nostalgic, nil, String(localized: "Kamakura"), 15, 0, 1,
+             ["sea_waves", "wind"]),
         ]
         for (index, sample) in samples.enumerated() {
-            let capsule = Capsule(createdAt: Date(timeIntervalSinceNow: -sample.daysAgo * 86_400))
+            let sameDayEarlierYear = Calendar.current.date(
+                byAdding: .year, value: -sample.yearsAgo, to: .now) ?? .now
+            let capsule = Capsule(createdAt: sameDayEarlierYear
+                .addingTimeInterval(-sample.daysAgo * 86_400))
             capsule.audioFileName = "sample\(index).m4a"
             capsule.durationSeconds = sample.duration
             capsule.waveformSamples = (0..<56).map { i in

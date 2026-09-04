@@ -1992,6 +1992,22 @@
         }
       }
     },
+    "On this day": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "過去のこの日"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "那年今日"
+          }
+        }
+      }
+    },
     "One line": {
       "localizations": {
         "ja": {

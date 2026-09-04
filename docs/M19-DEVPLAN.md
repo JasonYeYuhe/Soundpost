@@ -341,6 +341,32 @@ in any earlier year*, and the strip is absent when there is no match. Absent is 
 fine outcome; inventing a near-miss ("11 months ago") to have something to show is
 the version that starts lying.
 
+### 4D-i. Built, and seen — including the part that is not visible yet
+
+The strip renders. Screenshotted on the simulator against the demo library: **On this
+day** above a card reading **2025**, below "Coming up" and above the filter bar, absent
+on every other date and absent while a filter is active.
+
+**The sound line is missing from that card, and the cause is the §4A demo gap, not the
+almanac.** `Almanac.line` asks `SoundprintDisplay.sentence(on: .card)`, which is gated
+on `SoundAnalysisPreferences.mayReveal` — `isEnabled && hasStanding` — and
+`hasStanding` is set at launch from `answered || hasRecordedHere`. A `-seedSampleData`
+build has neither: no consent row was ever written, and nothing was ever *recorded* on
+that install, because the library was **seeded**. So no surface in a demo build can
+show a heard line, which is why the gallery's own note-less "Calm" card is blank too.
+
+That is the gap §10 already names — "the demo library renders a 'Soundpost heard' line
+on a clean machine, the claim `DemoData`'s comment already makes" — and S4 owns it.
+Recording the mechanism here so S4 does not have to re-derive it: **a seeded demo
+library is this install having a library**, and the `-seedSampleData` path should say
+so. It is a launch-argument-gated DEBUG concern, not a change to what standing means.
+
+The demo library also gained an anniversary capsule, dated with
+`Calendar.date(byAdding: .year, value: -1)` rather than `-365 * 86_400` — because the
+second one lands on the wrong day across a leap year, which is the exact rule this
+feature exists to get right, and a screenshot would have been missing the strip for a
+reason nobody would find.
+
 ### 4B-i. The measurements (S1, taken 2026-09-05)
 
 Recorded here because §10 asks for a number rather than a paragraph. iPhone 17
