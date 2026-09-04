@@ -185,7 +185,6 @@ struct AlmanacTests {
     }
 
     // MARK: The budget
-
     /// **The almanac takes no notification slots** (§4D reason 2).
     ///
     /// iOS keeps 64 pending requests and drops the rest silently, and seals and echoes
@@ -193,43 +192,86 @@ struct AlmanacTests {
     /// on a date they chose; an almanac entry is a nicety, and a nicety that can evict
     /// a promise is a defect.
     ///
-    /// Two halves, because neither is enough alone. The plan over a library **full of
-    /// anniversaries** contains only seals and echoes — a behavioural check that an
-    /// almanac entry never becomes a request. And `Almanac.swift` names no
-    /// notification API at all, which is the structural half: a plan can only be
-    /// checked for what it contains, and a `UNUserNotificationCenter.add` called
-    /// directly from a strip would never appear in one.
-    @Test func theAlmanacTakesNoNotificationSlots() throws {
+    /// **The first version of this test was vacuous, and it is worth saying how.** It
+    /// built 88 anniversary capsules — none sealed, none echoing — and asserted that
+    /// the plan contained only seals and echoes and fitted in 64. The plan was the
+    /// empty array. `allSatisfy` on nothing is true and `0 <= 64` is true, so both
+    /// assertions passed over any implementation whatsoever, including one that put an
+    /// almanac entry in every slot. The test even asserted `plan.isEmpty` itself and I
+    /// did not read what that meant. A check that iterates an artefact cannot fail for
+    /// what is missing from the artefact — the sentence this milestone has now written
+    /// four times, in the test guarding its headline constraint.
+    ///
+    /// So the shape is a **baseline comparison at a full budget**: 70 sealed capsules,
+    /// which the planner already caps to 64, and then the anniversaries added on top.
+    /// If an almanac entry could take a slot, the second plan would differ — a
+    /// different capsule, a different fire date, or the same 64 in a different order.
+    /// Equality over the whole array is the assertion, not a count.
+    @Test func theAlmanacCannotEvictASealFromTheBudget() throws {
         let context = try store()
+        let today = date(2026, 6, 15)
+
+        // 70 sealed capsules, all due in the future — more than the 64 iOS allows, so
+        // the budget is genuinely full and eviction is a thing that could happen.
+        var sealedIDs: [UUID] = []
+        for index in 0..<70 {
+            let capsule = Capsule(createdAt: date(2026, 1, 1, hour: 1))
+            try capsule.transition(to: .recording)
+            try capsule.transition(to: .captured)
+            capsule.sealUntil = today.addingTimeInterval(Double(index + 1) * 86_400)
+            capsule.sealTimeZoneID = "UTC"
+            try capsule.transition(to: .sealed)
+            context.insert(capsule)
+            sealedIDs.append(capsule.id)
+        }
+        try context.save()
+        let sealedOnly = try context.fetch(FetchDescriptor<Capsule>())
+        let baseline = NotificationPlanner.plan(capsules: sealedOnly, now: today)
+
+        // The premise: the budget is full. Without this the comparison below would
+        // hold trivially for a library that never came close to the limit.
+        #expect(baseline.count == NotificationPlanner.systemPendingLimit,
+                "the budget is not full, so nothing could be evicted from it")
+        #expect(baseline.allSatisfy { $0.kind == .seal })
+
+        // Now 88 anniversaries of today, in eleven earlier years.
+        var anniversaryIDs: Set<UUID> = []
         for year in 2015...2025 {
             for offset in 0..<8 {
-                try capsule(date(year, 6, 15, hour: offset + 1), note: "\(year)-\(offset)", in: context)
+                let made = try capsule(date(year, 6, 15, hour: offset + 1),
+                                       note: "\(year)-\(offset)", in: context)
+                anniversaryIDs.insert(made.id)
             }
         }
         try context.save()
-        let all = try context.fetch(FetchDescriptor<Capsule>())
-        let today = date(2026, 6, 15)
+        let everything = try context.fetch(FetchDescriptor<Capsule>())
 
-        #expect(!Almanac.entries(among: all, now: today, calendar: calendar).isEmpty,
+        #expect(Almanac.entries(among: everything, now: today, calendar: calendar).count == 3,
                 "no anniversaries, so this proves nothing about what they cost")
-        let plan = NotificationPlanner.plan(capsules: all, now: today)
-        #expect(plan.allSatisfy { $0.kind == .seal || $0.kind == .echo },
-                "the plan gained a kind that is not a promise the user made")
-        #expect(plan.count <= NotificationPlanner.systemPendingLimit)
-        // 88 capsules, every one an anniversary, none of them sealed or echoing:
-        // the plan is empty and the almanac cost exactly nothing.
-        #expect(all.count == 88 && plan.isEmpty)
 
+        let after = NotificationPlanner.plan(capsules: everything, now: today)
+        #expect(after == baseline, """
+            The plan changed when anniversaries were added to the library. 64 slots \
+            were already spoken for by seals — promises someone made on dates they \
+            chose — and something else took one.
+            """)
+        #expect(after.allSatisfy { !anniversaryIDs.contains($0.capsuleID) })
+        #expect(Set(after.map(\.capsuleID)).isSubset(of: Set(sealedIDs)))
+    }
+
+    /// The structural half: a plan can only be checked for what it contains, and a
+    /// `UNUserNotificationCenter.add` called straight from a strip would never appear
+    /// in one.
+    ///
+    /// Comments are stripped first. `Almanac`'s own doc comment explains at length
+    /// which notification APIs it deliberately does not touch, naming every one of
+    /// them; scanning the raw text failed the file for saying why it is correct.
+    @Test func theAlmanacNamesNoNotificationAPI() throws {
         let raw = try #require(try? String(
             contentsOf: URL(fileURLWithPath: #filePath)
                 .deletingLastPathComponent().deletingLastPathComponent()
                 .appending(path: "Soundpost/Services/Almanac.swift"),
             encoding: .utf8))
-        // **Comments stripped first.** The guard is about what the file *does*, and
-        // `Almanac`'s own doc comment explains at length which notification APIs it
-        // deliberately does not touch — naming every one of them. Scanning the raw
-        // text made the file fail for saying why it is correct, which is a guard that
-        // punishes the documentation this project runs on.
         let code = raw
             .split(separator: "\n", omittingEmptySubsequences: false)
             .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
@@ -243,5 +285,54 @@ struct AlmanacTests {
                 pending requests iOS allows.
                 """)
         }
+    }
+
+    // MARK: The calendar is the user's, not Gregorian
+
+    /// **`DateComponents.year` is the year within an *era*.**
+    ///
+    /// The Japanese calendar is selectable in iOS Settings, in this app's second
+    /// language. A first implementation compared `made.year < today.year` and
+    /// subtracted them, which in that calendar reads Heisei 30 against Reiwa 8 as
+    /// `30 < 8` — false — and drops the anniversary entirely. It is also a bug that
+    /// *moves*: on the first day of a new era every Reiwa recording would vanish from
+    /// the strip at once.
+    @Test func anniversariesAreRightInACalendarWithEras() throws {
+        var japanese = Calendar(identifier: .japanese)
+        japanese.timeZone = TimeZone(identifier: "UTC")!
+
+        let context = try store()
+        // 2018 is Heisei 30; 2026 is Reiwa 8. The era boundary falls between them.
+        try capsule(date(2018, 6, 15), note: "Heisei", in: context)
+        try capsule(date(2021, 6, 15), note: "Reiwa", in: context)
+        try context.save()
+        let all = try context.fetch(FetchDescriptor<Capsule>())
+
+        // The premise: this calendar really does number years within an era, so the
+        // test is not quietly running against a Gregorian one.
+        #expect(japanese.dateComponents([.year], from: date(2018, 6, 15)).year == 30)
+        #expect(japanese.dateComponents([.year], from: date(2026, 6, 15)).year == 8)
+
+        let entries = Almanac.entries(among: all, now: date(2026, 6, 15), calendar: japanese)
+        #expect(entries.map(\.yearsAgo) == [5, 8],
+                "an era boundary swallowed an anniversary")
+        // And the Gregorian answer is the same, because the question is about days.
+        #expect(Almanac.entries(among: all, now: date(2026, 6, 15), calendar: calendar)
+            .map(\.yearsAgo) == [5, 8])
+    }
+
+    /// Several capsules from the same earlier day: newest first, as the gallery
+    /// orders. Unasserted ordering is ordering that changes silently.
+    @Test func severalCapsulesFromOneEarlierDayComeNewestFirst() throws {
+        let context = try store()
+        let morning = try capsule(date(2024, 9, 9, hour: 7), note: "morning", in: context)
+        let evening = try capsule(date(2024, 9, 9, hour: 20), note: "evening", in: context)
+        let noon = try capsule(date(2024, 9, 9, hour: 12), note: "noon", in: context)
+        try context.save()
+
+        let entries = Almanac.entries(among: try context.fetch(FetchDescriptor<Capsule>()),
+                                      now: date(2026, 9, 9), calendar: calendar)
+        #expect(entries.map(\.capsule.id) == [evening.id, noon.id, morning.id])
+        #expect(entries.allSatisfy { $0.yearsAgo == 2 })
     }
 }

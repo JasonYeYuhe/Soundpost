@@ -60,21 +60,43 @@ enum Almanac {
         calendar: Calendar = .current,
         limit: Int = 3
     ) -> [Entry] {
-        let today = calendar.dateComponents([.year, .month, .day], from: now)
-        guard let thisYear = today.year, let month = today.month, let day = today.day else {
-            return []
-        }
+        let today = calendar.dateComponents([.month, .day], from: now)
+        guard let month = today.month, let day = today.day else { return [] }
         let matches = capsules.compactMap { capsule -> Entry? in
-            let made = calendar.dateComponents([.year, .month, .day], from: capsule.createdAt)
-            guard made.month == month, made.day == day,
-                  let year = made.year, year < thisYear else { return nil }
+            let onDay = calendar.dateComponents([.month, .day], from: capsule.createdAt)
+            guard onDay.month == month, onDay.day == day else { return nil }
+            // **Never `madeYear < thisYear`, and never `thisYear - madeYear`.**
+            //
+            // `DateComponents.year` is the year *within an era*, and the Japanese
+            // calendar — selectable in iOS Settings, in this app's second language —
+            // has eras. A capsule from Heisei 30 read in Reiwa 8 gives `30 < 8`, which
+            // is false, so the anniversary vanishes; and the subtraction gives −22.
+            // Worse, the failure moves: on the day a new era begins, every Reiwa
+            // recording disappears from the strip at once, because `year` becomes
+            // larger than `thisYear` for all of them.
+            //
+            // `compare(toGranularity:)` and `dateComponents(from:to:)` work on the
+            // dates themselves, so they are right in every calendar the user can pick.
+            //
+            // Both ends truncated to the start of their day, because
+            // `dateComponents(from:to:)` counts whole years by the **clock**, not the
+            // date: a capsule made at 20:00 two years ago, read at noon, is two years
+            // minus eight hours and comes back as 1. The month and day are already
+            // equal here, so once the time of day is gone the difference is exact.
+            // Found by a test asserting the order of three capsules from one earlier
+            // day, which is not what it was written to check.
+            let made = calendar.startOfDay(for: capsule.createdAt)
+            let today = calendar.startOfDay(for: now)
+            guard calendar.compare(made, to: today, toGranularity: .year) == .orderedAscending,
+                  let yearsAgo = calendar.dateComponents([.year], from: made, to: today).year,
+                  yearsAgo > 0 else { return nil }
             // A sealed-not-due capsule never appears. Its sound is as hidden as its
             // words, and an anniversary is not an exception to that — it would be the
             // one surface that tells you what is inside a capsule you asked to wait
             // for (`isContentVisible`, the rule the card body, search and playback
             // already share).
             guard capsule.isContentVisible(now: now) else { return nil }
-            return Entry(capsule: capsule, yearsAgo: thisYear - year)
+            return Entry(capsule: capsule, yearsAgo: yearsAgo)
         }
         return Array(
             matches

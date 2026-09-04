@@ -367,6 +367,37 @@ second one lands on the wrong day across a leap year, which is the exact rule th
 feature exists to get right, and a screenshot would have been missing the strip for a
 reason nobody would find.
 
+### 4D-ii. Two things a review found, and the second is why S1 exists
+
+**`DateComponents.year` is the year within an era.** The first implementation compared
+`made.year < today.year` and subtracted them. The Japanese calendar is selectable in
+iOS Settings, in this app's second language, and its years are era-relative: Heisei 30
+read against Reiwa 8 is `30 < 8`, which is false, so the anniversary vanishes. It is
+also a bug that *moves* — on the first day of a new era, every Reiwa recording would
+disappear from the strip at once. It compares dates now, not integers.
+
+Fixing that introduced a second one, which the test written for something else caught:
+`dateComponents(from:to:)` counts whole years by the **clock**. A capsule made at 20:00
+two years ago, read at noon, is two years minus eight hours and came back as one. Both
+ends are truncated to the start of their day, and the test that found it was the one
+asserting the order of three capsules from a single earlier day.
+
+**And the 64-slot guard was vacuous.** It built 88 anniversary capsules — none sealed,
+none echoing — and asserted the plan contained only seals and echoes and fitted in 64.
+The plan was the empty array: `allSatisfy` on nothing is true, `0 <= 64` is true, and
+both assertions would have passed over an implementation that put an almanac entry in
+every slot. The test even asserted `plan.isEmpty` and nobody read what that meant.
+
+That is the sentence this milestone has now written four times — *a check that iterates
+an artefact cannot fail for what is missing from the artefact* — and this time it was
+in the test guarding the milestone's headline constraint, in the strand whose entire
+job is to make such claims testable.
+
+The replacement is a **baseline comparison at a full budget**: 70 sealed capsules, which
+the planner caps to 64, then the anniversaries added on top, and equality over the whole
+plan array. If an almanac entry could take a slot the second plan would differ. A
+mutation that lets a plain capsule take one is red.
+
 ### 4B-i. The measurements (S1, taken 2026-09-05)
 
 Recorded here because §10 asks for a number rather than a paragraph. iPhone 17

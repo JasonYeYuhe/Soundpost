@@ -302,6 +302,10 @@ struct ContentView: View {
             VStack(alignment: .leading, spacing: 6) {
                 Image(systemName: "calendar")
                     .foregroundStyle(.secondary)
+                    // Decorative. Without this the combined element announces
+                    // "calendar, 2025, …" — VoiceOver reads the SF Symbol's name, and
+                    // the symbol is here to say what the year already says.
+                    .accessibilityHidden(true)
                 // The year itself, not "2 years ago". A count of years has to be
                 // pluralised in three languages for a string that is less precise than
                 // the number it is derived from — and `RelativeDateTimeFormatter`,

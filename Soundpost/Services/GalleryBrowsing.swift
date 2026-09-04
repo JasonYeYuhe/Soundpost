@@ -270,6 +270,11 @@ struct GalleryPass {
         rejections: [SoundRejection],
         criteria: GalleryFilter.Criteria,
         now: Date = .now,
+        /// Threaded rather than left to `.current` inside `Almanac.entries`, for the
+        /// reason that file spells out: what "the same day last year" means depends on
+        /// the calendar, and a test that cannot choose one is testing the runner's
+        /// locale.
+        calendar: Calendar = .current,
         listening: Bool = SoundAnalysisPreferences.mayReveal
     ) -> GalleryPass {
         // An empty library resolves nothing. The gallery is not shown at all in that
@@ -289,7 +294,8 @@ struct GalleryPass {
                            // whether they render, so a filtered gallery pays for
                            // neither. `Almanac.entries` walks the whole library once.
                            almanac: criteria.isActive ? []
-                                                      : Almanac.entries(among: capsules, now: now),
+                                                      : Almanac.entries(among: capsules, now: now,
+                                                                        calendar: calendar),
                            upcoming: criteria.isActive ? []
                                                        : UpcomingResurfaces.nearest(capsules, now: now))
     }
