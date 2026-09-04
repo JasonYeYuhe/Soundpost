@@ -31,11 +31,33 @@ enum DemoData {
             configurations: ModelConfiguration(isStoredInMemoryOnly: true,
                                                cloudKitDatabase: .none)
         )
+        grantStandingForScreenshots()
         seed(into: container.mainContext)
         return container
     }()
 
     @MainActor
+    /// **Standing, for the screenshot build only** (M19 §4A).
+    ///
+    /// Every surface that names a sound is gated on
+    /// `SoundAnalysisPreferences.mayReveal`, which is `isEnabled && hasStanding`, and
+    /// `hasStanding` is set on the production launch path from
+    /// `answered || hasRecordedHere`. A demo library is **seeded**, not recorded, so
+    /// neither is true and a `-seedSampleData` build shows no "Soundpost heard" line
+    /// anywhere — including on the note-less sample above, which exists for no other
+    /// reason than to show one. `seed`'s own comment has claimed otherwise on every
+    /// clean machine since M17.
+    ///
+    /// Granting it is honest here in a way it would not be in the real app: there is
+    /// no person whose answer this could be overriding, because there is no person and
+    /// no library — the capsules are fictional and the store is in memory. And it
+    /// writes to `SoundAnalysisPreferences.demoSuiteName`, so a screenshot run leaves
+    /// nothing behind for a device that later opens the app for real.
+    static func grantStandingForScreenshots() {
+        SoundAnalysisPreferences.isEnabled = true
+        SoundAnalysisPreferences.hasStanding = true
+    }
+
     static func seed(into context: ModelContext) {
         // Localized so screenshots read natively in every store locale.
         //

@@ -47,9 +47,32 @@ enum SoundAnalysisPreferences {
     @TaskLocal static var defaultsSuiteName: String?
 
     static var defaults: UserDefaults {
-        guard let defaultsSuiteName else { return .standard }
-        return UserDefaults(suiteName: defaultsSuiteName) ?? .standard
+        if let defaultsSuiteName { return UserDefaults(suiteName: defaultsSuiteName) ?? .standard }
+        #if DEBUG
+        // **The screenshot build gets its own preferences** (M19 §4A).
+        //
+        // `-seedSampleData` exists to photograph the app, and until now it
+        // photographed an app from before 1.6.0: `hasStanding` is set on the
+        // production launch path from `answered || hasRecordedHere`, and a demo
+        // library is *seeded*, not recorded, so neither is ever true. Every "Soundpost
+        // heard" line in the app is gated on it, so none of them appeared — including
+        // on the sample `DemoData` gives no note to *precisely so* that one would.
+        // The comment saying so has been false on every clean machine since M17.
+        //
+        // A separate suite rather than a write to `.standard`: granting standing is a
+        // real answer about a real person's real library, and a screenshot run must
+        // not leave one behind on a device that later opens the app for real.
+        if AppEnvironment.isDemoSeed, let demo = UserDefaults(suiteName: demoSuiteName) {
+            return demo
+        }
+        #endif
+        return .standard
     }
+
+    #if DEBUG
+    /// Preferences for the `-seedSampleData` build, isolated from the real ones.
+    static let demoSuiteName = "com.soundpost.demo-screenshots"
+    #endif
 
     static var isEnabled: Bool {
         get {
