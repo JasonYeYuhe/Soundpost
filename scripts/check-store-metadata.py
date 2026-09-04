@@ -1,0 +1,74 @@
+#!/usr/bin/env python3
+"""App Store Connect metadata limits, and the claims the listing has to make.
+
+M19 §4A / §10. Two things this guards, and neither was guarded before.
+
+**The limits.** Subtitle 30 characters, keywords 100, promotional text 170,
+description 4000. App Store Connect counts CHARACTERS; `wc -m` counts bytes unless
+the shell's locale happens to be UTF-8, and 11 Japanese characters measure as 33
+bytes. A length check that is wrong by 3x in exactly the two languages with the least
+headroom is worse than no check.
+
+**The claims.** The listing described an app without on-device listening for three
+releases after it shipped — 1.6.0, 1.7.0 and 1.8.0 — because there was no step that
+could notice. The store page is where somebody decides whether to install; a
+privacy-relevant capability being invisible there is the one place it matters most.
+So each locale's description has to say, in its own language, that Soundpost listens,
+that the listening is on-device, that a wrong label can be corrected, and that the
+library is searchable by sound.
+"""
+import sys, pathlib
+
+LIMITS = {"subtitle": 30, "keywords": 100, "promotional_text": 170, "description": 4000}
+
+# Substrings, not sentences: the copy is free to change around them. Each list is
+# "at least one of these must appear", so a rewrite can pick different wording for
+# the same claim without this file becoming a second copy of the description.
+CLAIMS = {
+    "en-US": {
+        "listening":  ["recognise what a clip sounded like", "listens on your device"],
+        "on-device":  ["entirely on your iPhone", "on your device"],
+        "correction": ["no, it wasn't", "gets it wrong"],
+        "search":     ["Search your library by what a moment sounded like", "find a memory by its sound"],
+    },
+    "ja": {
+        "listening":  ["聞き取って", "聞き取り"],
+        "on-device":  ["iPhoneの中で", "端末の中だけで"],
+        "correction": ["ちがいます"],
+        "search":     ["音から思い出を探せる", "どんな音だったか"],
+    },
+    "zh-Hans": {
+        "listening":  ["听出那段录音里是什么", "只在设备上聆听"],
+        "on-device":  ["完全在你的 iPhone 上完成", "只在设备上聆听"],
+        "correction": ["不是这个"],
+        "search":     ["凭声音找回", "那时听起来是什么"],
+    },
+}
+
+root = pathlib.Path(__file__).resolve().parent.parent / "metadata"
+failures = []
+
+for locale in sorted(CLAIMS):
+    folder = root / locale
+    for field, limit in LIMITS.items():
+        path = folder / f"{field}.txt"
+        if not path.exists():
+            continue
+        text = path.read_text(encoding="utf-8").strip()
+        if len(text) > limit:
+            failures.append(f"{locale}/{field}.txt is {len(text)} characters, limit {limit}")
+    description = (folder / "description.txt").read_text(encoding="utf-8")
+    for claim, options in CLAIMS[locale].items():
+        if not any(o in description for o in options):
+            failures.append(
+                f"{locale}/description.txt makes no '{claim}' claim "
+                f"(looked for {options!r})")
+
+if failures:
+    print("\033[31m✗ Store metadata gate FAILED:\033[0m", file=sys.stderr)
+    for f in failures:
+        print(f"  - {f}", file=sys.stderr)
+    sys.exit(1)
+
+print("\033[32m✓ Store metadata gate passed — 3 locales within every length limit,")
+print("  each describing on-device listening, corrections and sound search.\033[0m")

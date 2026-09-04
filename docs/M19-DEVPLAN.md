@@ -137,10 +137,62 @@ checklist rather than an afternoon.
    produces, from the real UI, with real demo data — never a mockup, never a state
    assembled for the photograph.
 
-**Device sizes are a question to answer, not to assume.** 1242×2688 is the 6.5"
-class; what App Store Connect currently *requires* versus *accepts* must be read from
-ASC before the capture path is written, not guessed. Getting this wrong is a rejected
-submission, not a cosmetic issue.
+**Device sizes are a question to answer, not to assume.** Read from App Store Connect
+on 2026-09-05 rather than guessed: the app holds one screenshot set per locale,
+`APP_IPHONE_65`, five images each at **1242×2688**, in en-US, ja and zh-Hans. An
+iPhone 11 Pro Max simulator renders exactly that — verified by booting one and
+measuring a screenshot, not by arithmetic on a spec sheet.
+
+### 4A-i. What the capture path had to be taught, one failure at a time
+
+`scripts/screenshots.sh` reports success at the end. Everything below is a way it
+reported success while producing nothing of the kind, found by looking at the output
+rather than at the exit code.
+
+* **Five perfectly-sized black rectangles.** The first version slept four seconds and
+  shot. The first two launches after an install are slower than that — the demo
+  library is seeded on the first one — and the only check was `sips -g pixelWidth`,
+  which a blank frame satisfies exactly as well as a rendered gallery does. It polls
+  now, and `scripts/screenshot_check.py` decodes the PNG and requires the image to
+  *vary*: a rendered screen measures 1,000–4,000, an empty frame measures 0.0.
+* **One locale called "en-US ja zh-Hans".** `LOCALES=("${@:-en-US ja zh-Hans}")`
+  expands to a single element holding all three names, so the script made one
+  directory with that literal name, captured five screenshots into it, and reported
+  success. The output count added afterwards agreed with it — it derives its
+  expectation from the same array, and a tally cannot catch a mistake it shares. The
+  locale names are validated individually now.
+* **A code-signing failure with nothing to do with code signing.** Building into
+  `build/` fails at the last step with "resource fork, Finder information, or similar
+  detritus not allowed", because this repo lives in an iCloud-synced folder and iCloud
+  writes extended attributes onto everything under it. Derived data goes to `$TMPDIR`.
+* **The gallery card named a sound and the detail screen, one tap away, showed none.**
+  `mayReveal` is read two ways in this app: through `SoundAnalysisPreferences`, which
+  honours the task-local test suite and now the screenshot build's own suite, and
+  through `@AppStorage`, which went straight to `.standard` and honoured neither. They
+  agreed only while nobody used either seam. Every one of those declarations now
+  passes `store: SoundAnalysisPreferences.defaults`. One source of truth, or it is not
+  a rule.
+
+### 4A-ii. The listing has to say what the app does
+
+The description has not mentioned on-device listening since the feature shipped in
+1.6.0 — through 1.7.0 and 1.8.0 as well. It is not a false statement; it is the one
+surface where a privacy-relevant capability is invisible to somebody who has not
+installed yet, and the store page is where they decide.
+
+All three descriptions now say that Soundpost recognises what a clip sounded like,
+that the listening happens **entirely on the device** and is one tap to turn off, that
+a wrong label can be corrected and will not come back, and that the library can be
+searched by sound. The subtitles name search; the keywords carry it.
+
+`scripts/check-store-metadata.py` is the gate, and it checks two different things
+because both had gone wrong. **Lengths in characters, not bytes** — App Store Connect
+counts characters, `wc -m` counts bytes unless the shell's locale is UTF-8, and eleven
+Japanese characters measure as thirty-three, which is a check wrong by 3× in exactly
+the two languages with the least headroom. And **the claims themselves**: each
+locale's description must contain, in its own language, wording for listening,
+on-device, correction and search. Substrings rather than sentences, so the copy can be
+rewritten without the gate becoming a second copy of it.
 
 ### 4B. The fixture must assert shape, not wall-clock time
 

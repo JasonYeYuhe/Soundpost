@@ -284,6 +284,22 @@ enum AppEnvironment {
         CommandLine.arguments.contains("-seedSampleData")
     }
 
+    /// Which screen a screenshot run wants (M19 §4A), from `-screenshotScreen <name>`.
+    ///
+    /// The store's five screenshots were captured by hand on 2026-06-10 and never
+    /// touched through eight releases. Nothing failed; there was no step that could.
+    /// So the capture path is a script, and a script needs a way to reach a screen.
+    ///
+    /// **A launch argument, not a mockup.** §4A rule 3 says a screenshot may only show
+    /// states the app actually produces, from the real UI, with real demo data. This
+    /// enters the real views by setting the same state a tap would — it does not
+    /// assemble a picture of them.
+    static var screenshotScreen: String? {
+        guard let index = CommandLine.arguments.firstIndex(of: "-screenshotScreen"),
+              CommandLine.arguments.indices.contains(index + 1) else { return nil }
+        return CommandLine.arguments[index + 1]
+    }
+
     /// Debug-only: run the headless audio-pipeline self-test instead of the UI.
     static var isAudioSelfTest: Bool {
         CommandLine.arguments.contains("-runAudioSelfTest")

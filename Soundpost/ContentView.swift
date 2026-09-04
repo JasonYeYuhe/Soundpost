@@ -99,6 +99,33 @@ struct ContentView: View {
             }
         }
         .task { await refreshAndSync() }
+        #if DEBUG
+        // **Screenshot staging** (M19 §4A). Sets the same state a tap would, in the
+        // real views, so a capture script can reach a screen without a UI-test target
+        // and without anything being assembled for the photograph. DEBUG-only and
+        // reachable only from `-screenshotScreen`, which only the demo build passes.
+        .task {
+            guard let screen = AppEnvironment.screenshotScreen else { return }
+            switch screen {
+            case "gallery":
+                break                                   // the home screen, as launched
+            case "detail":
+                // The note-less capsule: the one whose card shows what Soundpost
+                // heard, and whose detail screen shows the chips.
+                if let subject = capsules.first(where: {
+                    ($0.note ?? "").isEmpty && $0.isContentVisible()
+                }) { path = [subject] }
+            case "search":
+                searchText = String(localized: "rain")
+            case "capture":
+                showingCapture = true
+            case "settings":
+                showingSettings = true
+            default:
+                Diagnostics.notice("Unknown -screenshotScreen; showing the gallery")
+            }
+        }
+        #endif
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {
                 Task { await refreshAndSync() }

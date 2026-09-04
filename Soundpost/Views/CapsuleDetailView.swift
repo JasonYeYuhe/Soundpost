@@ -61,11 +61,21 @@ struct CapsuleDetailView: View {
     /// this screen immediately — and so the read is not a `UserDefaults` hit inside
     /// `body`. Default `true` matches `SoundAnalysisPreferences.isEnabled`'s
     /// default-on; write through `ListeningConsentStore.set`, never here.
-    @AppStorage(SoundAnalysisPreferences.enabledKey) private var listeningEnabled = true
+    // `store:` is `SoundAnalysisPreferences.defaults`, not the implicit
+    // `UserDefaults.standard`. The rule these two compose — `mayReveal` — is read two
+    // ways in this app: through `SoundAnalysisPreferences`, which honours the
+    // task-local test suite and the screenshot build's own suite, and through
+    // `@AppStorage`, which until now went straight to `.standard` and honoured
+    // neither. The two disagreed the moment either seam was used: the screenshot
+    // build's gallery card named a sound and its detail screen, one tap away, showed
+    // none (M19 §4A). One source of truth, or it is not a rule.
+    @AppStorage(SoundAnalysisPreferences.enabledKey,
+                store: SoundAnalysisPreferences.defaults) private var listeningEnabled = true
     /// Whether that answer is an answer at all (M15 §11Q's standing, extended to
     /// display). Both are `@AppStorage` so this view repaints when either changes; the
     /// rule they compose is `SoundAnalysisPreferences.mayReveal`.
-    @AppStorage(SoundAnalysisPreferences.hasStandingKey) private var hasStanding = false
+    @AppStorage(SoundAnalysisPreferences.hasStandingKey,
+                store: SoundAnalysisPreferences.defaults) private var hasStanding = false
 
     private var tint: Color { palette.tint(for: capsule.mood) }
     private var isLocked: Bool { capsule.state == .sealed && !capsule.isContentVisible() }

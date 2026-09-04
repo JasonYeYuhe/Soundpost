@@ -4,11 +4,17 @@ Soundpost is an audio-first memory app. Capture up to a minute of how a moment a
 
 And when a moment feels like it belongs to later, you can seal a capsule to resurface on a date you choose: a postcard you send forward to your future self.
 
+Soundpost can also recognise what a clip sounded like — rain, birdsong, a passing train — and name it quietly on the card, so you can find a memory by its sound months later. That listening happens entirely on your iPhone: nothing is uploaded to be analysed, it is one tap to turn off in Settings, and if Soundpost gets it wrong you can say so and it will never show you that label again.
+
 - Capture in seconds — tap once, record the sound around you
 - Every clip becomes a glanceable, mood-tinted waveform card
 - Add a place and a single line of meaning
 - Seal a capsule to open on a future date
 - Every capsule picks a surprise day to echo back and remind you of today — change or turn it off anytime
+- Soundpost listens on your device and can name what it heard — never uploaded, off in one tap
+- Say "no, it wasn't" to a label that is wrong, and it is gone for good
+- Search your library by what a moment sounded like, not only by what you wrote
+- On this day: what this date sounded like in earlier years, waiting in your gallery
 - Private and offline-first — no account, and your recordings go nowhere but your own iCloud
 - English, 日本語, 简体中文
 

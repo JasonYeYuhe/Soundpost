@@ -37,8 +37,18 @@ struct ResurfaceView: View {
     /// composes. `@AppStorage` for the same reason the card and the detail screen use
     /// it: the reveal repaints if the switch flips underneath it, and the read is not
     /// a `UserDefaults` hit inside `body`.
-    @AppStorage(SoundAnalysisPreferences.enabledKey) private var listeningEnabled = true
-    @AppStorage(SoundAnalysisPreferences.hasStandingKey) private var hasStanding = false
+    // `store:` is `SoundAnalysisPreferences.defaults`, not the implicit
+    // `UserDefaults.standard`. The rule these two compose — `mayReveal` — is read two
+    // ways in this app: through `SoundAnalysisPreferences`, which honours the
+    // task-local test suite and the screenshot build's own suite, and through
+    // `@AppStorage`, which until now went straight to `.standard` and honoured
+    // neither. The two disagreed the moment either seam was used: the screenshot
+    // build's gallery card named a sound and its detail screen, one tap away, showed
+    // none (M19 §4A). One source of truth, or it is not a rule.
+    @AppStorage(SoundAnalysisPreferences.enabledKey,
+                store: SoundAnalysisPreferences.defaults) private var listeningEnabled = true
+    @AppStorage(SoundAnalysisPreferences.hasStandingKey,
+                store: SoundAnalysisPreferences.defaults) private var hasStanding = false
 
 
     /// The user's custom mood colours (M14). Observed so a change in Settings

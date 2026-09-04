@@ -46,11 +46,21 @@ struct CapsuleCard: View {
     /// palette is: it repaints the whole gallery the moment the switch flips, and it
     /// is not a `UserDefaults` hit per card per body pass on a path the 20 Hz player
     /// already drives (M16 §7).
-    @AppStorage(SoundAnalysisPreferences.enabledKey) private var listeningEnabled = true
+    // `store:` is `SoundAnalysisPreferences.defaults`, not the implicit
+    // `UserDefaults.standard`. The rule these two compose — `mayReveal` — is read two
+    // ways in this app: through `SoundAnalysisPreferences`, which honours the
+    // task-local test suite and the screenshot build's own suite, and through
+    // `@AppStorage`, which until now went straight to `.standard` and honoured
+    // neither. The two disagreed the moment either seam was used: the screenshot
+    // build's gallery card named a sound and its detail screen, one tap away, showed
+    // none (M19 §4A). One source of truth, or it is not a rule.
+    @AppStorage(SoundAnalysisPreferences.enabledKey,
+                store: SoundAnalysisPreferences.defaults) private var listeningEnabled = true
     /// Whether that answer is an answer at all (M15 §11Q's standing, extended to
     /// display). Both are `@AppStorage` so this view repaints when either changes; the
     /// rule they compose is `SoundAnalysisPreferences.mayReveal`.
-    @AppStorage(SoundAnalysisPreferences.hasStandingKey) private var hasStanding = false
+    @AppStorage(SoundAnalysisPreferences.hasStandingKey,
+                store: SoundAnalysisPreferences.defaults) private var hasStanding = false
 
     private var tint: Color { palette.tint(for: capsule.mood) }
     private var isLocked: Bool { capsule.state == .sealed && !capsule.isContentVisible() }

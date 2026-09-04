@@ -24,7 +24,16 @@ struct SettingsView: View {
     /// the account-wide answer FIRST and only moves this mirror if that write lands.
     /// `ListeningConsentStore.applyToDevice` refreshes it at launch and on every
     /// remote merge, so a change made on another device shows up here.
-    @AppStorage(SoundAnalysisPreferences.enabledKey) private var listeningEnabled = true
+    // `store:` is `SoundAnalysisPreferences.defaults`, not the implicit
+    // `UserDefaults.standard`. The rule these two compose — `mayReveal` — is read two
+    // ways in this app: through `SoundAnalysisPreferences`, which honours the
+    // task-local test suite and the screenshot build's own suite, and through
+    // `@AppStorage`, which until now went straight to `.standard` and honoured
+    // neither. The two disagreed the moment either seam was used: the screenshot
+    // build's gallery card named a sound and its detail screen, one tap away, showed
+    // none (M19 §4A). One source of truth, or it is not a rule.
+    @AppStorage(SoundAnalysisPreferences.enabledKey,
+                store: SoundAnalysisPreferences.defaults) private var listeningEnabled = true
 
     @State private var showingPaywall = false
     @State private var confirmingCloudDelete = false
