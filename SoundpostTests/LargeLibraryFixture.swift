@@ -52,6 +52,7 @@ enum LargeLibrary {
     static func seed(
         capsules count: Int,
         rejectingEvery nth: Int = 0,
+        answersPerKey: Int = 1,
         in context: ModelContext,
         now: Date = Date(timeIntervalSince1970: 1_780_000_000)
     ) throws -> [UUID] {
@@ -67,12 +68,20 @@ enum LargeLibrary {
             capsule.mood = Mood.allCases[index % Mood.allCases.count]
             // A third have no note, which is the branch the card's "guess fills a
             // silence" rule takes — so the filter walk exercises both sides.
+            //
+            // **The choice is decoupled from the skip.** Selecting with
+            // `index % notes.count` while skipping on `index % 3` made two of the six
+            // notes mathematically unreachable — including the only one containing
+            // "rain", so a search for "rain" over this fixture never once matched on a
+            // note and every hit fell through to the sound branch. The fixture was
+            // claiming a variety it did not have. Dividing before taking the modulus
+            // decorrelates the two.
             if index % 3 != 0 {
-                capsule.note = "\(Self.notes[index % Self.notes.count]) \(index)"
+                capsule.note = "\(Self.notes[(index / 3) % Self.notes.count]) \(index)"
             }
             if index % 4 != 0 {
                 capsule.place = Place(latitude: 35.7, longitude: 139.7,
-                                      name: Self.places[index % Self.places.count])
+                                      name: Self.places[(index / 4) % Self.places.count])
             }
             let vocabulary = Self.identifiers
             let first = vocabulary[Int(random.next() % UInt64(vocabulary.count))]
@@ -86,9 +95,20 @@ enum LargeLibrary {
             ids.append(capsule.id)
 
             if nth > 0, index % nth == 0 {
-                context.insert(SoundRejection(capsuleID: capsule.id, identifier: first,
-                                              rejected: true,
-                                              changedAt: now.addingTimeInterval(-Double(index))))
+                // `answersPerKey` rows for the SAME key, not one.
+                //
+                // With a single row per key, `winner(amongRowsForOneKey:)` reduces to
+                // `Array.max(by:)` over one element, which returns without ever calling
+                // the comparator — so date clamping, the ordering and the tie-break,
+                // the whole thing the resolution test claims to measure, never ran.
+                // Superseded answers are also what a real library accumulates between
+                // compactions, so this is the honest shape as well as the measurable one.
+                for answer in 0..<answersPerKey {
+                    context.insert(SoundRejection(
+                        capsuleID: capsule.id, identifier: first,
+                        rejected: answer.isMultiple(of: 2),
+                        changedAt: now.addingTimeInterval(-Double(index * 10 + answer))))
+                }
             }
         }
         try context.save()

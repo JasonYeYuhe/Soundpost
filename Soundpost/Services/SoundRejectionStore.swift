@@ -34,21 +34,40 @@ enum SoundRejectionStore {
     private static func fetchRows(_ descriptor: FetchDescriptor<SoundRejection>,
                                   in context: ModelContext) throws -> [SoundRejection] {
         #if DEBUG
-        fetchCount += 1
+        fetchCounter?.increment()
         #endif
         return try context.fetch(descriptor)
     }
 
     #if DEBUG
-    /// How many times this table has been read since `resetFetchCount()`.
+    /// Test instrument: how many times this table has been read, counted **per task
+    /// tree** rather than per process.
     ///
-    /// `nonisolated(unsafe)` for the same reason `AudioRecorder.observerTokens` is:
-    /// it is touched from one place at a time and never concurrently. Test-only —
-    /// the counter does not exist in a Release build, so nothing ships a global
-    /// mutable counter on a path the gallery drives.
-    nonisolated(unsafe) static var fetchCount = 0
+    /// The first version of this was a `nonisolated(unsafe) static var` on the
+    /// grounds that it is "touched from one place at a time". That was wrong, and an
+    /// external review caught it: Swift Testing runs distinct suites concurrently,
+    /// and `SoundRejectionTests`, `SayingNoTests`, `HonouringRejectionsTests` and a
+    /// `@ModelActor` exporter all drive this store. A process-wide counter would be
+    /// incremented by whatever happened to be running beside the measurement — a
+    /// genuine data race, and an assertion that fails for reasons having nothing to
+    /// do with the code under test. Exactly the flakiness M19 §4B set out to avoid,
+    /// reintroduced through the instrument meant to avoid it.
+    ///
+    /// `@TaskLocal` scopes the counter to the tree that bound it, which is the same
+    /// answer `SoundAnalysisPreferences.defaultsSuiteName` already uses for the same
+    /// problem. Unbound — which is every Release build and every non-measuring test —
+    /// this is `nil` and costs one optional check.
+    @TaskLocal static var fetchCounter: FetchCounter?
 
-    static func resetFetchCount() { fetchCount = 0 }
+    /// `@unchecked Sendable` because it holds a mutable count. Safe by construction:
+    /// `withValue`'s body is synchronous, so the only writer is the task that bound
+    /// it, and a task tree that spawns concurrent children is not something any
+    /// caller here does.
+    final class FetchCounter: @unchecked Sendable {
+        private(set) var count = 0
+        func increment() { count += 1 }
+        init() {}
+    }
     #endif
 
     // MARK: Resolution
@@ -109,10 +128,14 @@ enum SoundRejectionStore {
 
     /// The rejections for a known set of capsules — **one fetch, not one per capsule**.
     ///
-    /// For the paths that are not a view and have no query: `RemoteChangeReconciler`
-    /// builds notification copy outside any view, and `CapsuleBulkExporter` is a
-    /// `@ModelActor` with its own context. Each does one scoped fetch per operation
-    /// (§4B).
+    /// For the path that is not a view and has no query: `RemoteChangeReconciler`
+    /// builds notification copy outside any view, and reads exactly the capsules it
+    /// is about to render copy for — one scoped fetch per operation (§4B).
+    ///
+    /// **`CapsuleBulkExporter` deliberately does not use this one**, and an earlier
+    /// version of this comment claimed it did. The export covers the whole library,
+    /// so the whole table *is* its scope and it calls `index(in:)`; narrowing to a
+    /// list of every capsule id would be the same fetch with a longer predicate.
     ///
     /// An empty list fetches nothing rather than everything, which is the direction a
     /// mistake here should fail in.

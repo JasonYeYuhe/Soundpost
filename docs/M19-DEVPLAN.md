@@ -239,25 +239,39 @@ the version that starts lying.
 ### 4B-i. The measurements (S1, taken 2026-09-05)
 
 Recorded here because §10 asks for a number rather than a paragraph. iPhone 17
-simulator, best of three, in-memory store:
+simulator, best of three, in-memory store. Each measured block is repeated until it
+takes tens of milliseconds — see below for why that mattered.
 
-| Operation | 1,000 | 4,000 | ratio |
+| Operation | small | large | ratio |
 |---|---|---|---|
-| `GalleryFilter.apply` (search active) | 19.73 ms | 79.42 ms | **4.02×** |
-| `SoundRejectionStore.index(among:)` | 3.25 ms | 13.06 ms | **4.02×** |
-| `RejectionIndex.sounds(for:)` × every capsule | 0.12 ms | 0.52 ms | **4.19×** |
+| `GalleryFilter.apply`, search active | 1,000 caps → **17.0 ms** | 4,000 caps → **68.7 ms** | **4.04×** |
+| `SoundRejectionStore.index(among:)`, 3 answers/key | 3,000 rows → **7.3 ms** | 12,000 rows → **28.4 ms** | **3.87×** |
+| `RejectionIndex.sounds(for:)` × every capsule | 1,000 → **0.128 ms** | 4,000 → **0.525 ms** | **4.11×** |
 
 All three are linear. M18 §4B's argument survives contact with a measurement, and
-`RejectionIndex` costs ~0.13 µs per capsule — the part that argument was most
-worried about is the cheapest thing here.
+the lookup it worried most about costs ~0.13 µs per capsule — the cheapest thing here.
 
 **One number is worth carrying forward rather than celebrating.** Filtering 4,000
-capsules with an active search takes ~79 ms, and `displayed` is a computed property
-read from `body`. That is not a bug and not a regression — it is linear, and it is
-the cost of walking a large library — but at that size it is a visible hitch per
-keystroke, and it is the honest answer to "is the gallery fast enough at 4,000?":
-*not obviously*. Nothing in this milestone changes it; a debounced or cached search
-is a candidate for §11 now that there is a number to justify it instead of a hunch.
+capsules with an active search is ~69 ms, and `displayed` is a computed property read
+from `body`. That is not a bug and not a regression — it is linear, and it is the cost
+of walking a large library — but at that size it is a visible hitch per keystroke, and
+it is the honest answer to "is the gallery fast enough at 4,000?": *not obviously*.
+Nothing in this milestone changes it; a debounced or cached search is now a §11
+candidate with a measurement behind it instead of a hunch.
+
+**Two things an external review changed about how these were taken**, both of which
+had made the first set of numbers less trustworthy than they looked:
+
+* The measured blocks were originally as short as **0.12 ms**. At that scale the
+  "a ratio cancels load" argument fails: a macOS scheduling slice is 5–10 ms and the
+  thread can migrate between a performance and an efficiency core between two samples,
+  either of which moves a sub-millisecond figure by more than the signal. The blocks
+  are now repeated to tens of milliseconds.
+* `index(among:)` was measured against **one answer per key**, where
+  `winner(amongRowsForOneKey:)` is `Array.max(by:)` over a single element and returns
+  *without calling the comparator*. The clamping, the ordering and the tie-break — the
+  whole algorithm the row claims to measure — never ran. It is now three answers per
+  key, which is also the shape a real library carries between compactions.
 
 ---
 
