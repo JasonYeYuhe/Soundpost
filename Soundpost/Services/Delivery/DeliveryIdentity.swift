@@ -33,9 +33,20 @@ extension DeliveryIdentityProviding {
 /// as the M9 store so the key lives in the user's existing iCloud container.
 actor CloudKitDeliveryIdentity: DeliveryIdentityProviding {
     private let container: CKContainer
-    private let recordType = "DeliveryIdentity"
     private let recordName = "delivery-identity"
-    private let keyField = "userKey"
+
+    /// The record type and field this actor writes.
+    ///
+    /// `static` and internal rather than private instance constants so the schema
+    /// gate can *derive* them instead of repeating them. `CloudKitFieldCoverageTests`
+    /// checks that the CloudKit schema holds what the app declares; for the SwiftData
+    /// entities it reflects over the runtime `Schema`, but this record type is
+    /// hand-rolled and has no schema to reflect over, so the test had these two names
+    /// as string literals. A literal in a test is a second copy of a decision, and the
+    /// failure it permits is silent: rename `keyField` here and the test still asserts
+    /// the old name, still passes, and the app writes a field nothing checks.
+    static let recordType = "DeliveryIdentity"
+    static let keyField = "userKey"
 
     /// In-memory cache of the resolved key, plus the iCloud account it belongs
     /// to. Binding the key to the account means a stale key can never be served
@@ -82,7 +93,7 @@ actor CloudKitDeliveryIdentity: DeliveryIdentityProviding {
         let recordID = CKRecord.ID(recordName: recordName)
         do {
             let existing = try await db.record(for: recordID)
-            if let key = existing[keyField] as? String, !key.isEmpty {
+            if let key = existing[Self.keyField] as? String, !key.isEmpty {
                 cachedKey = key
                 cachedAccount = account
                 return key
@@ -92,7 +103,7 @@ actor CloudKitDeliveryIdentity: DeliveryIdentityProviding {
             return await save(existing, account: account)
         } catch let error as CKError where error.code == .unknownItem {
             // No record yet — create one.
-            return await save(CKRecord(recordType: recordType, recordID: recordID), account: account)
+            return await save(CKRecord(recordType: Self.recordType, recordID: recordID), account: account)
         } catch {
             // Transient CloudKit failure — no key this time; caller uses local.
             return nil
@@ -103,7 +114,7 @@ actor CloudKitDeliveryIdentity: DeliveryIdentityProviding {
     /// at-once race by adopting whichever key the server kept (or repairing it).
     private func save(_ record: CKRecord, account: (any NSObjectProtocol)?) async -> String? {
         let key = Self.generateKey()
-        record[keyField] = key as CKRecordValue
+        record[Self.keyField] = key as CKRecordValue
         do {
             _ = try await db.save(record)
             cachedKey = key
@@ -111,16 +122,16 @@ actor CloudKitDeliveryIdentity: DeliveryIdentityProviding {
             return key
         } catch let error as CKError where error.code == .serverRecordChanged {
             // Adopt the server's valid key so every device shares one group…
-            if let server = error.serverRecord?[keyField] as? String, !server.isEmpty {
+            if let server = error.serverRecord?[Self.keyField] as? String, !server.isEmpty {
                 cachedKey = server
                 cachedAccount = account
                 return server
             }
             // …or repair the server's malformed record (it has the change tag).
             if let serverRecord = error.serverRecord {
-                serverRecord[keyField] = key as CKRecordValue
+                serverRecord[Self.keyField] = key as CKRecordValue
                 if let saved = try? await db.save(serverRecord),
-                   let healed = saved[keyField] as? String, !healed.isEmpty {
+                   let healed = saved[Self.keyField] as? String, !healed.isEmpty {
                     cachedKey = healed
                     cachedAccount = account
                     return healed

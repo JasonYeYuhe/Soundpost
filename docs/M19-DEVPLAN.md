@@ -242,16 +242,37 @@ the server path to complete are both already met in the field:
 So for a signed-in person with more than one device who seals a capsule more than 24h
 out, the sequence is: device A registers the job and sets `serverJobSyncedAt`; device
 A drops its local backstop; CloudKit **strips the field** because the schema has no
-column for it; device B syncs, sees `nil`, and keeps a local backstop for a seal the
-server already owns. On the day, device B gets the push *and* its own local
-notification.
+column for it; device B merges the capsule, sees `nil`, and inside the same
+`NotificationCoordinator.sync` **schedules a local backstop first and reconciles with
+the server second** — so it ends that pass holding both a queued local notification
+and a redundant `upsert_job` it just sent for a job the server already had.
 
-The delivery-time dedup M10 §4D added does not save it. `removeLocalSealRequests` runs
-from `willPresent` (foreground only) and `didReceive` (the user tapped) — neither
-fires for a push that arrives while the app is backgrounded and is not tapped, which
-is the ordinary case for a notification about a capsule opening. And
-`apns-collapse-id` collapses pushes against pushes, not a push against a local
-request.
+**A second review pass narrowed this, and the narrowing is worth keeping.** Device B
+self-heals on its *next* sync: it has now set `serverJobSyncedAt` locally, so the next
+`NotificationPlanner.plan` omits the seal, `scheduler.reconcile` sees the queued
+request as stale and removes it. `refreshAndSync` runs on `scenePhase == .active`, so
+opening the app once is enough.
+
+What survives that correction is narrower and still real:
+
+* **every** peer device sends a redundant `upsert_job` for a job the server already
+  owns, once per merge, forever — there is no path by which `serverJobSyncedAt`
+  reaches them, so each one re-derives it independently;
+* a device that is **not opened between the seal being made and the seal falling due**
+  still has the local backstop queued when the push arrives, and fires both. A second
+  iPhone or an iPad that sits unopened for weeks is the ordinary case for a capsule
+  sealed months out, which is the feature.
+
+The delivery-time dedup M10 §4D added does not cover that last case:
+`removeLocalSealRequests` runs from `willPresent` (foreground only) and `didReceive`
+(the user tapped) — neither fires for a push arriving on a backgrounded device that is
+not tapped. `apns-collapse-id` collapses pushes against pushes, not a push against a
+local request.
+
+`sealSignature` is deliberately not the fix for this. It hashes `id`, `state`,
+`sealUntil` and `echoAt` — the fields that decide *when* a notification should fire —
+and adding `serverJobSyncedAt` to it would make a device re-sync on its own bookkeeping
+write. The fix is the field existing.
 
 **What is genuinely unknown is whether the rest of the server path completes** — M18's
 record says far-future seal delivery has never been confirmed end to end. If it still

@@ -95,7 +95,12 @@ struct CloudKitFieldCoverageTests {
         for line in schema.split(separator: "\n", omittingEmptySubsequences: false) {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
             if trimmed.hasPrefix("RECORD TYPE ") {
+                // Trimmed again after the prefix: `RECORD TYPE  Foo (` with two spaces
+                // would otherwise leave the name empty and file every one of that
+                // type's fields under "", which reads as a type with no fields —
+                // exactly the failure this parser was rewritten to stop having.
                 current = String(trimmed.dropFirst("RECORD TYPE ".count)
+                    .trimmingCharacters(in: .whitespaces)
                     .prefix { $0 != " " && $0 != "(" })
                 types[current!] = []
             } else if trimmed.hasPrefix(");") {
@@ -119,7 +124,13 @@ struct CloudKitFieldCoverageTests {
         // And it parsed the hand-made type too, whose fields carry no `CD_` prefix.
         // This is the premise the first parser could not have stated, because it was
         // the thing it got wrong.
-        #expect(development["DeliveryIdentity"]?.contains("userKey") == true,
+        //
+        // Named from `CloudKitDeliveryIdentity`'s own constants rather than as string
+        // literals: this record type has no `Schema` to reflect over, so the names
+        // here would otherwise be a second copy of a decision, and renaming the field
+        // in the actor would leave this asserting the old one and passing.
+        #expect(development[CloudKitDeliveryIdentity.recordType]?
+            .contains(CloudKitDeliveryIdentity.keyField) == true,
                 "the parser is blind to record types CoreData did not create")
 
         var missing: Set<String> = []
