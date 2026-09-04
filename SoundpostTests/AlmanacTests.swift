@@ -263,27 +263,53 @@ struct AlmanacTests {
     /// `UNUserNotificationCenter.add` called straight from a strip would never appear
     /// in one.
     ///
+    /// **The almanac's call sites, not only its policy.** The first version scanned
+    /// `Almanac.swift` alone, which leaves the one place a notification would actually
+    /// be scheduled from — the view that renders the strip — completely uncovered.
+    /// `ContentView` legitimately holds a `NotificationCoordinator` from the
+    /// environment and calls `sync` on scene changes, so that one name is allowed
+    /// there and the other four are not; `GalleryBrowsing` names none of them and is
+    /// held to the whole list.
+    ///
     /// Comments are stripped first. `Almanac`'s own doc comment explains at length
     /// which notification APIs it deliberately does not touch, naming every one of
     /// them; scanning the raw text failed the file for saying why it is correct.
-    @Test func theAlmanacNamesNoNotificationAPI() throws {
-        let raw = try #require(try? String(
-            contentsOf: URL(fileURLWithPath: #filePath)
-                .deletingLastPathComponent().deletingLastPathComponent()
-                .appending(path: "Soundpost/Services/Almanac.swift"),
-            encoding: .utf8))
-        let code = raw
-            .split(separator: "\n", omittingEmptySubsequences: false)
-            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
-            .joined(separator: "\n")
-        #expect(code.contains("static func entries"), "the comment stripper ate the code")
-        for forbidden in ["UNUserNotification", "UNNotification", "NotificationPlanner",
-                          "NotificationScheduler", "NotificationCoordinator"] {
-            #expect(!code.contains(forbidden), """
-                Almanac.swift names `\(forbidden)` in code. The almanac is a strip in \
-                the gallery precisely so that it cannot compete with seals for the 64 \
-                pending requests iOS allows.
-                """)
+    ///
+    /// **What this still cannot see**, said rather than implied: a notification
+    /// scheduled through some future indirection that names none of these strings. No
+    /// source scan closes that. What carries the weight is that the feature has no
+    /// reason to schedule anything and no code path towards one — this only has to
+    /// make adding a path visible.
+    @Test func theAlmanacAndItsCallSitesNameNoNotificationAPI() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+        let everything = ["UNUserNotification", "UNNotification", "UserNotifications",
+                          "NotificationPlanner", "NotificationScheduler",
+                          "NotificationCoordinator"]
+        let files: [(path: String, forbidden: [String], proof: String)] = [
+            ("Soundpost/Services/Almanac.swift", everything, "static func entries"),
+            ("Soundpost/Services/GalleryBrowsing.swift", everything, "struct GalleryPass"),
+            // Minus the coordinator, which this view legitimately holds for `sync`.
+            ("Soundpost/ContentView.swift",
+             everything.filter { $0 != "NotificationCoordinator" }, "almanacStrip"),
+        ]
+        for file in files {
+            let raw = try #require(try? String(contentsOf: root.appending(path: file.path),
+                                               encoding: .utf8),
+                                   "\(file.path) is not where this guard expects it")
+            let code = raw
+                .split(separator: "\n", omittingEmptySubsequences: false)
+                .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+                .joined(separator: "\n")
+            #expect(code.contains(file.proof),
+                    "the comment stripper ate \(file.path), so nothing below means anything")
+            for forbidden in file.forbidden {
+                #expect(!code.contains(forbidden), """
+                    \(file.path) names `\(forbidden)` in code. The almanac is a strip in \
+                    the gallery precisely so that it cannot compete with seals for the \
+                    64 pending requests iOS allows.
+                    """)
+            }
         }
     }
 
@@ -319,6 +345,52 @@ struct AlmanacTests {
         // And the Gregorian answer is the same, because the question is about days.
         #expect(Almanac.entries(among: all, now: date(2026, 6, 15), calendar: calendar)
             .map(\.yearsAgo) == [5, 8])
+    }
+
+    /// **Midnight does not exist everywhere, on every day.**
+    ///
+    /// Where DST begins at midnight the clocks go straight from 23:59:59 to 01:00:00,
+    /// and `startOfDay` returns 01:00 for that date. Chile does this today; Brazil did
+    /// until 2019. Comparing an 01:00 anchor against a 00:00 one is a year minus an
+    /// hour, and `dateComponents([.year], from:to:)` counts whole years by the clock —
+    /// so the anniversary comes back as **zero years** and is dropped entirely by the
+    /// `yearsAgo > 0` guard.
+    @Test func anAnniversarySurvivesATimeZoneWhereMidnightDoesNotExist() throws {
+        var santiago = Calendar(identifier: .gregorian)
+        santiago.timeZone = TimeZone(identifier: "America/Santiago")!
+
+        // **The direction matters, and a first draft of this test had it backwards.**
+        // If the *viewing* day is the one with no midnight, its anchor is 01:00 against
+        // the capsule's 00:00 — a year and an hour, which truncates to 1 and is right
+        // by accident. The failing direction is the other one: the **capsule's** day
+        // has no midnight, so its anchor is 01:00 against today's 00:00, which is a
+        // year minus an hour and truncates to **zero**. The `yearsAgo > 0` guard then
+        // drops the anniversary entirely.
+        //
+        // Chile starts DST on the first Sunday of September: 2023-09-03 has no
+        // midnight, 2024-09-03 is an ordinary Tuesday.
+        let missingMidnight = santiago.date(from: DateComponents(year: 2023, month: 9, day: 3, hour: 15))!
+        let ordinaryDay = santiago.date(from: DateComponents(year: 2024, month: 9, day: 3, hour: 15))!
+
+        // The premises: one day really has no midnight and the other really does.
+        // Without both, this passes on a machine whose tz database disagrees and
+        // proves nothing at all.
+        #expect(santiago.component(.hour, from: santiago.startOfDay(for: missingMidnight)) == 1,
+                "America/Santiago 2023-09-03 has a midnight after all — pick another date")
+        #expect(santiago.component(.hour, from: santiago.startOfDay(for: ordinaryDay)) == 0)
+
+        let context = try store()
+        let capsule = Capsule(createdAt: missingMidnight)
+        try capsule.transition(to: .recording)
+        try capsule.transition(to: .captured)
+        capsule.note = "a year before a missing midnight"
+        context.insert(capsule)
+        try context.save()
+
+        let entries = Almanac.entries(among: try context.fetch(FetchDescriptor<Capsule>()),
+                                      now: ordinaryDay, calendar: santiago)
+        #expect(entries.map(\.yearsAgo) == [1],
+                "the anniversary was dropped because its own day had no midnight")
     }
 
     /// Several capsules from the same earlier day: newest first, as the gallery

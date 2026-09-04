@@ -289,7 +289,7 @@ struct GalleryPass {
         let shown = GalleryFilter.apply(capsules, criteria, rejecting: rejecting,
                                         now: now, listening: listening)
         return GalleryPass(rejecting: rejecting, capsules: shown,
-                           sections: GallerySection.grouped(shown, now: now),
+                           sections: GallerySection.grouped(shown, now: now, calendar: calendar),
                            // Both strips are computed under the condition that decides
                            // whether they render, so a filtered gallery pays for
                            // neither. `Almanac.entries` walks the whole library once.

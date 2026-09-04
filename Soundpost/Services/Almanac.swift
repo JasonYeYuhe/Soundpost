@@ -14,8 +14,10 @@ import Foundation
 ///    evict a promise is a defect, and with a large enough library it would.
 ///
 /// So nothing in this file touches `UNUserNotificationCenter`, `NotificationPlanner`
-/// or `NotificationScheduler`, and `theAlmanacTakesNoNotificationSlots` is what keeps
-/// it that way.
+/// or `NotificationScheduler`, and two tests keep it that way:
+/// `theAlmanacNamesNoNotificationAPI` reads this file, and
+/// `theAlmanacCannotEvictASealFromTheBudget` fills the 64 slots with seals and
+/// requires the plan to be unchanged by a library full of anniversaries.
 enum Almanac {
 
     /// One earlier year's capsule for today's date.
@@ -78,15 +80,26 @@ enum Almanac {
             // `compare(toGranularity:)` and `dateComponents(from:to:)` work on the
             // dates themselves, so they are right in every calendar the user can pick.
             //
-            // Both ends truncated to the start of their day, because
+            // Both ends anchored to the same time of day, because
             // `dateComponents(from:to:)` counts whole years by the **clock**, not the
             // date: a capsule made at 20:00 two years ago, read at noon, is two years
             // minus eight hours and comes back as 1. The month and day are already
-            // equal here, so once the time of day is gone the difference is exact.
-            // Found by a test asserting the order of three capsules from one earlier
-            // day, which is not what it was written to check.
-            let made = calendar.startOfDay(for: capsule.createdAt)
-            let today = calendar.startOfDay(for: now)
+            // equal here, so once the time of day is identical the difference is exact.
+            //
+            // **Noon, not `startOfDay`.** Midnight does not exist everywhere on every
+            // day: where DST begins at midnight the clocks go from 23:59:59 to
+            // 01:00:00, and `startOfDay` returns 01:00 for that date. Chile does this
+            // today, Brazil did until 2019. A capsule recorded on such a day anchors to
+            // 01:00 while an ordinary anniversary anchors to 00:00 — a year *minus* an
+            // hour, which truncates to zero, and the `yearsAgo > 0` guard below then
+            // drops the anniversary entirely. Noon exists in every zone on every day.
+            //
+            // The `?? capsule.createdAt` fallbacks are unreachable for noon and are
+            // there because `date(bySettingHour:)` is optional, not because a zone
+            // without a midday is expected.
+            let made = calendar.date(bySettingHour: 12, minute: 0, second: 0,
+                                     of: capsule.createdAt) ?? capsule.createdAt
+            let today = calendar.date(bySettingHour: 12, minute: 0, second: 0, of: now) ?? now
             guard calendar.compare(made, to: today, toGranularity: .year) == .orderedAscending,
                   let yearsAgo = calendar.dateComponents([.year], from: made, to: today).year,
                   yearsAgo > 0 else { return nil }

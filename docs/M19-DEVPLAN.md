@@ -378,9 +378,23 @@ disappear from the strip at once. It compares dates now, not integers.
 
 Fixing that introduced a second one, which the test written for something else caught:
 `dateComponents(from:to:)` counts whole years by the **clock**. A capsule made at 20:00
-two years ago, read at noon, is two years minus eight hours and came back as one. Both
-ends are truncated to the start of their day, and the test that found it was the one
-asserting the order of three capsules from a single earlier day.
+two years ago, read at noon, is two years minus eight hours and came back as one. The
+test that found it was the one asserting the order of three capsules from a single
+earlier day.
+
+The obvious anchor for that — `startOfDay` — was a third bug, and it took a review to
+see it. **Midnight does not exist everywhere on every day**: where DST begins at
+midnight the clocks go from 23:59:59 to 01:00:00 and `startOfDay` returns 01:00 for
+that date. Chile does this today; Brazil did until 2019. A capsule recorded on such a
+day anchors at 01:00 against an ordinary anniversary's 00:00 — a year *minus* an hour,
+which truncates to zero, and the `yearsAgo > 0` guard then drops the anniversary
+entirely.
+
+**The direction matters, and the first version of that test had it backwards.** With
+the *viewing* day missing its midnight the arithmetic is a year and an hour, which
+truncates to 1 and is right by accident; the test passed and proved nothing. It fails
+only when the **capsule's** day is the one without a midnight. Both anchors are noon
+now, which exists in every zone on every day.
 
 **And the 64-slot guard was vacuous.** It built 88 anniversary capsules — none sealed,
 none echoing — and asserted the plan contained only seals and echoes and fitted in 64.
@@ -395,8 +409,21 @@ job is to make such claims testable.
 
 The replacement is a **baseline comparison at a full budget**: 70 sealed capsules, which
 the planner caps to 64, then the anniversaries added on top, and equality over the whole
-plan array. If an almanac entry could take a slot the second plan would differ. A
-mutation that lets a plain capsule take one is red.
+plan array. A mutation that lets a plain capsule take a slot is red.
+
+**What that test does not prove**, since the first draft of this paragraph claimed it
+did: it would pass identically if `Almanac` did not exist. What it guards is
+`NotificationPlanner` — that nothing but a seal or an echo can reach the budget. The
+almanac-specific half is structural, and it now scans the strip's **call sites** as
+well as its policy, because the view is where a notification would actually be
+scheduled from and scanning `Almanac.swift` alone left exactly that uncovered.
+`ContentView` legitimately holds a `NotificationCoordinator`, so that one name is
+allowed there and the other five are not.
+
+Neither half can see a notification scheduled through some future indirection that
+names none of those strings. Saying so is better than implying coverage that is not
+there — the feature has no reason to schedule anything and no path towards one, and
+the guard only has to make adding a path visible.
 
 ### 4B-i. The measurements (S1, taken 2026-09-05)
 
