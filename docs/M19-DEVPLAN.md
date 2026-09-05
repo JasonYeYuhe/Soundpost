@@ -696,17 +696,57 @@ milestone, which adds no category.
    state, so it doubles as the poll. `releaseType` is MANUAL — approved is not
    released. Read the `RELEASED v…` line rather than assuming: `cmd_release` picks by
    state alone and does not cross-check `MARKETING_VERSION`.
-2. **Production sync for corrections is still unverified** (M18), and it needs a tap
-   on a phone, which is the whole of what makes it a human step. Build 17 is already
-   on TestFlight and already talks to **Production** — `exportArchive` rewrites the
-   entitlement to `icloud-container-environment = Production` during re-signing, so no
-   new upload is needed. On js, running that TestFlight build: dismiss one sound on
-   one capsule, wait ~30s, then in the CloudKit Console query `CD_SoundRejection` in
-   **Production** → Private → `com.apple.coredata.cloudkit.zone`. One new row with
-   that capsule's UUID and the sound's identifier is Leg A. The negative control
-   matters as much: re-query **Development** and confirm it still holds only the stray
-   seed row (item 6) — if the correction shows up there instead, the build is the
-   wrong one and the test proved nothing.
+2. ~~Production sync for corrections is unverified~~ — **VERIFIED 2026-09-05.** M18's
+   release note promises "your corrections follow your iCloud account"; it had only
+   ever been checked in Development, which is a different database with a separately
+   deployed schema. It is now checked in Production, on js, both directions.
+
+   **Not on TestFlight, which turned out not to exist.** The app has **zero beta
+   groups** and no build is distributed to anyone — the earlier claim that "build 17 is
+   already on TestFlight" was wrong. What made it possible instead is that the
+   *development* provisioning profile allows
+   `icloud-container-environment: [Production, Development]`, so a development-signed
+   build pinned to `Production` talks to the live database. Verified on the signed
+   binary with `codesign -d --entitlements`, not inferred from how it was built.
+
+   The evidence, and the control that makes it mean something:
+
+   | build, fresh container | rows that came back |
+   |---|---|
+   | entitlement `Production` | the marker **and** the seed row |
+   | entitlement absent (Development) | the seed row **only** |
+
+   The marker survived a full uninstall — verified that the container really was gone,
+   because a wipe that did not happen is exactly how M18's verification became void —
+   and came back into an empty store. That is the upload leg and the download leg. The
+   Development build, from an equally empty store, never saw it.
+
+   `ProductionSyncCheck` is the harness: a DEBUG launch argument that writes through
+   `SoundRejectionStore.set` — the same entry point the long press uses — with a
+   `capsuleID` matching no capsule and an identifier outside the vocabulary, so the row
+   reaches no display path. `write` / `read` / `clean`. It exists because a release
+   gated on a manual step eventually ships on an unperformed one, and because the tap
+   version needs the one thing that went wrong the first time: a build whose signature
+   says Production.
+
+### 8-i. A hazard this found by falling into it
+
+**Switching a build's CloudKit environment without wiping the app container migrates
+the old environment's data into the new one.** Installing the Production-entitled build
+over the Development-entitled one keeps the container — same bundle id, same store —
+and the mirroring delegate treats everything already in it as local changes and
+**exports them to Production**. A `CloudKitSchemaSeed` row that had only ever existed
+in Development arrived in Production that way, silently, with nothing reporting it.
+
+Removed again, and `ProductionSyncCheck.clean` removes both shapes now. But the rule is
+the one to keep: **uninstall before changing environments.** Nothing in the app or the
+tooling would have told anyone this happened; it was visible only because the row was
+recognisable and somebody was already counting rows.
+
+The cleanup that found it also had to be fixed twice, which is worth one line:
+`#Predicate { $0.identifier.isEmpty }` matched nothing, and because the fetch was
+wrapped in `try?` the run printed "nothing to clean" while the row it existed to remove
+sat in the table. It fetches whole and filters in Swift now, and a failed read says so.
 3. ~~Screenshot upload.~~ **DONE — it is a command now**: `asc.py screenshots` reads
    `build/screenshots/<locale>/`, replaces each locale's `APP_IPHONE_65` set, and
    polls each image until App Store Connect says COMPLETE (dimension validation

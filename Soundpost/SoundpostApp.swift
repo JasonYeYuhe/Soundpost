@@ -114,6 +114,12 @@ private struct RootView: View {
                 Color.clear.task { await AudioSelfTest.run() }   // headless audio-pipeline check
             } else if AppEnvironment.isVideoSelfTest {
                 VideoSelfTestView()                              // M13 §5 S2 device smoke test
+            } else if let phase = ProductionSyncCheck.requestedPhase {
+                // The production container on purpose: the point is what the REAL
+                // store does with the REAL entitlement (M19 §8 item 2).
+                Color.clear.task {
+                    if let store { await ProductionSyncCheck.run(phase, in: store.container) }
+                }
             } else if AppEnvironment.isCloudKitSchemaSeed {
                 // Materialise the CloudKit Development schema for any entity the app
                 // has added since the last promotion (§11B-i). Uses the production
