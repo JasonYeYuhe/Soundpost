@@ -271,12 +271,26 @@ enum AppEnvironment {
     }
 
     /// True only for the real app run that should build the production CloudKit
-    /// container — i.e. not under tests, the demo seed, or the audio self-test
-    /// (each of which uses its own store).
+    /// container — i.e. not under tests, the demo seed, or the self-tests (each of
+    /// which uses its own store).
+    ///
+    /// Split by configuration because everything it excludes is **compiled out of a
+    /// shipping build**. Those modes are reachable only through launch arguments, and
+    /// an App Store app cannot be given launch arguments — so in Release the
+    /// exclusions are not merely false, they do not exist. Keeping them non-DEBUG so
+    /// that this one expression could name them was what put `-runAudioSelfTest` and
+    /// `-runVideoSelfTest` into the shipping binary as dead strings, which
+    /// `scripts/check-debug-only.sh` then had to be told to ignore. Better that the
+    /// gate mean exactly what it says.
     static var usesProductionContainer: Bool {
+        #if DEBUG
         !isRunningUnderTests && !isDemoSeed && !isAudioSelfTest && !isVideoSelfTest
+        #else
+        !isRunningUnderTests
+        #endif
     }
 
+    #if DEBUG
     /// Debug-only: write one row per entity so CloudKit's Development environment
     /// materialises the record types, then clean up (§11B-i). Needs the production
     /// container, so it is deliberately absent from `usesProductionContainer`'s
@@ -289,6 +303,7 @@ enum AppEnvironment {
     static var isDemoSeed: Bool {
         CommandLine.arguments.contains("-seedSampleData")
     }
+    #endif
 
     /// Which screen a screenshot run wants (M19 §4A), from `-screenshotScreen <name>`.
     ///
@@ -308,6 +323,7 @@ enum AppEnvironment {
     }
     #endif
 
+    #if DEBUG
     /// Debug-only: run the headless audio-pipeline self-test instead of the UI.
     static var isAudioSelfTest: Bool {
         CommandLine.arguments.contains("-runAudioSelfTest")
@@ -318,4 +334,5 @@ enum AppEnvironment {
     static var isVideoSelfTest: Bool {
         CommandLine.arguments.contains("-runVideoSelfTest")
     }
+    #endif
 }

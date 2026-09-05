@@ -50,6 +50,9 @@ jobs:
       - name: Store metadata (lengths + the claims the listing must make)
         run: python3 scripts/check-store-metadata.py
 
+      - name: Debug-only gate (no debug launch argument reaches a Release binary)
+        run: ./scripts/check-debug-only.sh
+
       # Offline half of the CloudKit gate. `status`/`promote` need a management token
       # and the network, so CI cannot run them — which is why the one check standing
       # between a release and a silently non-syncing feature lived only in
