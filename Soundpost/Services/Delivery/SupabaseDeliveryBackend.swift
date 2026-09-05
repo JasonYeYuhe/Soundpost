@@ -58,6 +58,22 @@ struct SupabaseDeliveryBackend: DeliveryBackend {
         try await post(action: "unregister_token", userKey: userKey, fields: ["token": token])
     }
 
+    /// **Everything on this wire, listed, because the privacy manifest has to match
+    /// it** (M19 §8 item 5). A capsule id, the kind, the wall clock and the IANA time
+    /// zone — no audio, no note, no place, no soundprint. The id and the schedule are
+    /// `PrivacyInfo.xcprivacy`'s "Other Data Types"; the bearer key is "User ID"; the
+    /// APNs token above is "Device ID".
+    ///
+    /// The time zone is the one field that is arguably something else. It is not
+    /// declared as Location, and that is a decision rather than an oversight: an IANA
+    /// identifier is a device *setting* a person chose, not a measurement of where
+    /// they are, and Apple's Coarse Location category is about location reported at a
+    /// lower resolution — three decimal places of latitude and longitude — rather than
+    /// about any signal that correlates with geography. It is here because the server
+    /// fires at `wall_clock AT TIME ZONE time_zone`, which is what keeps a seal years
+    /// out DST-correct; sending a UTC instant instead would be less data and a wrong
+    /// notification. Written down so the next privacy audit re-reads the reasoning
+    /// instead of re-deriving it.
     func upsertJob(_ job: DeliveryJob, userKey: String) async throws {
         try await post(action: "upsert_job", userKey: userKey, fields: [
             "capsule_id": job.capsuleID.uuidString,

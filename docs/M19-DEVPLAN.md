@@ -731,9 +731,69 @@ milestone, which adds no category.
    then `description`, `keywords`, `notes`, `screenshots`. **Not before**: bumping
    `MARKETING_VERSION` early would make `editable_version()` stop matching 1.8.0, and
    `attach`/`resubmit` would refuse to fix it if the review comes back rejected.
-4. **The two `MISSING_METADATA` IAPs** — `unset ASC_APP_ID` first (M17 §14F).
-5. **The ASC privacy nutrition label** — still unread server-side state.
-6. **Two inert CloudKit seed rows** remain in Development's private database.
+4. **One `MISSING_METADATA` IAP, and it is a product decision rather than a chore.**
+   There is one, not two: `com.soundpost.Soundpost.pro.lifetime`, NON_CONSUMABLE.
+   Its three localizations, price schedule and availability are all present; the one
+   thing missing is the **App Store review screenshot**. `ProPaywallView` exists and
+   references an annual product that does not exist in ASC at all, and
+   `StoreService` is documented as "inert until ASC products exist (ship-dormant)" —
+   so the paywall shows nothing and nothing can be bought. It is harmless in that
+   state, and it did not block 1.8.0's submission.
+
+   Deliberately **not** completed here. M18's standing constraint is "Free stays
+   free. No Pro lever, no paywall, no new IAP", and supplying the last field is the
+   step that makes Pro submittable. That is Jason's call about the product, not a
+   gap in the tooling.
+5. ~~The ASC privacy nutrition label~~ — **VERIFIED CORRECT 2026-09-05, and it can be
+   struck.** It was never unreadable, only unreadable *through the API*: privacy
+   details are absent from the public App Store Connect API entirely (every candidate
+   path 404s; Apple's internal `iris` endpoints answer 401 to an API-key JWT and take
+   an Apple ID web session, which is a credential path an agent must not take). The
+   **published** label is public on the product page, and it reads: "Data Not Linked
+   to You", App Functionality — Identifiers (User ID, Device ID), Diagnostics (Crash
+   Data, Other Diagnostic Data), Other Data. No "Linked to You" section and no
+   tracking section.
+
+   That is a five-for-five match with `PrivacyInfo.xcprivacy`, and the manifest is
+   truthful about what actually leaves the device: Sentry is crash-and-hang only
+   (`tracesSampleRate 0`, `sendDefaultPii false`, `beforeSend` nils the request, and
+   `capture(message:)` takes `StaticString` so a note cannot be built into one), and
+   the Supabase backend sends only the APNs token, a random per-user key, a capsule
+   UUID and a schedule — no audio, note, place or soundprint. Zero analytics SDKs.
+   The claim M15 §11A#12 and M18 §6 kept making without checking is true.
+
+   One item flagged rather than asserted: `upsert_job` sends the IANA time zone id,
+   which is undeclared as Location. Defensible — a device setting, not a location
+   measurement, and Apple's Coarse Location threshold is about resolution — but it is
+   the only wire field not obviously inside an existing category, and it is now noted
+   where the code sends it so the next audit does not re-derive it.
+
+   Caveat, stated because the method has one: this reads the *published* label. An
+   unpublished draft edit sitting in ASC would be invisible to it. Independently
+   covered, since ASC refuses a submission while privacy answers are incomplete and
+   1.8.0 reached WAITING_FOR_REVIEW.
+6. **Two inert CloudKit seed rows in Development — WON'T FIX, and one of them is
+   load-bearing.** They are `CloudKitSchemaSeed`'s throwaway rows, left by a pass
+   whose cleanup did not complete. Neither is reachable by any shipped build
+   (Development is dev-signed only) or by any other Apple ID (a private database).
+
+   The `CD_SoundRejection` row carries `rejected: false`, so `index(among:)` filters
+   it out at `where row.rejected` before a `RejectionIndex` is even constructed; its
+   `capsuleID` matches nothing and its `identifier` is empty. It reaches no display
+   path — and it is the **named negative control** for item 2: if a correction made on
+   a TestFlight build shows up in Development, the build is the wrong one. Deleting it
+   would remove the check that makes that test mean anything.
+
+   The `CD_ListeningConsent` row loses to every dated answer by construction
+   (`.distantPast`) and is deleted outright by the first deliberate toggle on any
+   dev-signed device, since `ListeningConsentStore.set` removes rows with
+   `changedAt < now`. Its one real effect until then: `hasAnswer` only checks for a
+   non-empty fetch, so a fresh debug install on that account gets `hasStanding` one
+   launch earlier than standing intends. Dev-only, and it self-heals.
+
+   `cktool` cannot delete either — record commands need a **user** token and this
+   machine has only a management token. Deleting them is a Console click, and the
+   reason to leave them is better than the reason to click it.
 
 ---
 
