@@ -674,28 +674,63 @@ milestone, which adds no category.
 
 ## 8. Human-in-the-loop checklist (needs Jason)
 
-0. **Deploy `CD_Capsule.CD_serverJobSyncedAt`, before the next release** (§4C-i).
-   The field the M10 cross-device backstop-drop depends on has never existed in
-   CloudKit, and both preconditions for the server path to complete are now met in the
-   field (`isConfigured` is a hard-coded live URL; `DeliveryIdentity` reached
-   Production 2026-08-28). Two steps, both owner-owned:
-   (a) make one signed-in device write a non-nil value — sealing a capsule more than
-       24h out on a signed-in device is what does it — so CoreData creates the field
-       in Development;
-   (b) deploy Development → Production in the CloudKit Console (`cktool` has no
-       deploy subcommand).
-   Then `scripts/cloudkit-schema.sh check-fields`, and remove the entry from
-   `CloudKitFieldCoverageTests.knownAbsent` — the suite fails until it is removed,
-   which is deliberate.
-1. **Release 1.8.0 when it is approved** — `python3 scripts/asc.py release`.
-   `releaseType MANUAL`, unlike 1.7.0's auto-release: approved is not released.
-   **Item 0 first**: releasing is not what arms the duplicate — the field being
-   absent already does — but it is the moment more devices start running the path.
-2. **Production sync for corrections is still unverified** (M18). Two TestFlight
-   devices, three minutes. If it fails, the 1.8.0 release note promising corrections
-   follow iCloud must be corrected in 1.9.0.
-3. **Screenshot upload.** `asc.py` has no command for it; either it gains one in S4 or
-   the files are uploaded by hand. A decision, not a discovery.
+0. ~~Deploy `CD_Capsule.CD_serverJobSyncedAt`~~ — **DONE 2026-09-05.** Added to
+   Development as `TIMESTAMP QUERYABLE SORTABLE` (matching `CD_sealUntil` and
+   `CD_echoAt`, all three being `Date?`) and deployed Development → Production in the
+   CloudKit Console. The Confirm Deployment dialog listed one new field and its two
+   indexes and nothing else — exactly the delta computed beforehand. Snapshots
+   refreshed, `knownAbsent` is empty, and a mutation removing the field again turns
+   `everyDeclaredFieldExistsInTheCloudKitSchema` red.
+
+   **Not created by letting CoreData write a row**, which is the route §4C-i assumed.
+   That needs a signed-in device writing a non-nil value, and the only code that
+   writes this one — `SealDeliveryService.reconcile` — claims it before an `await` and
+   reverts it on failure, against a live backend, for a delivery path never confirmed
+   to work. It would have put a real recording in a real library for a value that
+   probably would not have persisted. Authoring the field directly is what the Console
+   is for, and the type had to match an existing `Date?` field exactly, which it does.
+1. **Release 1.8.0 when Apple approves it** — `python3 scripts/asc.py release`.
+   Blocked on Apple, not on anything here: it has been `WAITING_FOR_REVIEW` since
+   2026-09-01, and `cmd_release` acts only on `PENDING_DEVELOPER_RELEASE`. Run against
+   any other state it exits before its first HTTP write and prints every version's
+   state, so it doubles as the poll. `releaseType` is MANUAL — approved is not
+   released. Read the `RELEASED v…` line rather than assuming: `cmd_release` picks by
+   state alone and does not cross-check `MARKETING_VERSION`.
+2. **Production sync for corrections is still unverified** (M18), and it needs a tap
+   on a phone, which is the whole of what makes it a human step. Build 17 is already
+   on TestFlight and already talks to **Production** — `exportArchive` rewrites the
+   entitlement to `icloud-container-environment = Production` during re-signing, so no
+   new upload is needed. On js, running that TestFlight build: dismiss one sound on
+   one capsule, wait ~30s, then in the CloudKit Console query `CD_SoundRejection` in
+   **Production** → Private → `com.apple.coredata.cloudkit.zone`. One new row with
+   that capsule's UUID and the sound's identifier is Leg A. The negative control
+   matters as much: re-query **Development** and confirm it still holds only the stray
+   seed row (item 6) — if the correction shows up there instead, the build is the
+   wrong one and the test proved nothing.
+3. ~~Screenshot upload.~~ **DONE — it is a command now**: `asc.py screenshots` reads
+   `build/screenshots/<locale>/`, replaces each locale's `APP_IPHONE_65` set, and
+   polls each image until App Store Connect says COMPLETE (dimension validation
+   happens *there*, not at the commit, so skipping the poll would report success over
+   a rejected file). It has its own, narrower state list —
+   `SCREENSHOT_EDITABLE_STATES` — because images stop being editable earlier than
+   text does; `EDITABLE_STATES` would have produced a 409 half way through fifteen
+   files. `asc.py keywords` exists now too. **There is deliberately no `subtitle`
+   command**: subtitle lives on `appInfoLocalizations`, which is app-level and shared
+   with the live listing, not per-version like description and keywords.
+
+   Nothing can be uploaded until there is an editable version. The captured
+   screenshots and the rewritten description belong to **1.9.0**, not 1.8.0: the
+   gallery shot shows "On this day", which is not in build 17, and the description's
+   almanac bullet is false of it. Everything else in the rewrite — listening,
+   on-device, corrections, sound search — is true of 1.8.0 and has simply never been
+   on the store page.
+
+   The sequence when 1.8.0 has shipped: bump `MARKETING_VERSION` to 1.9.0, `cp
+   metadata/*/release_notes-1.9.0.txt` over `release_notes.txt` (the gate in
+   `check-store-metadata.py` requires those to match), `asc.py create-version 1.9.0`,
+   then `description`, `keywords`, `notes`, `screenshots`. **Not before**: bumping
+   `MARKETING_VERSION` early would make `editable_version()` stop matching 1.8.0, and
+   `attach`/`resubmit` would refuse to fix it if the review comes back rejected.
 4. **The two `MISSING_METADATA` IAPs** — `unset ASC_APP_ID` first (M17 §14F).
 5. **The ASC privacy nutrition label** — still unread server-side state.
 6. **Two inert CloudKit seed rows** remain in Development's private database.

@@ -14,7 +14,7 @@ Usage (run with the venv that has pyjwt+requests):
 Rebuilding the venv:
   python3 -m venv /tmp/asc-venv && /tmp/asc-venv/bin/python3 -m pip install "pyjwt[crypto]" requests
 """
-import sys, time, json, os, re
+import sys, time, json, os, re, hashlib
 import jwt, requests
 
 KEY_ID  = os.environ.get('ASC_API_KEY_ID', 'DMMFP6XTXX')
@@ -360,6 +360,174 @@ def cmd_submit():
     print(f"SUBMITTED for review (submission {sub['id']}).")
 
 
+# ── Screenshots ──────────────────────────────────────────────────────────────
+#
+# M19 §4A. The store's five screenshots were captured by hand on 2026-06-10 and not
+# touched through eight releases; `scripts/screenshots.sh` makes capturing them a
+# command, and this makes uploading them one. Together they turn "an afternoon" into
+# two lines of a release checklist, which is the only reason the 1.1.0 set went stale
+# — there was no step that could fail.
+
+# Screenshots are stricter than text metadata, and the difference matters.
+#
+# `EDITABLE_STATES` above includes WAITING_FOR_REVIEW and IN_REVIEW because *some*
+# app information can be edited there. Images cannot: Apple's own status reference
+# says images and previews stop being editable once a version reaches Ready for
+# Review, and the API answers a POST /v1/appScreenshots with 409 STATE_ERROR
+# ("Attribute cannot be edited at this time"). So this has its own, narrower list —
+# reusing `EDITABLE_STATES` would have produced a 409 half way through a 15-file
+# upload, with some locales replaced and some not.
+SCREENSHOT_EDITABLE_STATES = ('PREPARE_FOR_SUBMISSION', 'REJECTED', 'DEVELOPER_REJECTED',
+                              'METADATA_REJECTED', 'INVALID_BINARY')
+
+# What `scripts/screenshots.sh` produces, and what App Store Connect currently holds:
+# one set per locale, five images, 1242x2688. Read from ASC on 2026-09-05 rather than
+# assumed — a wrong display type is a rejected submission, not a cosmetic problem.
+SCREENSHOT_DISPLAY_TYPE = 'APP_IPHONE_65'
+
+
+def upload_asset(operations, data):
+    """PUT the parts of one reserved asset.
+
+    Deliberately NOT through `req()`. Those URLs are unauthenticated, time-limited
+    presigned blobstore URLs — Apple's docs are explicit that no JWT is needed — and
+    `req()` would attach `Authorization` and force `Content-Type: application/json`
+    onto a PNG. The only headers that belong on these calls are the ones the
+    reservation handed back.
+    """
+    for op in operations:
+        chunk = data[op['offset']:op['offset'] + op['length']]
+        headers = {h['name']: h['value'] for h in op.get('requestHeaders', [])}
+        r = requests.request(op['method'], op['url'], data=chunk, headers=headers, timeout=300)
+        if r.status_code >= 400:
+            sys.exit(f'  ! upload part failed {r.status_code}: {r.text[:200]}')
+
+
+def await_asset(screenshot_id, name):
+    """Block until Apple has processed the image, or say why it refused.
+
+    **This poll is not optional.** Dimension and format validation happens here, not
+    at the commit: a wrong-sized PNG returns 200 from the PATCH and only later turns
+    up as FAILED with a reason. Skipping the poll would mean the script reports
+    success and the listing quietly keeps the old images — the exact shape of failure
+    this whole milestone is about.
+    """
+    for _ in range(150):                                     # ~5 minutes
+        state = get(f'/v1/appScreenshots/{screenshot_id}',
+                    **{'fields[appScreenshots]': 'assetDeliveryState'})
+        delivery = state['data']['attributes'].get('assetDeliveryState') or {}
+        if delivery.get('state') == 'COMPLETE':
+            return
+        if delivery.get('state') == 'FAILED':
+            why = '; '.join(f"{e.get('code')}: {e.get('description')}"
+                            for e in delivery.get('errors') or []) or 'no reason given'
+            sys.exit(f'  ! {name} was rejected by App Store Connect — {why}')
+        time.sleep(2)
+    sys.exit(f'  ! {name} never finished processing')
+
+
+def cmd_screenshots():
+    """Replace every locale's screenshots with what `scripts/screenshots.sh` captured."""
+    v = editable_version()
+    if not v:
+        sys.exit('No editable App Store version found — run `create-version <x.y.z>` first.')
+    state = v['attributes']['appStoreState']
+    version = v['attributes']['versionString']
+    if state not in SCREENSHOT_EDITABLE_STATES:
+        sys.exit(
+            f'Refusing to replace the screenshots of v{version}: it is {state}.\n'
+            f'  Images are only editable in {", ".join(SCREENSHOT_EDITABLE_STATES)} —\n'
+            f'  App Store Connect answers 409 STATE_ERROR otherwise, and it would do so\n'
+            f'  part way through, leaving some locales replaced and some not.'
+        )
+
+    root = os.path.join(PROJECT_DIR, 'build', 'screenshots')
+    if not os.path.isdir(root):
+        sys.exit(f'No screenshots at {root} — run `scripts/screenshots.sh` first.')
+
+    print(f"Replacing screenshots on v{version} ({state})")
+    localizations = {loc['attributes']['locale']: loc['id']
+                     for loc in get(f"/v1/appStoreVersions/{v['id']}/appStoreVersionLocalizations")
+                     .get('data', [])}
+
+    for locale in sorted(os.listdir(root)):
+        folder = os.path.join(root, locale)
+        if not os.path.isdir(folder):
+            continue
+        files = sorted(f for f in os.listdir(folder) if f.endswith('.png'))
+        if not files:
+            continue
+        if locale not in localizations:
+            sys.exit(f'  ! {locale} has screenshots but no localization on v{version}')
+
+        sets = get(f"/v1/appStoreVersionLocalizations/{localizations[locale]}/appScreenshotSets") \
+            .get('data', [])
+        match = [s for s in sets
+                 if s['attributes']['screenshotDisplayType'] == SCREENSHOT_DISPLAY_TYPE]
+        if match:
+            set_id = match[0]['id']
+        else:
+            set_id = post('/v1/appScreenshotSets',
+                          {'data': {'type': 'appScreenshotSets',
+                                    'attributes': {'screenshotDisplayType': SCREENSHOT_DISPLAY_TYPE},
+                                    'relationships': {'appStoreVersionLocalization': {
+                                        'data': {'type': 'appStoreVersionLocalizations',
+                                                 'id': localizations[locale]}}}}})['data']['id']
+
+        # Delete before creating, not after. A set holds at most ten images; five old
+        # plus five new is fine but five plus six is not, and the failure would land
+        # mid-locale.
+        for existing in get(f'/v1/appScreenshotSets/{set_id}/appScreenshots',
+                            limit=200).get('data', []):
+            req('DELETE', f"/v1/appScreenshots/{existing['id']}")
+
+        uploaded = []
+        for name in files:
+            path = os.path.join(folder, name)
+            with open(path, 'rb') as f:
+                data = f.read()
+            reserved = post('/v1/appScreenshots',
+                            {'data': {'type': 'appScreenshots',
+                                      'attributes': {'fileSize': len(data), 'fileName': name},
+                                      'relationships': {'appScreenshotSet': {
+                                          'data': {'type': 'appScreenshotSets',
+                                                   'id': set_id}}}}})['data']
+            upload_asset(reserved['attributes'].get('uploadOperations') or [], data)
+            # MD5 of the whole file, lowercase hex — not per-part, not base64. The
+            # commit is the only place `uploaded` and `sourceFileChecksum` are
+            # writable, and after it the file can only be changed by deleting the
+            # resource and reserving again.
+            patch(f"/v1/appScreenshots/{reserved['id']}",
+                  {'data': {'type': 'appScreenshots', 'id': reserved['id'],
+                            'attributes': {'uploaded': True,
+                                           'sourceFileChecksum': hashlib.md5(data).hexdigest()}}})
+            await_asset(reserved['id'], f'{locale}/{name}')
+            uploaded.append(reserved['id'])
+            print(f'  {locale}: {name} ({len(data):,} bytes)')
+
+        # Order is the set's relationship linkage, not an attribute on the image.
+        # Creation order usually gives the right answer already; this is the only
+        # thing that guarantees it, and it is idempotent.
+        req('PATCH', f'/v1/appScreenshotSets/{set_id}/relationships/appScreenshots',
+            {'data': [{'type': 'appScreenshots', 'id': i} for i in uploaded]})
+        print(f'  {locale}: {len(uploaded)} screenshots, in order')
+
+    print(f'Screenshots replaced on v{version}.')
+    return v
+
+
+def cmd_keywords():
+    """Push metadata/<locale>/keywords.txt.
+
+    Keywords live on `appStoreVersionLocalizations`, per version, like the description
+    — so this inherits `push_localized_field`'s safety exactly. The **subtitle** does
+    not: it lives on `appInfoLocalizations`, which is app-level and shared with the
+    live listing, and editing it can put the app itself into review. There is
+    deliberately no `subtitle` command here; adding one must not reuse this path.
+    """
+    push_localized_field('keywords.txt', 'keywords', 'keywords')
+
+
 def main():
     cmd = sys.argv[1] if len(sys.argv) > 1 else 'status'
     if cmd == 'status':
@@ -372,6 +540,12 @@ def main():
         cmd_notes()
     elif cmd == 'description':
         cmd_description()
+    elif cmd == 'keywords':
+        cmd_keywords()
+    elif cmd == 'screenshots':
+        cmd_screenshots()
+    elif cmd == 'cancel':
+        cmd_cancel()
     elif cmd == 'attach':
         cmd_attach(sys.argv[2])
     elif cmd == 'submit':

@@ -41,28 +41,34 @@ import SwiftData
 @Suite(.serialized)
 struct CloudKitFieldCoverageTests {
 
-    /// **A finding, not an exemption.**
+    /// **Empty, and it took a deploy to make it so.**
     ///
-    /// `Capsule.serverJobSyncedAt` (M10 §4D) does not exist in the CloudKit schema in
-    /// either environment. Its own doc comment says it is "synced to the user's other
-    /// devices via M9 CloudKit", and `NotificationPlanner` drops a device's local
-    /// backstop when it is non-nil — the mechanism that makes exactly one notification
-    /// fire per resurfacing across a person's devices.
+    /// This set held `CD_Capsule.CD_serverJobSyncedAt` for exactly as long as the
+    /// field was missing. That field is M10 §4D's cross-device coordination flag —
+    /// `NotificationPlanner` drops a device's local backstop when it is non-nil, which
+    /// is what makes one notification fire per resurfacing rather than one per device.
+    /// It had never existed in CloudKit in either environment, because CoreData
+    /// creates a Development field only when a record first carries a value for it and
+    /// nothing had ever written one.
     ///
-    /// It has never been written, which is consistent with M10 server delivery never
-    /// having worked in a shipped build, and that is why it was never created. The
-    /// consequence is latent rather than live: while the field is nil everywhere, every
-    /// device keeps its backstop, which is the safe direction. **The moment server
-    /// delivery starts working it becomes a duplicate-notification bug** — one device
-    /// sets the flag, the others never learn, and both a push and a local backstop
-    /// fire.
+    /// Deployed on 2026-09-05: added to Development as `TIMESTAMP QUERYABLE SORTABLE`
+    /// — matching `CD_sealUntil` and `CD_echoAt` exactly, since all three are `Date?`
+    /// — then Development → Production in the CloudKit Console. The Confirm Deployment
+    /// dialog listed one new field and its two indexes and nothing else, which is what
+    /// the diff computed beforehand had predicted.
     ///
-    /// Closing it needs a write of a non-nil value into Development and a human deploy
-    /// in the CloudKit Console (§4G). Until then it is recorded here **exactly**, not
-    /// as an allow-list: the assertion is equality, so a second missing field fails and
-    /// so does this one being fixed. A gap that can be forgotten is the shape this
-    /// project keeps rediscovering.
-    static let knownAbsent: Set<String> = ["CD_Capsule.CD_serverJobSyncedAt"]
+    /// **Not created by letting CoreData write a row, deliberately.** That route needs
+    /// a signed-in device writing a non-nil value, and the only code that writes this
+    /// one — `SealDeliveryService.reconcile` — claims it before an `await` and reverts
+    /// it on failure, against a live backend, for a delivery path never confirmed to
+    /// work. It would have put a real recording in a real library for a value that
+    /// probably would not have persisted.
+    ///
+    /// Kept as an **equality** assertion rather than deleted: a set that is empty
+    /// because it is checked is different from one that is empty because nobody looks,
+    /// and the next missing field should land here with its reason rather than in a
+    /// comment somewhere.
+    static let knownAbsent: Set<String> = []
 
     /// The checked-in export, so this runs offline and in CI.
     /// `scripts/cloudkit-schema.sh check-fields` is what stops it going stale.

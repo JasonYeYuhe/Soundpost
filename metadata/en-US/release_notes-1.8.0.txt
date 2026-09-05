@@ -1,0 +1,4 @@
+• When Soundpost gets a sound wrong, you can now say so. Press and hold a sound on a capsule and choose "No, it wasn't." It leaves the card, the capsule, search, the sound filter, your export and the lock screen — and you can bring it back whenever you like.
+• Nothing ever asks you to do this, and nothing counts how often you do.
+• Your corrections follow your iCloud account, the same way your capsules do.
+• The resurface screen no longer describes a sound as though it were a fact. What Soundpost heard is still shown there, attributed as what it is — a guess by a machine — and the sentence beside it is now written only from your own note and the place you tagged.

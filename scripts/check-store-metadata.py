@@ -17,7 +17,7 @@ So each locale's description has to say, in its own language, that Soundpost lis
 that the listening is on-device, that a wrong label can be corrected, and that the
 library is searchable by sound.
 """
-import sys, pathlib
+import re, sys, pathlib
 
 LIMITS = {"subtitle": 30, "keywords": 100, "promotional_text": 170, "description": 4000}
 
@@ -66,6 +66,33 @@ for locale in sorted(CLAIMS):
             failures.append(
                 f"{locale}/description.txt makes no '{claim}' claim "
                 f"(looked for {options!r})")
+
+# `release_notes.txt` is the notes for the version currently IN FLIGHT — `asc.py notes`
+# pushes it to whatever `editable_version()` resolves to, which is matched against the
+# project's MARKETING_VERSION. The archived `release_notes-<x.y.z>.txt` files are the
+# record of what each version actually shipped.
+#
+# So the live file must match the archive for the version the project is currently on.
+# Writing the NEXT release's notes into `release_notes.txt` early is the trap this
+# catches: if the in-flight version comes back rejected, `asc.py notes` would push the
+# unreleased version's copy onto it, and nothing would say so.
+def project_marketing_version():
+    pbx = (pathlib.Path(__file__).resolve().parent.parent
+           / "Soundpost.xcodeproj" / "project.pbxproj").read_text(encoding="utf-8")
+    m = re.search(r"MARKETING_VERSION = ([0-9.]+);", pbx)
+    return m.group(1) if m else None
+
+
+version = project_marketing_version()
+if version:
+    for locale in sorted(CLAIMS):
+        live = root / locale / "release_notes.txt"
+        archived = root / locale / f"release_notes-{version}.txt"
+        if live.exists() and archived.exists():
+            if live.read_text(encoding="utf-8").strip() != archived.read_text(encoding="utf-8").strip():
+                failures.append(
+                    f"{locale}/release_notes.txt does not match release_notes-{version}.txt "
+                    f"(the project's MARKETING_VERSION). `asc.py notes` pushes the live file.")
 
 if failures:
     print("\033[31m✗ Store metadata gate FAILED:\033[0m", file=sys.stderr)
