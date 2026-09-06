@@ -689,7 +689,21 @@ milestone, which adds no category.
    to work. It would have put a real recording in a real library for a value that
    probably would not have persisted. Authoring the field directly is what the Console
    is for, and the type had to match an existing `Date?` field exactly, which it does.
-1. **Release 1.8.0 when Apple approves it** — `python3 scripts/asc.py release`.
+1. ~~Release 1.8.0~~ — **RELEASED 2026-09-05/06 by Jason.** 1.9.0 was then cut and
+   **submitted 2026-09-06**: build 18, `releaseType MANUAL`, description / keywords /
+   release notes / four screenshots pushed to all three locales, Sentry dSYMs uploaded
+   (both the app's and Sentry.framework's — the thing that made 1.6.0 unsymbolicated
+   was an agent shell not reading `~/.zshrc`, and it is loaded explicitly now).
+   A twice-daily watch reports approval and does not release.
+
+   Four screenshots rather than five: the Settings screen is the best argument for the
+   on-device listening the description now leads with, and it also ends with "Capsules
+   live only on this device", which is what `CloudSyncMonitor` reports with no iCloud
+   account — true of a screenshot simulator, false of the app being described. Making
+   that footer say something else is what §4A rule 3 forbids. It comes back when the
+   capture simulator can be signed into iCloud.
+
+   ~~Release 1.8.0 when Apple approves it~~ — `python3 scripts/asc.py release`.
    Blocked on Apple, not on anything here: it has been `WAITING_FOR_REVIEW` since
    2026-09-01, and `cmd_release` acts only on `PENDING_DEVELOPER_RELEASE`. Run against
    any other state it exits before its first HTTP write and prints every version's
