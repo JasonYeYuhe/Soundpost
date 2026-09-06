@@ -187,10 +187,20 @@ def localized_string_key_bodies(src):
 uncatalogued = []
 for path in sorted(glob.glob(os.path.join(project_dir, "Soundpost", "**", "*.swift"), recursive=True)):
     src = open(path, encoding="utf-8").read()
-    # DEBUG-only developer tools never ship a UI to a user, and say so by using
-    # `Text(verbatim:)` throughout; skip them rather than demand translations.
-    if src.lstrip().startswith("#if DEBUG"):
-        continue
+    # **No skip for `#if DEBUG` files.** There used to be one, on the reasoning that
+    # "DEBUG-only developer tools never ship a UI to a user, and say so by using
+    # `Text(verbatim:)` throughout". Three of the four files it skipped do exactly
+    # that and contain zero localizable literals, so it bought nothing for them. The
+    # fourth is `DemoData.swift`, which is DEBUG-only AND whose strings are the copy in
+    # every App Store screenshot in three languages — it uses `String(localized:)`
+    # precisely because they must be translated, and its own comment says so.
+    #
+    # So the rule skipped the one file where it mattered, and two of that file's
+    # strings had gone uncatalogued unnoticed: a Japanese and a Chinese store page
+    # would have shipped "Kamakura" and "The wind through the pines" in English.
+    # Measured before removing it — a file that genuinely has nothing to translate
+    # matches nothing here anyway, because `Text(verbatim: "…")` does not match
+    # `LOCALIZING`. The skip was pure loss.
 
     found = [(m.start(), m.group(1)) for m in LOCALIZING.finditer(src)]
     for start, end in localized_string_key_bodies(src):

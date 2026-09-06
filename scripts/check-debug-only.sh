@@ -53,11 +53,22 @@ else
   # Derived data OUTSIDE the repo: this project lives in an iCloud-synced folder and
   # iCloud writes xattrs that make codesign fail with a message about resource forks.
   DD="${TMPDIR:-/tmp}soundpost-debugonly-dd"
+  # macOS periodically empties $TMPDIR, and it does not do so atomically — it can leave
+  # a half-deleted `SourcePackages/artifacts` tree behind. The next build then fails with
+  # "There is no Info.plist found at .../Sentry.xcframework/Info.plist", which names a
+  # dependency and says nothing about the cache, and reads like a broken checkout. Hit
+  # twice in one afternoon. So: one wipe-and-retry, and only then believe the failure.
+  build_once() {
+    xcodebuild build -project "$PROJECT_DIR/Soundpost.xcodeproj" -scheme Soundpost \
+      -configuration Release -destination 'generic/platform=iOS Simulator' \
+      -derivedDataPath "$DD" > "$PROJECT_DIR/build/release-check.log" 2>&1
+  }
   printf '  building Release…\n'
-  xcodebuild build -project "$PROJECT_DIR/Soundpost.xcodeproj" -scheme Soundpost \
-    -configuration Release -destination 'generic/platform=iOS Simulator' \
-    -derivedDataPath "$DD" > "$PROJECT_DIR/build/release-check.log" 2>&1 \
-    || { printf '\033[31m✗ Release build failed — see build/release-check.log\033[0m\n' >&2; exit 1; }
+  if ! build_once; then
+    printf '  build failed; wiping derived data and retrying once…\n'
+    rm -rf "$DD"
+    build_once || { printf '\033[31m✗ Release build failed twice — see build/release-check.log\033[0m\n' >&2; exit 1; }
+  fi
   APP="$DD/Build/Products/Release-iphonesimulator/Soundpost.app"
 fi
 

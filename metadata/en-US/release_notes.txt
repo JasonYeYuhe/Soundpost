@@ -1,4 +1,3 @@
-• When Soundpost gets a sound wrong, you can now say so. Press and hold a sound on a capsule and choose "No, it wasn't." It leaves the card, the capsule, search, the sound filter, your export and the lock screen — and you can bring it back whenever you like.
-• Nothing ever asks you to do this, and nothing counts how often you do.
-• Your corrections follow your iCloud account, the same way your capsules do.
-• The resurface screen no longer describes a sound as though it were a fact. What Soundpost heard is still shown there, attributed as what it is — a guess by a machine — and the sentence beside it is now written only from your own note and the place you tagged.
+• On this day. When something in your library was recorded on today's date in an earlier year, a quiet strip appears at the top of the gallery with the year and what that moment sounded like. It is absent on every other day, and it is never a notification — a sealed capsule opening is a promise you made to yourself, and this is not.
+• A sealed capsule that is not due yet never appears there, the same as everywhere else.
+• The gallery is faster with a large library. It was doing the same work once for every card on screen instead of once for the whole screen.

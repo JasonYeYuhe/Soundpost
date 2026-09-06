@@ -94,6 +94,25 @@ enum DemoData {
             // called "what this day sounded like".
             (.nostalgic, nil, String(localized: "Kamakura"), 15, 0, 1,
              ["sea_waves", "wind"]),
+            // Three more, added for the store screenshots and honest about why: a
+            // search that matches only two capsules leaves the storage footer inside
+            // the viewport, and that footer reads "Capsules live only on this device"
+            // in a build with no iCloud account — true of the screenshot rig, false of
+            // the app the listing describes. More library pushes it below the fold.
+            //
+            // Forcing the footer to say something else would have been the easier fix
+            // and the wrong one: §4A rule 3 is that a screenshot may only show states
+            // the app actually produces, never one assembled for the photograph. Adding
+            // demo capsules adds demo data; it does not fabricate a state.
+            //
+            // They also carry `wind` so a search for it returns four capsules rather
+            // than one, which is what makes the search screen worth photographing.
+            (.calm, nil, String(localized: "Kamakura"), 11, 2, 0,
+             ["wind", "sea_waves"]),
+            (.melancholy, String(localized: "The wind through the pines"), String(localized: "Ueno Park"),
+             19, 4, 0, ["wind_rustling_leaves", "bird_chirp_tweet"]),
+            (.calm, nil, String(localized: "Home"), 7, 5, 0,
+             ["wind", "rain"]),
         ]
         for (index, sample) in samples.enumerated() {
             let sameDayEarlierYear = Calendar.current.date(

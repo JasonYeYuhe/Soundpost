@@ -31,7 +31,21 @@ DEVICE_NAME="Soundpost-Shots"
 DEVICE_TYPE="com.apple.CoreSimulator.SimDeviceType.iPhone-11-Pro-Max"
 BUNDLE_ID="com.soundpost.Soundpost"
 OUT="$PROJECT_DIR/build/screenshots"
-SCREENS=(gallery detail search capture settings)
+# **No `settings`, and the reason is worth keeping.** That screen is the best
+# argument for the on-device listening the description now leads with — the Listening
+# footer explains it in the app's own words. It also ends with "Capsules live only on
+# this device, so deleting the app erases them", which is what `CloudSyncMonitor`
+# reports when there is no iCloud account. True of a screenshot simulator; false of
+# the app the listing describes, which promises sync. Two contradicting claims on one
+# store page.
+#
+# Forcing that footer to say something else was the tempting fix and the forbidden
+# one: §4A rule 3 is that a screenshot may only show states the app actually produces,
+# never one assembled for the photograph. Signing the capture simulator into iCloud
+# would fix it honestly, and needs a password no script should hold. Until then the
+# privacy story is carried by the description, in words, where it is not contingent on
+# an account.
+SCREENS=(gallery detail search capture)
 # Not `("${@:-en-US ja zh-Hans}")`, which expands to ONE element holding all three
 # names. The script then made a single directory literally called "en-US ja zh-Hans",
 # captured five screenshots into it, and reported success — and the output count below
@@ -69,11 +83,23 @@ xcrun simctl bootstatus "$UDID" -b >/dev/null 2>&1 || true
 # says nothing about iCloud, arriving after a full compile.
 DD="${TMPDIR:-/tmp}soundpost-screenshots-dd"
 
+# macOS periodically empties $TMPDIR, and it does not do so atomically — it can leave
+# a half-deleted `SourcePackages/artifacts` tree behind. The next build then fails with
+# "There is no Info.plist found at .../Sentry.xcframework/Info.plist", which names a
+# dependency and says nothing about the cache, and reads like a broken checkout. Hit
+# twice in one afternoon. So: one wipe-and-retry, and only then believe the failure.
+build_once() {
+  xcodebuild build -project "$PROJECT_DIR/Soundpost.xcodeproj" -scheme Soundpost \
+    -destination "platform=iOS Simulator,id=$UDID" \
+    -derivedDataPath "$DD" > "$PROJECT_DIR/build/shots-build.log" 2>&1
+}
+
 printf '  building…\n'
-xcodebuild build -project "$PROJECT_DIR/Soundpost.xcodeproj" -scheme Soundpost \
-  -destination "platform=iOS Simulator,id=$UDID" \
-  -derivedDataPath "$DD" > "$PROJECT_DIR/build/shots-build.log" 2>&1 \
-  || { red "build failed — see build/shots-build.log"; exit 1; }
+if ! build_once; then
+  printf '  build failed; wiping derived data and retrying once…\n'
+  rm -rf "$DD"
+  build_once || { red "build failed twice — see build/shots-build.log"; exit 1; }
+fi
 APP="$DD/Build/Products/Debug-iphonesimulator/Soundpost.app"
 [ -d "$APP" ] || { red "no app bundle at $APP"; exit 1; }
 

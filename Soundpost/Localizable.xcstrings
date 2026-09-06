@@ -1473,6 +1473,22 @@
         }
       }
     },
+    "Kamakura": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "鎌倉"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "镰仓"
+          }
+        }
+      }
+    },
     "Keep it": {
       "extractionState": "manual",
       "localizations": {
@@ -3364,6 +3380,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "老式道口的铃声"
+          }
+        }
+      }
+    },
+    "The wind through the pines": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "松を渡る風"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "穿过松林的风"
           }
         }
       }

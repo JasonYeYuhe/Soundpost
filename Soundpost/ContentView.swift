@@ -116,7 +116,15 @@ struct ContentView: View {
                     ($0.note ?? "").isEmpty && $0.isContentVisible()
                 }) { path = [subject] }
             case "search":
-                searchText = String(localized: "rain")
+                // `wind`, not `rain`. Searching "rain" over the demo library returns
+                // "The old train crossing bell" — the note search is a plain substring
+                // match, so "rain" is inside "train". That is defensible for a
+                // person's own words and indefensible on a store page, where it reads
+                // as a broken search. `wind` matches four capsules by SOUND, which is
+                // the thing this screen exists to show. (The note-search asymmetry is
+                // noted in M19 §11 rather than changed here: whether "rain" should find
+                // "training" in your own writing is a product question, not a bug fix.)
+                searchText = String(localized: "wind")
             case "capture":
                 showingCapture = true
             case "settings":
