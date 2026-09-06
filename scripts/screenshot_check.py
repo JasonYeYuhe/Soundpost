@@ -89,8 +89,14 @@ if __name__ == "__main__":
     failures = 0
     for path in sys.argv[1:]:
         var, mean = variance(path)
-        # 25 is well below anything a rendered screen produces (the five captured on
-        # 2026-09-05 range from ~1,300 to ~9,000) and well above a blank frame's ~0.
+        # 25 sits between a blank frame's 0.0 and the screens this script actually
+        # captures, which range from ~500 to ~4,000. It is NOT a general "is anything
+        # on screen" threshold: a sparse screen scores far lower — the app's onboarding
+        # page, which is mostly white around a centred illustration, measures 14.6 and
+        # would be rejected as blank. That is fine here, because the capture script
+        # only ever photographs the gallery, a detail screen, a search result and the
+        # capture sheet. Anyone reusing this on a sparser screen has to re-measure
+        # rather than inherit the number.
         if var < 25:
             print(f"  ✗ {path}: variance {var:.1f}, mean {mean:.0f} — this is an empty frame,"
                   f" not the app", file=sys.stderr)
