@@ -1,5 +1,8 @@
 import SwiftUI
 import SwiftData
+// For `@Environment(\.requestReview)` below: Xcode 27's compiler warns that
+// `RequestReviewAction` needs StoreKit imported by the file that names it.
+import StoreKit
 
 /// Home screen: the card gallery, the capture entry point, and the glue that
 /// keeps scheduled notifications in sync and resurfaces due capsules.

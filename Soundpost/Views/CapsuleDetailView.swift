@@ -359,11 +359,14 @@ struct CapsuleDetailView: View {
             }
             .buttonStyle(.bordered)
             .tint(tint)
-        } else {
+        } else if store.offer.mayOpenPaywall {
             Button(action: { showingPaywall = true }) { exportLabel }
                 .buttonStyle(.bordered)
                 .tint(tint)
         }
+        // …and otherwise nothing. Until 1.9.0's review this `else` was unconditional,
+        // so every free user was offered Export & share and every tap ended on a
+        // paywall with nothing to buy — the dead end App Review rejected (`ProOffer`).
     }
 
     private var exportLabel: some View {
@@ -416,8 +419,10 @@ struct CapsuleDetailView: View {
         switch VideoExportPolicy.decide(for: capsule, gate: store.gate) {
         case .needsPro:
             // Only reachable if the entitlement lapsed between this view rendering
-            // and the tap. Same single paywall, no video-specific sales pitch.
-            showingPaywall = true
+            // and the tap. Same single paywall, no video-specific sales pitch — and
+            // only when there is something on it to buy; otherwise the menu simply
+            // re-renders without the option.
+            if store.offer.mayOpenPaywall { showingPaywall = true }
         case .nothingToExport:
             exportFailed = true
         case .allowed:

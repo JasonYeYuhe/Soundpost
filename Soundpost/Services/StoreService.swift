@@ -28,7 +28,8 @@ final class StoreService {
     }
 
     /// Loaded `Product`s (empty until `loadProducts()` resolves, or forever in the
-    /// ship-dormant state where no ASC products exist yet — M11 §0).
+    /// ship-dormant state where no ASC products exist yet — M11 §0). Loading is not
+    /// offering: whether any of this is shown is `ProOffer`'s call.
     var products: [Product] = []
     /// Product IDs the user currently owns, recomputed from
     /// `Transaction.currentEntitlements`.
@@ -51,6 +52,18 @@ final class StoreService {
     /// The entitlement→features seam every view should read instead of `isPro`
     /// (M11 §4C), so gating rules stay in one audited, unit-tested place.
     var gate: ProGate { ProGate(isPro: isPro) }
+
+    /// Whether Pro is being offered at all (1.9.0 review) — see `ProOffer`. Every Pro
+    /// affordance reads this, not `gate`, to decide whether to *appear*.
+    var offer: ProOffer { Self.offer(isPro: isPro, productsLoaded: !products.isEmpty) }
+
+    /// `offer`'s wiring, callable without StoreKit. A `StoreService` in a test never
+    /// loads products, so every test of `offer` itself runs with nothing loaded — the
+    /// one input under which passing `onSale: true` by mistake looks exactly like the
+    /// correct code. This is how the sandbox case (products loaded) gets tested.
+    static func offer(isPro: Bool, productsLoaded: Bool) -> ProOffer {
+        ProOffer(gate: ProGate(isPro: isPro), productsLoaded: productsLoaded)
+    }
 
     /// The annual subscription product, if loaded — the only one that needs the
     /// auto-renew disclosure (App Review 3.1.2).
@@ -84,6 +97,10 @@ final class StoreService {
     // MARK: - Load products
 
     func loadProducts() async {
+        // Not on sale, so nothing to show a price for — and no request, from a review
+        // device, for the very products the 1.9.0 rejection said were never submitted.
+        // Owners are unaffected: `isPro` comes from `refreshPurchasedProducts`.
+        guard ProOffer.isOnSaleInThisBuild else { return }
         guard !isLoading else { return }
         isLoading = true
         loadError = nil

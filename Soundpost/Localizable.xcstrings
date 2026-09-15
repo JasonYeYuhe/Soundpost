@@ -2394,6 +2394,22 @@
         }
       }
     },
+    "Reached the 60-second limit.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "60秒の上限に達しました。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已达到 60 秒上限。"
+          }
+        }
+      }
+    },
     "Reached the 60-second limit. Record up to 5 minutes with Pro.": {
       "localizations": {
         "ja": {

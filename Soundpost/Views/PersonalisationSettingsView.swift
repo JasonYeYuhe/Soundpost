@@ -18,6 +18,10 @@ struct PersonalisationSettingsView: View {
     @AppStorage(MoodPalette.storageKey) private var moodPaletteRaw = ""
     @AppStorage(EchoPreferences.lowerKey) private var storedLower = ProGate.defaultEchoWindow.lowerBound
     @AppStorage(EchoPreferences.upperKey) private var storedUpper = ProGate.defaultEchoWindow.upperBound
+    /// The same two keys, seen as optional: `nil` is "never chosen", which the
+    /// non-optional pair above cannot express — they read a missing key as 7 and 30.
+    @AppStorage(EchoPreferences.lowerKey) private var chosenLower: Int?
+    @AppStorage(EchoPreferences.upperKey) private var chosenUpper: Int?
 
     @State private var showingPaywall = false
 
@@ -26,7 +30,10 @@ struct PersonalisationSettingsView: View {
 
     var body: some View {
         Form {
-            if !canEdit { unlockSection }
+            // Only when there is something to unlock *with*. Reaching this screen without
+            // Pro means a leftover choice to undo, and a footer about what "needs Pro"
+            // is no help to someone who cannot buy it (1.9.0 review, `ProOffer`).
+            if !canEdit && store.offer.mayOpenPaywall { unlockSection }
             colourSection
             echoSection
         }
@@ -108,10 +115,15 @@ struct PersonalisationSettingsView: View {
                 LabeledContent("Latest") { Text("\(storedUpper) days") }
             }
             .disabled(!canEdit)
-            if EchoPreferences.storedWindow != nil {
+            if chosenLower != nil, chosenUpper != nil, EchoPreferences.storedWindow != nil {
+                // Clears the choice rather than writing 7…30 over it. Writing the default
+                // left a stored window behind, so this button never went away — and
+                // Settings, which keeps "Make it yours" reachable while there is a choice
+                // to undo, would have kept it reachable for good. Setting the optional
+                // mirrors to nil removes both keys, and SwiftUI sees it happen.
                 Button("Use the default window") {
-                    setWindow(lower: ProGate.defaultEchoWindow.lowerBound,
-                              upper: ProGate.defaultEchoWindow.upperBound)
+                    chosenLower = nil
+                    chosenUpper = nil
                 }
             }
         } header: {

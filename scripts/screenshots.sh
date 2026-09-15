@@ -112,6 +112,10 @@ for locale in "${LOCALES[@]}"; do
   # silently — a whole locale's screenshots in the wrong language, with nothing
   # reporting it. Verified per shot below instead of trusted.
   lang="${locale%%-*}"
+  # Emptied first. `asc.py screenshots` uploads every PNG it finds under $OUT/<locale>,
+  # so a stale shot left from an earlier run goes to the store as if it were new —
+  # 1.9.0's capture shot still showing a Pro upsell after Pro was hidden, say.
+  rm -rf "${OUT:?}/$locale"
   mkdir -p "$OUT/$locale"
   for screen in "${SCREENS[@]}"; do
     xcrun simctl terminate "$UDID" "$BUNDLE_ID" >/dev/null 2>&1 || true

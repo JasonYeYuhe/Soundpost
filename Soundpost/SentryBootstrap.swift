@@ -4,8 +4,9 @@ import Sentry
 #endif
 
 /// Crash + app-hang reporting ONLY — no performance tracing, no screenshots /
-/// view-hierarchy, no PII, and request data is stripped so no user content (the
-/// one-line note, place name, audio paths) can leave the device.
+/// view-hierarchy, no PII; request data is stripped and breadcrumbs are cut down to an
+/// allowlist, so no user content (the one-line note, place name, mood, audio paths) can
+/// leave the device.
 ///
 /// Only active in **Release** builds (TestFlight / App Store): DEBUG runs and the
 /// unit-test host never initialize it, so the Sentry dashboard stays free of
@@ -35,8 +36,38 @@ enum SentryBootstrap {
                 event.request = nil                 // strip any URLs / headers / bodies
                 return event
             }
+            options.beforeBreadcrumb = { crumb in
+                crumb.data = scrubbedBreadcrumbData(crumb.data)
+                return crumb
+            }
         }
         #endif
+    }
+
+    /// The only keys an automatic breadcrumb may carry to Sentry.
+    ///
+    /// Breadcrumbs ride along with every crash and hang report, and sentry-cocoa records
+    /// them on its own: each screen that appears logs its `navigationItem.title`, and
+    /// the detail screen's title is the capsule's **mood**. Each tap logs the tapped
+    /// view's `description`, which for a label includes its text. The privacy policy says
+    /// moods, notes and places never leave the device for us, and `beforeSend` only
+    /// stripped the request — so until this, that sentence was true of everything except
+    /// the breadcrumbs.
+    ///
+    /// An allowlist rather than a list of keys to remove: the SDK adds keys between
+    /// versions, and a new one should arrive dropped rather than sent. These are the
+    /// structural keys sentry-cocoa 8.58 writes — screen class names, app and system
+    /// state, HTTP method and status — none of which can hold anything a person wrote.
+    static let breadcrumbDataAllowlist: Set<String> = [
+        "screen", "beingPresented", "presentingViewController", "parentViewController",
+        "state", "action", "connectivity", "level", "plugged", "position",
+        "method", "status_code", "reason", "request_start", "request_body_size", "response_body_size",
+    ]
+
+    static func scrubbedBreadcrumbData(_ data: [String: Any]?) -> [String: Any]? {
+        guard let data else { return nil }
+        let kept = data.filter { breadcrumbDataAllowlist.contains($0.key) }
+        return kept.isEmpty ? nil : kept
     }
 
     /// Surface a notable, non-fatal condition (a durability fallback rung, an

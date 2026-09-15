@@ -794,6 +794,12 @@ sat in the table. It fetches whole and filters in Swift now, and a failed read s
    so the paywall shows nothing and nothing can be bought. It is harmless in that
    state, and it did not block 1.8.0's submission.
 
+   **Corrected 2026-09-15 — both halves of that were wrong.** There are two products,
+   not one: the API call that found the lifetime IAP does not list subscriptions, and
+   `subscriptionGroups` shows `com.soundpost.Soundpost.pro.annual` (ONE_YEAR,
+   `MISSING_METADATA`) in a group named "Soundpost Pro". And "harmless" did not survive
+   review: **1.9.0 was rejected** for exactly this dormant paywall. See §8-ii.
+
    Deliberately **not** completed here. M18's standing constraint is "Free stays
    free. No Pro lever, no paywall, no new IAP", and supplying the last field is the
    step that makes Pro submittable. That is Jason's call about the product, not a
@@ -848,6 +854,112 @@ sat in the table. It fetches whole and filters in Swift now, and a failed read s
    `cktool` cannot delete either — record commands need a **user** token and this
    machine has only a management token. Deleting them is a Console click, and the
    reason to leave them is better than the reason to click it.
+
+### 8-ii. 1.9.0 was rejected for a paywall nobody could use — Pro is hidden (build 19)
+
+**What happened.** Build 18 was rejected on 2026-09-15 under Guideline **2.1(b)** ("the
+app includes references to subscriptions but the associated In-App Purchase products
+have not been submitted for review") and **3.1.2(c)** (no Terms of Use link in the
+metadata for a subscription). Both say one thing: the app offered what it did not sell.
+Pro shipped dormant in M11 — the paywall and every entry point in the binary, the
+products never completed — and item 4 above called that "harmless". Every free user of
+every release since could tap *Export & share* or *Record up to 5 minutes with Pro* and
+land on a paywall with nothing on it.
+
+**Decision (Jason, 2026-09-15): hide Pro, charge nothing, resubmit.** Not "finish the
+products": first IAPs are only reviewed with a binary, and whether to sell is a product
+call, not a fix.
+
+**What build 19 changes.**
+
+- `ProOffer` (Soundpost/Models/ProGate.swift). `ProGate` answers *what may this user do*;
+  `ProOffer` answers *should this user be shown Pro at all* — the question that was never
+  asked. `isForSale = ProOffer.isOnSaleInThisBuild && productsLoaded`, and the constant is
+  `false`.
+  - **Why a constant and not "did the products load?"** — the first draft keyed on loaded
+    products. That fails exactly where it matters: App Review runs in the sandbox, where
+    never-submitted products can resolve (both were `MISSING_METADATA`), so a reviewer's
+    device could bring the rejected paywall straight back. And products never "come back
+    by themselves" anyway, because the release that sells Pro is a deliberate binary.
+    **Flip the constant only in the release that submits the products with its binary.**
+    `ProOfferTests.proIsNotOnSaleInThisBuild` pins it so that is a two-file decision.
+- Every door: Settings' Pro section (owners only), *Export & share* for non-exporters,
+  both capture upsells, the personalisation unlock. Nothing in any build-19 view opens a
+  paywall for a free user. Limits unchanged: 60 s free, export stays Pro.
+- **The 60-second notice survives the upsell.** "Reached the 60-second limit." was only
+  ever the first half of the upsell's sentence, so hiding the upsell made a recording that
+  stops at 1:00 look broken. `ProOffer.freeCapNotice` → `.limit` (new string, ja/zh-Hans).
+- `StoreService.loadProducts()` returns immediately while off sale — no request, from a
+  review device, for the products the rejection was about. Owners are unaffected
+  (`isPro` comes from `Transaction.currentEntitlements`).
+- Undo stays ungated (M14 §4F): with the Pro section hidden, Settings keeps a lone
+  "Make it yours" link while a colour or echo window is left to reset. Its "Use the default
+  window" now *clears* the choice; it used to write 7…30 over it, so the button — and the
+  link — could never go away.
+- **Sentry breadcrumbs cut to an allowlist** (`SentryBootstrap.breadcrumbDataAllowlist`).
+  Found while verifying the website copy: sentry-cocoa records each screen's
+  `navigationItem.title`, and the detail screen's title is the capsule's mood, so the
+  privacy policy's "moods never leave your device for us" was false of breadcrumbs.
+- Listing: the description's "we never charge you to open a memory" sentence is gone in
+  all three locales (it reads as a price list next to an app with nothing to buy), and a
+  Terms of Use link is added. `check-store-metadata.py` now fails on Pro / purchase /
+  subscription / charging wording in any listing field **while the constant is false**,
+  keyed on the constant read from source (and fails if it cannot find it). Screenshots
+  re-captured: the uploaded 02-detail and 04-capture showed both hidden affordances.
+- Review notes lead with the rejection: no IAP or subscription in this version.
+- Support site (soundpost-site `7b239c5`): it still said "Coming to the App Store", "no
+  cloud backup", and "we never charge you". Rewritten and every claim checked against the
+  source first; the privacy policy gains a sound-recognition section.
+
+**Xcode 27.** It arrived by OS update the same morning; the license had to be accepted
+(owner's password) before anything built. It raised two warnings Xcode 26 did not
+(`RequestReviewAction` needs `import StoreKit`; a nested `#require` inferred as optional),
+and `check-warnings.sh` reported "No warnings" over the second, because a warning inside
+a macro expansion carries its path on the *next* line. The gate now pairs them.
+
+**Control mutations** (`ProOfferTests`, snapshot with `cp`, restored and diffed after
+every run; `-collect-test-diagnostics never`, or each failing run waits 600 s):
+
+| # | Mutation | Failed |
+|---|---|---|
+| M1 | `isOnSaleInThisBuild = true` | proIsNotOnSale, thisBuildOffers…, storeServiceWiring…, offSaleLoad…, aFreeRecording…ToldWhy |
+| M2 | `isForSale = productsLoaded` | thisBuildOffers…, storeServiceWiring…, aFreeRecording…ToldWhy |
+| M3 | `isForSale = onSale` | onSaleWithoutProducts…, aFreeRecording…ToldWhy |
+| M4 | `showsProSection { isForSale }` | anOwnerKeepsTheProSection…, storeServiceKeepsTheProSection… |
+| M5 | `upsellsLongerRecording { isForSale }` | anOwnerIsNeverUpsold |
+| M6 | `showsPersonalisation` ignores undo | personalisationStaysReachable… |
+| M7 | `StoreService.offer` passes `onSale: true` | storeServiceWiring… |
+| M8 | `loadProducts` guard removed | offSaleLoadRequestsNoProducts |
+| M9 | cap notice ignores `isPro` | nothingIsSaidBeforeTheCapOrToAnOwner |
+| M10 | cap notice always `.upsell` | aFreeRecording…ToldWhy, storeServiceWiring… |
+| M11 | CaptureView upsell back on `!gate.isPro` | everyPaywallDoorHasAnOfferCheck |
+| M12 | Detail export `else if` → `else` | everyPaywallDoorHasAnOfferCheck |
+| M13 | Settings `if showsProSection` → `if true` | everyPaywallDoorHasAnOfferCheck |
+| M14 | Personalisation unlock ungated | everyPaywallDoorHasAnOfferCheck |
+| M15 | a paywall opened from ContentView | onlyTheKnownViewsOpenAPaywall |
+| M16 | Detail `.needsPro` guard **inverted** | — survives (expected) |
+| M17 | `.limit` label hidden in the view | — survives (expected) |
+
+M16–M17 are the stated limits: the door guard counts guard predicates per file, so it
+cannot see an inverted one, and no unit test renders a view (there is no UI-test target,
+by standing constraint). The first version of the guard counted any `store.offer.` token,
+and by count it would have let M13 through — SettingsView had two such tokens for one
+door, one of them `showsPersonalisation` (found by the audit, not by a run: that round was
+stopped before M13 over a parser bug). The guard now counts only the four predicates that
+can stand in front of a paywall, and M13 fails it.
+
+**Control mutations** (`SentryBootstrapTests`):
+
+| # | Mutation | Failed |
+|---|---|---|
+| S1 | `"title"` added to the allowlist | aScreenBreadcrumbKeepsItsClassButNotItsTitle, aTouchBreadcrumbLosesEveryViewDetail |
+| S2 | `"url"`, `"http.query"` added | aNetworkBreadcrumbKeepsStatusButNotAddress |
+| S3 | scrubber returns the data unfiltered | all four data tests |
+| S4 | `options.beforeBreadcrumb` not installed | startInstallsTheScrubber |
+| S5 | installed, but the scrub line removed | startInstallsTheScrubber |
+
+`start()` never runs in a DEBUG test host, so S4–S5 are caught by reading the source; the
+closure itself is compiled only in Release, which `check-debug-only.sh` builds.
 
 ---
 

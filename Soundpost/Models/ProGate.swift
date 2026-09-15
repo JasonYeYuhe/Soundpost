@@ -79,3 +79,109 @@ struct ProGate: Equatable, Sendable {
         return lower...upper
     }
 }
+
+/// **Whether Soundpost Pro is being offered on this device at all** (1.9.0 review).
+///
+/// `ProGate` answers "what may this user do?". This answers the question it never
+/// asked: "should this user be *shown* Pro?" — and the gap between the two is how
+/// 1.9.0 was rejected.
+///
+/// Pro was built in M11 to ship dormant: the paywall and every entry point went out
+/// in the binary, and the products were never completed in App Store Connect. So
+/// `isPro` has been false for every user of every release since, and each Pro
+/// affordance was a dead end — tap Export & share, meet a paywall with nothing on it
+/// to buy. App Review found it under Guideline 2.1(b) ("references to subscriptions
+/// … not submitted for review") and 3.1.2(c) (no Terms of Use link for a
+/// subscription it could see). Both are the same fact: the app offered something it
+/// did not sell.
+///
+/// ### The rule
+///
+/// A Pro affordance appears only when the user **can already use** the feature, or
+/// **could actually buy** it. In this build nobody can buy it, so for everyone who
+/// does not already own Pro — which is everyone — nothing appears.
+///
+/// ### Why a constant, and not "did the products load?"
+///
+/// The first version of this fix keyed on the loaded products, so the surfaces would
+/// return by themselves once Pro was approved. Both halves of that were wrong:
+///
+/// - **Nothing returns by itself.** A first in-app purchase is only reviewed together
+///   with a binary — the rejection says so ("submit the In-App Purchase products and
+///   upload a new binary"). The release that launches Pro is a deliberate submission
+///   either way, and it is where `isOnSaleInThisBuild` is flipped.
+/// - **App Review runs in the sandbox,** where products that were never submitted can
+///   still resolve (both were `MISSING_METADATA` in App Store Connect on 2026-09-15).
+///   A reviewer's device loading them would bring back exactly the paywall that was
+///   rejected. A build that must not offer Pro cannot ask the store whether to.
+///
+/// Loaded products are still required on top of the constant: a paywall with nothing
+/// on it is a dead end even in the release that sells Pro. And an owner keeps every
+/// feature they have whatever either says, because `isPro` comes from
+/// `Transaction.currentEntitlements`, not from this.
+///
+/// ### What it deliberately does not change
+///
+/// The limits. A free recording is still capped at 60 seconds, which is what the store
+/// listing already says ("Capture up to a minute"). Export stays unavailable to free
+/// users rather than becoming free — hiding the door is reversible, and giving the
+/// feature away is not.
+struct ProOffer: Equatable, Sendable {
+    /// **Flip only in the release that submits the Pro products alongside its binary.**
+    /// `ProOfferTests.proIsNotOnSaleInThisBuild` pins the value, so changing it is a
+    /// decision two files have to agree on rather than a one-character accident.
+    static let isOnSaleInThisBuild = false
+
+    let gate: ProGate
+    /// Pro is on sale in this build **and** at least one Pro product loaded from the
+    /// App Store — there is something a person could actually buy.
+    let isForSale: Bool
+
+    init(gate: ProGate, productsLoaded: Bool, onSale: Bool = ProOffer.isOnSaleInThisBuild) {
+        self.gate = gate
+        self.isForSale = onSale && productsLoaded
+    }
+
+    /// A paywall may be opened at all. Only when there is something on it to buy: a
+    /// paywall with nothing to buy is the dead end this type exists to remove.
+    var mayOpenPaywall: Bool { isForSale }
+
+    /// The Pro section in Settings — the Pro row, Restore Purchases, and the way into
+    /// personalisation. An owner keeps it whether or not Pro is on sale; everyone else
+    /// sees it only when it is.
+    ///
+    /// For an owner its row still opens `ProPaywallView`, deliberately: with Pro active
+    /// that screen is the owner's hub (status and the theme picker), not a sale, so it
+    /// is gated on owning Pro here rather than on `mayOpenPaywall`.
+    var showsProSection: Bool { gate.isPro || isForSale }
+
+    /// The way into "Make it yours". It lives in the Pro section, but undoing a choice
+    /// is never gated (M14 §4F): someone with a colour or echo window left over from Pro
+    /// they no longer have must still be able to reset it, whether or not Pro is on sale.
+    func showsPersonalisation(hasChoicesToUndo: Bool) -> Bool {
+        showsProSection || hasChoicesToUndo
+    }
+
+    /// The "record up to 5 minutes with Pro" upsells during capture. Only for someone
+    /// who does not have it and could buy it.
+    var upsellsLongerRecording: Bool { !gate.isPro && isForSale }
+
+    /// What a free recording that ran into the 60-second cap says about it.
+    ///
+    /// The upsell used to be the only notice: "Reached the 60-second limit. Record up
+    /// to 5 minutes with Pro." Hiding the upsell hid the first half with it, and a
+    /// recording that simply stopped at 1:00 read as a broken one. The limit is a fact
+    /// about the app whether or not anything is for sale, so it stays.
+    func freeCapNotice(atCap: Bool) -> FreeCapNotice {
+        guard atCap, !gate.isPro else { return .none }
+        return isForSale ? .upsell : .limit
+    }
+
+    enum FreeCapNotice: Equatable, Sendable {
+        case none
+        /// "Reached the 60-second limit." — nothing to tap.
+        case limit
+        /// The same sentence, plus the way to five minutes.
+        case upsell
+    }
+}

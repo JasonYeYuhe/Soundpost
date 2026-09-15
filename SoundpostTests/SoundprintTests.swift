@@ -1429,7 +1429,10 @@ struct CodexReviewGuardTests {
     @Test func aLabelThatStillStandsIsRestampedNotReanalysed() throws {
         let (outcome, stored) = SoundprintRemediation.rejudge("1/version1|rain=0.91")
         #expect(outcome == .revalidated)
-        let reparsed = try #require(Soundprint(stored: try #require(stored)))
+        // Unwrapped on its own line: nested inside `Soundprint(stored: String?)` the inner
+        // `#require` infers `String?` as its result, requires nothing, and Xcode 27 says so.
+        let raw = try #require(stored)
+        let reparsed = try #require(Soundprint(stored: raw))
         #expect(reparsed.gate == Soundprint.gateVersion)
         #expect(reparsed.identifiers == ["rain"])
     }
@@ -1438,7 +1441,8 @@ struct CodexReviewGuardTests {
     @Test func aMixedResultKeepsOnlyWhatStillClearsTheGates() throws {
         let (outcome, stored) = SoundprintRemediation.rejudge("1/version1|rain=0.91;waterfall=0.35")
         #expect(outcome == .revalidated)
-        let reparsed = try #require(Soundprint(stored: try #require(stored)))
+        let raw = try #require(stored)
+        let reparsed = try #require(Soundprint(stored: raw))
         #expect(reparsed.identifiers == ["rain"], "the false waterfall is dropped, the real rain kept")
     }
 

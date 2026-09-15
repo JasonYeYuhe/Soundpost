@@ -35,6 +35,13 @@ struct SettingsView: View {
     @AppStorage(SoundAnalysisPreferences.enabledKey,
                 store: SoundAnalysisPreferences.defaults) private var listeningEnabled = true
 
+    /// Only to know whether there is a choice to undo — see `personalisationOnlySection`.
+    /// Observed rather than read from `UserDefaults` in `body`, so a reset made inside
+    /// "Make it yours" updates this screen on the way back.
+    @AppStorage(MoodPalette.storageKey) private var moodPaletteRaw = ""
+    @AppStorage(EchoPreferences.lowerKey) private var echoLowerRaw: Int?
+    @AppStorage(EchoPreferences.upperKey) private var echoUpperRaw: Int?
+
     @State private var showingPaywall = false
     @State private var confirmingCloudDelete = false
     @State private var cloudDeleteFailed = false
@@ -58,7 +65,14 @@ struct SettingsView: View {
                 listeningSection
                 dataSection
                 iCloudSection
-                proSection
+                // Only when Pro is owned or actually for sale (1.9.0 review, `ProOffer`).
+                // It used to show unconditionally — a Pro row, Restore Purchases and a
+                // footer about what Pro adds, for a product nobody could buy.
+                if store.offer.showsProSection {
+                    proSection
+                } else if store.offer.showsPersonalisation(hasChoicesToUndo: hasChoicesToUndo) {
+                    personalisationOnlySection
+                }
                 aboutSection
             }
             .navigationTitle("Settings")
@@ -176,17 +190,36 @@ struct SettingsView: View {
             }
             // Reachable for everyone, not just Pro: undoing a colour is never gated
             // (M14 §4F), so a lapsed user can always get back to the defaults.
-            NavigationLink {
-                PersonalisationSettingsView()
-            } label: {
-                Label("Make it yours", systemImage: "paintpalette")
-            }
+            personalisationLink
             Button("Restore Purchases") { restore() }
         } header: {
             Text("Soundpost Pro")
         } footer: {
             Text("Soundpost is free — capture, seal, resurface, back up, and receive every memory. Pro adds richer ways to make and share them, and never locks a memory.")
         }
+    }
+
+    /// With Pro hidden, the Pro section goes and the way into "Make it yours" would go
+    /// with it — stranding anyone holding a choice they can no longer make (§4F). So
+    /// that one link stays, alone and without the sales footer, for exactly them.
+    private var personalisationOnlySection: some View {
+        Section { personalisationLink }
+    }
+
+    private var personalisationLink: some View {
+        NavigationLink {
+            PersonalisationSettingsView()
+        } label: {
+            Label("Make it yours", systemImage: "paintpalette")
+        }
+    }
+
+    private var hasChoicesToUndo: Bool {
+        // The raw keys make SwiftUI watch them; `storedWindow` decides whether what they
+        // hold is a real window (it rejects a half-written or corrupt pair).
+        let echoKeysPresent = echoLowerRaw != nil && echoUpperRaw != nil
+        return !MoodPalette(stored: moodPaletteRaw).isEmpty
+            || (echoKeysPresent && EchoPreferences.storedWindow != nil)
     }
 
     // MARK: - Listening (M15)

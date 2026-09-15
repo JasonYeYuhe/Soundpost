@@ -119,7 +119,7 @@ struct CaptureView: View {
                 .foregroundStyle(.secondary)
             // No "record past 60s" gesture exists (the recorder hard-stops), so
             // the longer-clip upsell is an explicit affordance, never a nag.
-            if !store.gate.isPro {
+            if store.offer.upsellsLongerRecording {
                 Button { showingPaywall = true } label: {
                     Label("Record up to 5 minutes with Pro", systemImage: "timer")
                         .font(.footnote)
@@ -227,8 +227,19 @@ struct CaptureView: View {
                 }
 
                 // Shown only when a free clip actually bumped the 60s cap — a
-                // gentle, in-context upsell, not an interruption.
-                if reachedFreeCap {
+                // gentle, in-context notice, not an interruption. It offers five
+                // minutes only when Pro can actually be bought (`ProOffer`).
+                switch store.offer.freeCapNotice(atCap: atRecordingCap) {
+                case .none:
+                    EmptyView()
+                case .limit:
+                    Label("Reached the 60-second limit.", systemImage: "timer")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(12)
+                        .background(.tint.opacity(0.10), in: RoundedRectangle(cornerRadius: 10))
+                case .upsell:
                     Button { showingPaywall = true } label: {
                         HStack(spacing: 8) {
                             Image(systemName: "timer")
@@ -519,7 +530,10 @@ struct CaptureView: View {
 
     /// True when a free recording hit its cap (≈60s) — the only moment the
     /// review-screen longer-clip upsell appears.
-    private var reachedFreeCap: Bool {
-        !store.gate.isPro && viewModel.duration >= viewModel.recorder.maxDuration - 0.5
+    ///
+    /// Whether the clip ran into the cap at all. What that means for the user — a notice,
+    /// an upsell, or nothing for someone with Pro — is `ProOffer.freeCapNotice`'s call.
+    private var atRecordingCap: Bool {
+        viewModel.duration >= viewModel.recorder.maxDuration - 0.5
     }
 }
