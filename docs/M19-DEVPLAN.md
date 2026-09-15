@@ -957,6 +957,13 @@ can stand in front of a paywall, and M13 fails it.
 | S3 | scrubber returns the data unfiltered | all four data tests |
 | S4 | `options.beforeBreadcrumb` not installed | startInstallsTheScrubber |
 | S5 | installed, but the scrub line removed | startInstallsTheScrubber |
+| S6 | `beforeSend` no longer scrubs `event.breadcrumbs` | startInstallsTheScrubber |
+
+S6 exists because of a second review: a crash report written by 1.8.0 (no allowlist) is
+sent by 1.9.0 on its next launch with the crumbs it stored on disk, and those never pass
+through `beforeBreadcrumb` — only `beforeSend` sees them. Envelopes already cached offline
+by 1.8.0 pass through neither; that residue is accepted (rare, a mood from a fixed list,
+and 1.8.0 would have sent the same thing itself).
 
 `start()` never runs in a DEBUG test host, so S4–S5 are caught by reading the source; the
 closure itself is compiled only in Release, which `check-debug-only.sh` builds.

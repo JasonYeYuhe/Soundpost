@@ -34,6 +34,11 @@ enum SentryBootstrap {
             options.sendDefaultPii = false
             options.beforeSend = { event in
                 event.request = nil                 // strip any URLs / headers / bodies
+                // Breadcrumbs again, here as well as in `beforeBreadcrumb`: a crash report
+                // written by an older build — before the allowlist existed — is sent on the
+                // next launch with the crumbs it stored on disk, and `beforeBreadcrumb`
+                // never sees those. This is the one hook that does.
+                event.breadcrumbs?.forEach { $0.data = scrubbedBreadcrumbData($0.data) }
                 return event
             }
             options.beforeBreadcrumb = { crumb in

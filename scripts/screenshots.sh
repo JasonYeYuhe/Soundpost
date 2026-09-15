@@ -17,9 +17,8 @@
 # iPhone 11 Pro Max is the device type that renders exactly that. Verified, not
 # assumed: a booted one screenshots at 1242x2688 on iOS 26.5.
 #
-# WHAT IT DOES NOT DO. Upload. `asc.py` has no screenshot command and adding one is
-# an open decision (§8). The files land in `build/screenshots/<locale>/` for a human
-# to drag into App Store Connect, or for a future `asc.py screenshots` to read.
+# WHAT IT DOES NOT DO. Upload. The files land in `build/screenshots/<locale>/`, and
+# `asc.py screenshots` replaces the editable version's APP_IPHONE_65 sets with them.
 #
 # Usage:
 #   scripts/screenshots.sh              # all locales, all screens
@@ -166,10 +165,24 @@ xcrun simctl terminate "$UDID" "$BUNDLE_ID" >/dev/null 2>&1 || true
 # Count what landed. Every failure this script has had so far — the blank frames, the
 # collapsed locale array — reported success, because nothing counted the output
 # against what was asked for.
+#
+# Only the locales asked for. Counting all of $OUT made a correct single-locale run
+# (`screenshots.sh ja`) fail every time on the other locales' files — and a red that is
+# always red is one people learn to ignore.
 want=$(( ${#LOCALES[@]} * ${#SCREENS[@]} ))
-got=$(find "$OUT" -name '*.png' | wc -l | tr -d ' ')
+got=0
+for locale in "${LOCALES[@]}"; do
+  got=$(( got + $(find "$OUT/$locale" -name '*.png' | wc -l | tr -d ' ') ))
+done
 if [ "$got" -ne "$want" ]; then
   red "$got screenshots, expected $want (${#LOCALES[@]} locales x ${#SCREENS[@]} screens)"
   exit 1
 fi
-ok "$got screenshots in $OUT — upload them in App Store Connect (§8)."
+others=$(find "$OUT" -mindepth 1 -maxdepth 1 -type d | while read -r d; do
+  keep=0; for locale in "${LOCALES[@]}"; do [ "$(basename "$d")" = "$locale" ] && keep=1; done
+  [ "$keep" = 0 ] && basename "$d"
+done | tr '\n' ' ')
+if [ -n "$others" ]; then
+  printf '  note: %s in %s were not captured by this run, and `asc.py screenshots` uploads them too.\n' "$others" "$OUT"
+fi
+ok "$got screenshots in $OUT — upload them with \`asc.py screenshots\`."

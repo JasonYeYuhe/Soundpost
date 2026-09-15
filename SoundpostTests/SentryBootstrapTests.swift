@@ -64,8 +64,11 @@ struct SentryBootstrapTests {
             .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
             .joined(separator: "\n")
         let start = try #require(code.range(of: "static func start()"), "start() not found")
-        let body = String(code[start.upperBound...].prefix(1500))
+        let body = String(code[start.upperBound...].prefix(2000))
         #expect(body.contains("options.beforeBreadcrumb"))
         #expect(body.contains("crumb.data = scrubbedBreadcrumbData(crumb.data)"))
+        // And on every outgoing event, for crumbs a crash report stored before the
+        // allowlist existed.
+        #expect(body.contains("event.breadcrumbs?.forEach { $0.data = scrubbedBreadcrumbData($0.data) }"))
     }
 }

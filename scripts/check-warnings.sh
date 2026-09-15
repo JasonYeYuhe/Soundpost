@@ -10,6 +10,13 @@ set -euo pipefail
 
 LOG="${1:?usage: check-warnings.sh <xcodebuild.log>}"
 
+# Every read below discards errors, so a mistyped path or a build that died before its
+# log was written used to read as a clean build: "No warnings", exit 0.
+if [ ! -s "$LOG" ]; then
+  echo "✗ No build log at $LOG (missing or empty) — nothing was checked." >&2
+  exit 2
+fi
+
 matches="$(grep -E "warning:" "$LOG" 2>/dev/null \
   | grep -E "/(Soundpost|SoundpostTests)/" \
   | grep -v "SourcePackages" \
