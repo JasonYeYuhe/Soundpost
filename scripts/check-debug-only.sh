@@ -58,10 +58,20 @@ else
   # "There is no Info.plist found at .../Sentry.xcframework/Info.plist", which names a
   # dependency and says nothing about the cache, and reads like a broken checkout. Hit
   # twice in one afternoon. So: one wipe-and-retry, and only then believe the failure.
+  # `build/` is gitignored, so on a fresh checkout — which is every CI run — it does not
+  # exist, the redirect below fails before xcodebuild starts, and the retry fails the same
+  # way. That read as "Release build failed twice" and kept CI red from the commit that
+  # added this gate (0232dcc) until 18ef18e, through the 1.9.0 submissions.
+  mkdir -p "$PROJECT_DIR/build"
+  # On CI there is no signing identity; sign ad-hoc exactly as the test step does.
+  SIGNING=()
+  if [ -n "${CI:-}" ]; then
+    SIGNING=(CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY="-" PROVISIONING_PROFILE_SPECIFIER="" DEVELOPMENT_TEAM="")
+  fi
   build_once() {
     xcodebuild build -project "$PROJECT_DIR/Soundpost.xcodeproj" -scheme Soundpost \
       -configuration Release -destination 'generic/platform=iOS Simulator' \
-      -derivedDataPath "$DD" > "$PROJECT_DIR/build/release-check.log" 2>&1
+      -derivedDataPath "$DD" ${SIGNING[@]+"${SIGNING[@]}"} > "$PROJECT_DIR/build/release-check.log" 2>&1
   }
   printf '  building Release…\n'
   if ! build_once; then

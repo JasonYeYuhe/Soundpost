@@ -911,6 +911,20 @@ call, not a fix.
   cloud backup", and "we never charge you". Rewritten and every claim checked against the
   source first; the privacy policy gains a sound-recognition section.
 
+**Resubmitted 2026-09-16 ~02:22 JST.** Build 19 (Xcode 27.0 27A266a, iOS 27.0 SDK) VALID,
+attached to 1.9.0, submitted with `releaseType MANUAL`; the UNRESOLVED_ISSUES submission for
+build 18 was cancelled by `asc.py resubmit`. Before submitting: all three screenshot sets
+read back from ASC with names, order and MD5 matching the local captures; whatsNew,
+description and keywords read back with no purchase wording; a Release build installed on
+the simulator launched to onboarding. dSYMs uploaded to Sentry.
+
+**CI had been red since 0232dcc, and nobody had looked.** `check-debug-only.sh` redirected
+its build log into `build/`, which is gitignored and so absent on every CI checkout: the
+redirect failed before xcodebuild ran, the retry failed the same way, and the step said
+"Release build failed twice". Six pushes including both 1.9.0 submissions went out over a
+red CI while every local run — where `build/` exists — was green. Reproduced in a fresh
+clone with `CI=true`, fixed with `mkdir -p` and the test step's ad-hoc signing.
+
 **Xcode 27.** It arrived by OS update the same morning; the license had to be accepted
 (owner's password) before anything built. It raised two warnings Xcode 26 did not
 (`RequestReviewAction` needs `import StoreKit`; a nested `#require` inferred as optional),
