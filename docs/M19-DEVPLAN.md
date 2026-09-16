@@ -877,12 +877,20 @@ call, not a fix.
   asked. `isForSale = ProOffer.isOnSaleInThisBuild && productsLoaded`, and the constant is
   `false`.
   - **Why a constant and not "did the products load?"** — the first draft keyed on loaded
-    products. That fails exactly where it matters: App Review runs in the sandbox, where
-    never-submitted products can resolve (both were `MISSING_METADATA`), so a reviewer's
-    device could bring the rejected paywall straight back. And products never "come back
-    by themselves" anyway, because the release that sells Pro is a deliberate binary.
-    **Flip the constant only in the release that submits the products with its binary.**
-    `ProOfferTests.proIsNotOnSaleInThisBuild` pins it so that is a two-file decision.
+    products, on the theory that unsubmitted products would not resolve for a reviewer.
+    **Apple's own attachment to the rejection disproves it** (`docs/evidence/1.9.0-build18-
+    review-paywall.png`, fetched from the Resolution Center on 2026-09-16): the reviewer's
+    iPad shows the paywall fully populated — "Soundpost Pro — Annual **$1.99 / year**"
+    with a Subscribe button, "Lifetime **$7.99**" with Buy, Restore Purchases, and the
+    auto-renew disclosure. Both products were `MISSING_METADATA` and had never been
+    submitted, and the review sandbox served them anyway. A products-keyed gate would
+    have shipped build 19 into the identical rejection. A build that must not offer Pro
+    cannot ask the store whether to.
+
+    Products also never "come back by themselves", because the release that sells Pro is a
+    deliberate binary either way. **Flip the constant only in the release that submits the
+    products with its binary.** `ProOfferTests.proIsNotOnSaleInThisBuild` pins it so that
+    is a two-file decision.
 - Every door: Settings' Pro section (owners only), *Export & share* for non-exporters,
   both capture upsells, the personalisation unlock. Nothing in any build-19 view opens a
   paywall for a free user. Limits unchanged: 60 s free, export stays Pro.

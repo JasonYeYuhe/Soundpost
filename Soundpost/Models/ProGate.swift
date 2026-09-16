@@ -110,10 +110,13 @@ struct ProGate: Equatable, Sendable {
 ///   with a binary — the rejection says so ("submit the In-App Purchase products and
 ///   upload a new binary"). The release that launches Pro is a deliberate submission
 ///   either way, and it is where `isOnSaleInThisBuild` is flipped.
-/// - **App Review runs in the sandbox,** where products that were never submitted can
-///   still resolve (both were `MISSING_METADATA` in App Store Connect on 2026-09-15).
-///   A reviewer's device loading them would bring back exactly the paywall that was
-///   rejected. A build that must not offer Pro cannot ask the store whether to.
+/// - **App Review runs in the sandbox, and it served the unsubmitted products.** Not a
+///   worry — Apple's screenshot attached to the rejection shows the paywall on the
+///   reviewer's iPad with "$1.99 / year" and "$7.99" and live Subscribe / Buy buttons,
+///   while both products sat at `MISSING_METADATA`, never submitted
+///   (`docs/evidence/1.9.0-build18-review-paywall.png`). Keying on loaded products would
+///   have shipped this build into the same rejection. A build that must not offer Pro
+///   cannot ask the store whether to.
 ///
 /// Loaded products are still required on top of the constant: a paywall with nothing
 /// on it is a dead end even in the release that sells Pro. And an owner keeps every
