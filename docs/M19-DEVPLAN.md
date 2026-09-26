@@ -1029,6 +1029,16 @@ theme under Pro keeps it with no way back to Classic (the theme picker lives in 
 an M14 §4F undo gap for a population of App Review accounts only); "Make it yours" for such an
 account shows disabled editors; the StoreKit *rating* prompt still exists.
 
+**Resubmitted 2026-09-27 ~00:18 JST** on the *same* review submission (b52f04c1), so the
+thread stays with it: a reply posted in App Store Connect first (it says 1.9.0 contains no
+in-app purchases or subscriptions, explains the build-19 owner hole as a *possible* cause, and
+asks App Review to name the screen if 2.1(b) comes back), then build 20 attached via
+`asc.py attach 20`, then **Update Review** on the version page and **Resubmit to App Review**
+in the web UI. Not `asc.py resubmit`: that cancels the rejected submission and opens a fresh
+one, which makes the thread read-only — the reason build 19's explanation could only go in
+the notes. App Review notes also updated for build 20. No screen recording: CoreSimulator
+hung under a load average above 300 from another session's work, twice.
+
 **Not done, deliberately:** deleting the IAP products or the subscription group from App Store
 Connect. Product IDs cannot be reused once deleted, and the rejection does not require it —
 a free build with nothing to buy is the other resolution it allows.
