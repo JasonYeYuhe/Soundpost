@@ -150,12 +150,15 @@ struct ProOffer: Equatable, Sendable {
     var mayOpenPaywall: Bool { isForSale }
 
     /// The Pro section in Settings — the Pro row, Restore Purchases, and the way into
-    /// personalisation. An owner keeps it whether or not Pro is on sale; everyone else
-    /// sees it only when it is.
+    /// personalisation. An owner keeps it whether or not products load; everyone else
+    /// sees it only when Pro is for sale.
     ///
     /// For an owner its row still opens `ProPaywallView`, deliberately: with Pro active
     /// that screen is the owner's hub (status and the theme picker), not a sale, so it
-    /// is gated on owning Pro here rather than on `mayOpenPaywall`.
+    /// is gated on owning Pro here rather than on `mayOpenPaywall`. **In a build where
+    /// Pro is not on sale there are no owners:** `StoreService.isPro` is false for
+    /// everyone, sandbox purchasers included — see `StoreService.isPro(owning:onSale:)`
+    /// for the second 1.9.0 rejection that made it so.
     var showsProSection: Bool { gate.isPro || isForSale }
 
     /// The way into "Make it yours". It lives in the Pro section, but undoing a choice

@@ -1795,6 +1795,22 @@
         }
       }
     },
+    "New recordings draw their surprise echo 7–30 days out. Echoes already set keep their dates.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新しい録音のエコーは 7〜30 日後から選ばれます。すでに決まったエコーの日付はそのままです。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新录音的回声会在 7–30 天内抽取。已设定的回声日期保持不变。"
+          }
+        }
+      }
+    },
     "No capsules match the filters you've set.": {
       "extractionState": "manual",
       "localizations": {

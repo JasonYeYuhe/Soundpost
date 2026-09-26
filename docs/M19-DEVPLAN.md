@@ -990,6 +990,49 @@ and 1.8.0 would have sent the same thing itself).
 `start()` never runs in a DEBUG test host, so S4–S5 are caught by reading the source; the
 closure itself is compiled only in Release, which `check-debug-only.sh` builds.
 
+### 8-iii. Rejected again (build 19) — owners were the hole (build 20)
+
+**2026-09-23: build 19 rejected under 2.1(b) alone** — "The issues we previously identified
+still need your attention … the app includes references to subscriptions but the associated
+In-App Purchase products have not been submitted for review." Devices: iPhone 17 Pro Max and
+iPad Air 11-inch (M4). No screenshot this time. 3.1.2(c) was not repeated, so the Terms of Use
+line in the description did its job and stays.
+
+**What build 19 still showed, and to whom.** Build 19 hid Pro from free users but kept the Pro
+section, Restore Purchases and the Pro hub for *owners*, reasoning that no production user
+could own a product that was never sold. True, and beside the point: the one audience that can
+own it is App Review. Build 18's reviewer had a live $1.99 / $7.99 paywall in the sandbox
+(`docs/evidence/1.9.0-build18-review-paywall.png`); an account that bought there opens build 19
+to "Soundpost Pro is active", Restore Purchases, and a hub that explains how the annual plan
+auto-renews.
+
+**Not proven to be the whole answer.** Sandbox subscriptions renew about hourly and stop after
+twelve renewals, so an *annual* bought on 2026-09-14 had lapsed long before 2026-09-23 and
+would have produced build 19's free UI. The hypothesis needs a *lifetime* purchase, which
+persists. Which one the reviewer bought cannot be known from here, so build 20 goes with a
+reply that asks App Review to name the screen if 2.1(b) comes back.
+
+**Build 20.** While `ProOffer.isOnSaleInThisBuild` is false, `StoreService` starts nothing —
+no `Transaction.updates` listener, no `currentEntitlements` read, no product load — and
+`isPro` is false for everyone, sandbox purchasers included (`StoreService.isPro(owning:onSale:)`).
+For every real user that is what they already were. The echo-window footer, reachable only by a
+leftover choice, no longer says "without Pro" while nothing is for sale.
+
+| # | Mutation | Failed |
+|---|---|---|
+| P1 | `isPro(owning:onSale:)` ignores `onSale` | aSandboxOwnerIsNotProWhileOffSale |
+| P2 | `StoreService.isPro` passes `onSale: true` | aSandboxOwnerIsNotProWhileOffSale |
+| P3 | `init` starts StoreKit whatever the constant says | storeKitIsNotStartedWhileOffSale |
+
+Known and accepted for 1.9.0, none of it purchase wording: a sandbox purchaser who picked a card
+theme under Pro keeps it with no way back to Classic (the theme picker lives in the Pro hub —
+an M14 §4F undo gap for a population of App Review accounts only); "Make it yours" for such an
+account shows disabled editors; the StoreKit *rating* prompt still exists.
+
+**Not done, deliberately:** deleting the IAP products or the subscription group from App Store
+Connect. Product IDs cannot be reused once deleted, and the rejection does not require it —
+a free build with nothing to buy is the other resolution it allows.
+
 ---
 
 ## 9. Reuse map

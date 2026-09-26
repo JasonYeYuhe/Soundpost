@@ -129,7 +129,14 @@ struct PersonalisationSettingsView: View {
         } header: {
             Text("Echo window")
         } footer: {
-            Text("A new recording draws its surprise echo somewhere in this range. Unlike your colours, this only seeds new recordings — without Pro they go back to 7–30 days, and echoes already set keep their dates.")
+            // While Pro is not for sale this screen is only reached to undo a leftover
+            // choice, and the lapse rule below would be a sentence about a product
+            // nobody can buy — so it says what actually happens instead.
+            if store.offer.showsProSection {
+                Text("A new recording draws its surprise echo somewhere in this range. Unlike your colours, this only seeds new recordings — without Pro they go back to 7–30 days, and echoes already set keep their dates.")
+            } else {
+                Text("New recordings draw their surprise echo 7–30 days out. Echoes already set keep their dates.")
+            }
         }
     }
 

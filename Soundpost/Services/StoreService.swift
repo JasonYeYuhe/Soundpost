@@ -41,13 +41,31 @@ final class StoreService {
     /// `nonisolated(unsafe)`: assigned once on the main actor (init) and only read
     /// by `deinit` (which has exclusive access), so cancelling it there is race-free.
     @ObservationIgnored private nonisolated(unsafe) var transactionListener: Task<Void, Never>?
+    /// Whether `init` started StoreKit (the transaction listener and the entitlement
+    /// read). Only a test reads it: off sale it must stay false.
+    @ObservationIgnored private(set) var startedStoreKit = false
 
-    /// On-device entitlement: Pro the moment ANY Soundpost Pro product is owned.
-    /// A lapsed annual (or a refund) drops its ID here, flipping `isPro` to false —
-    /// which only gates *starting* a new Pro action. It never revokes already-made
-    /// content; that lapse-safety is structural and lives in `ProGate` (M11 §4D),
-    /// never as an `isPro` re-check over stored capsules.
-    var isPro: Bool { !purchasedProductIDs.isEmpty }
+    /// On-device entitlement: Pro the moment ANY Soundpost Pro product is owned — **in
+    /// a build that sells Pro.** A lapsed annual (or a refund) drops its ID here,
+    /// flipping `isPro` to false — which only gates *starting* a new Pro action. It
+    /// never revokes already-made content; that lapse-safety is structural and lives in
+    /// `ProGate` (M11 §4D), never as an `isPro` re-check over stored capsules.
+    var isPro: Bool { Self.isPro(owning: purchasedProductIDs, onSale: ProOffer.isOnSaleInThisBuild) }
+
+    /// **Off sale, nobody is Pro — owners included.** Build 19 kept the Pro section,
+    /// Restore Purchases and the Pro hub for owners, on the grounds that no production
+    /// user could own a product that was never sold. That was true and beside the
+    /// point: the one audience that *could* own it is App Review. Build 18's reviewer
+    /// was shown a live paywall with $1.99 / $7.99 buttons in the sandbox
+    /// (docs/evidence/1.9.0-build18-review-paywall.png); a sandbox account that tapped
+    /// Buy then opens build 19 to "Soundpost Pro is active" and a hub that explains how
+    /// the annual plan auto-renews — "references to subscriptions", and 1.9.0 was
+    /// rejected under 2.1(b) a second time. So while Pro is not on sale this build does
+    /// not ask StoreKit anything and treats everyone as free, which for every real user
+    /// is what they already were.
+    static func isPro(owning ids: Set<String>, onSale: Bool) -> Bool {
+        onSale && !ids.isEmpty
+    }
 
     /// The entitlement→features seam every view should read instead of `isPro`
     /// (M11 §4C), so gating rules stay in one audited, unit-tested place.
@@ -80,8 +98,11 @@ final class StoreService {
     /// `Transaction.updates` listener, so the unit-test runner opens no StoreKit
     /// network client — mirroring the "SentryBootstrap skipped under tests"
     /// discipline in `SoundpostApp`.
+    ///
+    /// Off sale it starts nothing at all, `autoStart` or not — see `isPro(owning:onSale:)`.
     init(autoStart: Bool = true) {
-        guard autoStart else { return }
+        guard autoStart, ProOffer.isOnSaleInThisBuild else { return }
+        startedStoreKit = true
         startTransactionListener()
         Task { await loadProducts() }
         Task { await refreshPurchasedProducts() }

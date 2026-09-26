@@ -37,7 +37,12 @@ struct StoreServiceTests {
 
     // MARK: - Entitlement (isPro / gate)
 
+    // The ownership rule itself, through the seam, as it applies in a build that sells
+    // Pro. `StoreService.isPro` adds the build's own answer on top — see
+    // `ProOfferTests.aSandboxOwnerIsNotProWhileOffSale`.
+
     @Test func isProFalseWhenNothingPurchased() {
+        #expect(StoreService.isPro(owning: [], onSale: true) == false)
         let service = StoreService(autoStart: false)
         service.purchasedProductIDs = []
         #expect(service.isPro == false)
@@ -45,27 +50,18 @@ struct StoreServiceTests {
     }
 
     @Test func isProTrueWithLifetime() {
-        let service = StoreService(autoStart: false)
-        service.purchasedProductIDs = [StoreService.ProProduct.lifetime.rawValue]
-        #expect(service.isPro == true)
-        #expect(service.gate == ProGate(isPro: true))
+        #expect(StoreService.isPro(owning: [StoreService.ProProduct.lifetime.rawValue], onSale: true))
     }
 
     @Test func isProTrueWithAnnual() {
-        let service = StoreService(autoStart: false)
-        service.purchasedProductIDs = [StoreService.ProProduct.annual.rawValue]
-        #expect(service.isPro == true)
-        #expect(service.gate == ProGate(isPro: true))
+        #expect(StoreService.isPro(owning: [StoreService.ProProduct.annual.rawValue], onSale: true))
     }
 
     /// Dropping the annual's product ID (a lapse / refund seen via
     /// `currentEntitlements`) flips `isPro` back to false — the only thing that
     /// gates is the *start* of a new Pro action (M11 §4D).
     @Test func losingTheEntitlementDropsIsProToFalse() {
-        let service = StoreService(autoStart: false)
-        service.purchasedProductIDs = [StoreService.ProProduct.annual.rawValue]
-        #expect(service.isPro == true)
-        service.purchasedProductIDs = []           // annual lapsed / refunded
-        #expect(service.isPro == false)
+        #expect(StoreService.isPro(owning: [StoreService.ProProduct.annual.rawValue], onSale: true))
+        #expect(StoreService.isPro(owning: [], onSale: true) == false)   // annual lapsed / refunded
     }
 }

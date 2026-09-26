@@ -79,8 +79,9 @@ struct ProOfferTests {
 
     // MARK: - Owners
 
-    /// Someone who owns Pro keeps Restore Purchases and the way into personalisation
-    /// whatever the build or the store says, and is never *upsold*. (Settings' Pro row
+    /// Given an owner, `ProOffer` keeps Restore Purchases and the way into
+    /// personalisation whatever the store says, and never *upsells*. (Whether there can
+    /// be an owner in a build is `StoreService`'s call — off sale there is none.) (Settings' Pro row
     /// still opens `ProPaywallView` for them: with Pro active it is their hub — status
     /// and themes — which is why that door is gated on `showsProSection`.)
     @Test func anOwnerKeepsTheProSectionWhenProIsNotOnSale() {
@@ -95,11 +96,36 @@ struct ProOfferTests {
         #expect(!offer.upsellsLongerRecording)
     }
 
-    @Test func storeServiceKeepsTheProSectionForAnOwner() {
+    /// The second 1.9.0 rejection. Build 18's reviewer was shown a paywall that could
+    /// sell in the sandbox; an account that bought there is an "owner" to StoreKit. In a
+    /// build that does not sell Pro it must see exactly what everyone else sees —
+    /// no "Pro is active", no Restore Purchases, no hub explaining how the annual plan
+    /// renews.
+    @Test func aSandboxOwnerIsNotProWhileOffSale() {
         let service = StoreService(autoStart: false)
-        service.purchasedProductIDs = [StoreService.ProProduct.lifetime.rawValue]
-        #expect(service.offer.showsProSection)
+        service.purchasedProductIDs = [StoreService.ProProduct.lifetime.rawValue,
+                                       StoreService.ProProduct.annual.rawValue]
+        #expect(service.isPro == false)
+        #expect(service.gate == ProGate(isPro: false))
+        #expect(!service.offer.showsProSection)
         #expect(!service.offer.mayOpenPaywall)
+        #expect(!service.offer.showsPersonalisation(hasChoicesToUndo: false))
+        #expect(StoreService.isPro(owning: [StoreService.ProProduct.lifetime.rawValue], onSale: false) == false)
+    }
+
+    /// Off sale the service does not start StoreKit at all — not the entitlement read,
+    /// not the transaction listener — even when asked to.
+    @Test func storeKitIsNotStartedWhileOffSale() {
+        #expect(StoreService(autoStart: true).startedStoreKit == false)
+    }
+
+    /// And in a build that does sell Pro, an owner keeps the Pro section whether or not
+    /// the products happen to load.
+    @Test func anOwnerKeepsTheProSectionWhenOnSale() {
+        let offer = StoreService.offer(isPro: StoreService.isPro(owning: [StoreService.ProProduct.lifetime.rawValue], onSale: true),
+                                       productsLoaded: false)
+        #expect(offer.showsProSection)
+        #expect(!offer.mayOpenPaywall)
     }
 
     // MARK: - The 60-second cap
