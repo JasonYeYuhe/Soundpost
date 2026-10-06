@@ -1039,6 +1039,10 @@ one, which makes the thread read-only — the reason build 19's explanation coul
 the notes. App Review notes also updated for build 20. No screen recording: CoreSimulator
 hung under a load average above 300 from another session's work, twice.
 
+**Approved and RELEASED 2026-10-07** (build 20, released by `asc.py release` on Jason's
+word). 1.9.0 is READY_FOR_SALE; the build-20 thread reply was the last exchange with App
+Review. The approval watch task is deleted.
+
 **Not done, deliberately:** deleting the IAP products or the subscription group from App Store
 Connect. Product IDs cannot be reused once deleted, and the rejection does not require it —
 a free build with nothing to buy is the other resolution it allows.
