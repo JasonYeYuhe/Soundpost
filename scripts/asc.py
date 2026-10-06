@@ -21,7 +21,13 @@ KEY_ID  = os.environ.get('ASC_API_KEY_ID', 'DMMFP6XTXX')
 ISSUER  = os.environ.get('ASC_API_ISSUER', 'c5671c11-49ec-47d9-bd38-5e3c1a249416')
 KEY_PATH = os.environ.get('ASC_API_KEY_PATH',
     os.path.expanduser('~/Library/Mobile Documents/com~apple~CloudDocs/Downloads/AuthKey_DMMFP6XTXX.p8'))
-APP_ID  = os.environ.get('ASC_APP_ID', '6778389097')
+# Not `ASC_APP_ID`. ~/.zshrc exports that name for a different app (CLI Pulse Bar), so in
+# Jason's interactive terminal every command here — `release` included, which is public and
+# irreversible — used to act on the wrong app; only agent shells, which skip ~/.zshrc, got
+# Soundpost. Found 2026-10-07. `SOUNDPOST_ASC_APP_ID` overrides it, and every write is
+# checked against the bundle id below before it is sent.
+APP_ID  = os.environ.get('SOUNDPOST_ASC_APP_ID', '6778389097')
+SOUNDPOST_BUNDLE_ID = 'com.soundpost.Soundpost'
 BASE    = 'https://api.appstoreconnect.apple.com'
 
 
@@ -38,7 +44,26 @@ def H():
     return {'Authorization': f'Bearer {token()}', 'Content-Type': 'application/json'}
 
 
+_identity_checked = False
+
+
+def assert_soundpost_app():
+    """Refuse to write unless APP_ID really is Soundpost. Runs once, before the first write."""
+    global _identity_checked
+    if _identity_checked:
+        return
+    r = requests.get(f'{BASE}/v1/apps/{APP_ID}', headers=H(), timeout=90)
+    r.raise_for_status()
+    bundle = r.json()['data']['attributes'].get('bundleId')
+    if bundle != SOUNDPOST_BUNDLE_ID:
+        sys.exit(f'Refusing to write: app {APP_ID} is {bundle!r}, not {SOUNDPOST_BUNDLE_ID}.\n'
+                 f'  Check SOUNDPOST_ASC_APP_ID in your environment.')
+    _identity_checked = True
+
+
 def req(method, path, payload=None, **params):
+    if method != 'GET':
+        assert_soundpost_app()
     url = BASE + path if path.startswith('/') else path
     r = requests.request(method, url, headers=H(),
                          data=json.dumps(payload) if payload is not None else None,
