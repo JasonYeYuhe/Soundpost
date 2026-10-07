@@ -72,6 +72,10 @@ final class NotificationCoordinator: NSObject, UNUserNotificationCenterDelegate 
     private let center = UNUserNotificationCenter.current()
     private let scheduler: NotificationScheduler
 
+    /// Numbers each `sync` in the order it was *called*, on the main actor, before any
+    /// suspension — the scheduler's notion of "newest plan" (M20 §4D).
+    private var syncGeneration = 0
+
     /// Key the content-free server push carries so the app can dedup/deep-link.
     nonisolated static let capsulePushKey = "capsule_id"
 
@@ -111,6 +115,9 @@ final class NotificationCoordinator: NSObject, UNUserNotificationCenterDelegate 
     ///   one; asking each to build the index would have been eleven chances to pass
     ///   `.none` and eleven places for a stale lock-screen body to come from.
     func sync(capsules: [Capsule], in context: ModelContext, now: Date = .now) async {
+        // First, before anything can suspend: this call's place among all syncs.
+        syncGeneration += 1
+        let generation = syncGeneration
         let plan = NotificationPlanner.plan(capsules: capsules, now: now)
         let personalized = NotificationPreferences.personalized
         let listening = SoundAnalysisPreferences.isEnabled
@@ -149,7 +156,8 @@ final class NotificationCoordinator: NSObject, UNUserNotificationCenterDelegate 
         )
         await scheduler.reconcile(
             plan: plan,
-            contentVersion: NotificationPreferences.contentVersion(personalized: personalized, listening: listening)
+            contentVersion: NotificationPreferences.contentVersion(personalized: personalized, listening: listening),
+            generation: generation
         ) { item in
             NotificationCopy.make(for: item, digest: digests[item.capsuleID], personalized: personalized)
         }

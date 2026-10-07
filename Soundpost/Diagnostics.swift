@@ -42,4 +42,12 @@ enum Diagnostics {
         logger.warning("\(message, privacy: .public) (code \(code, privacy: .public))")
         SentryBootstrap.capture(message: message, code: code)
     }
+
+    /// The same door for a sync error that needs three numbers to be readable: its
+    /// domain (as `CloudSyncMonitor.Domain`), its code, and the `CKError` beneath it.
+    /// Integers still — nothing here can carry a note, a place or a label.
+    static func notice(_ message: StaticString, domain: Int, code: Int, cloudKitCode: Int) {
+        logger.warning("\(message, privacy: .public) (domain \(domain, privacy: .public), code \(code, privacy: .public), ck \(cloudKitCode, privacy: .public))")
+        SentryBootstrap.capture(message: message, domain: domain, code: code, cloudKitCode: cloudKitCode)
+    }
 }

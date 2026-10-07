@@ -97,4 +97,11 @@ enum SentryBootstrap {
         SentrySDK.capture(message: "\(message) (code \(code))")
         #endif
     }
+
+    /// Three integers, for a sync error (M20 §4D) — still nothing but numbers.
+    static func capture(message: StaticString, domain: Int, code: Int, cloudKitCode: Int) {
+        #if canImport(Sentry) && !DEBUG
+        SentrySDK.capture(message: "\(message) (domain \(domain), code \(code), ck \(cloudKitCode))")
+        #endif
+    }
 }

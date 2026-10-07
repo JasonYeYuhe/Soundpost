@@ -27,6 +27,11 @@ extension UNUserNotificationCenter: UserNotificationScheduling {
 struct NotificationScheduler {
     let center: UserNotificationScheduling
 
+    /// One reconcile at a time against `center`, newest plan winning (M20 §4D). Shared
+    /// by every copy of this value, so the coordinator's one scheduler serialises all
+    /// eleven `sync` call sites.
+    private let turnstile = ReconcileTurnstile()
+
     /// Prefix marking our requests, so we never disturb unrelated notifications.
     static let identifierPrefix = "capsule."
 
@@ -98,9 +103,19 @@ struct NotificationScheduler {
     /// Register exactly the planned notifications, removing any of ours that are
     /// no longer in the plan and adding any that are missing. `content` supplies
     /// the title/body per item, so seals and echoes can read differently.
+    ///
+    /// **Serialised, newest plan wins** (M20 §4D). The diff below reads the pending set
+    /// and then awaits one `add` per request; two of these overlapping used to let an
+    /// older one, resumed from an `add`, put back a request the newer plan had already
+    /// removed. Now each call waits its turn, and a call overtaken while it waited does
+    /// nothing — the newer call behind it carries the newer plan.
+    /// - Parameter generation: this call's place in line, taken by the caller *before*
+    ///   its first suspension (`NotificationCoordinator.sync`). `nil` falls back to
+    ///   arrival order at the turnstile, which is all a single caller needs.
     func reconcile(
         plan: [PlannedNotification],
         contentVersion: String = "",
+        generation: Int? = nil,
         content: (PlannedNotification) -> (title: String, body: String)
     ) async {
         // Render every planned body FIRST and fold it into that request's identity.
@@ -133,6 +148,18 @@ struct NotificationScheduler {
             )
         }
 
+        let ticket = await turnstile.enter(generation: generation)
+        if await !turnstile.isSuperseded(ticket) {
+            await apply(desired)
+            await turnstile.didApply(ticket)
+        }
+        await turnstile.leave()
+    }
+
+    /// The diff itself — run only while holding the turnstile.
+    private func apply(
+        _ desired: [(item: PlannedNotification, copy: (title: String, body: String), id: String)]
+    ) async {
         let existing = await center.pendingRequestIdentifiers()
             .filter { $0.hasPrefix(Self.identifierPrefix) }
         let existingSet = Set(existing)

@@ -92,3 +92,44 @@ struct CloudSyncMonitorTests {
         #expect(monitor(rung: .cloudKit, state: CKError(.quotaExceeded)).backup == .quotaFull)
     }
 }
+
+/// One report per kind of sync error per launch, as integers (M20 §4D).
+@MainActor
+@Suite("Sync errors reach Sentry once, as numbers")
+struct CloudSyncErrorReportTests {
+    private func wrapped(_ ck: CKError.Code, inCocoa code: Int = 134_421) -> NSError {
+        NSError(domain: NSCocoaErrorDomain, code: code,
+                userInfo: [NSUnderlyingErrorKey: CKError(ck)])
+    }
+
+    @Test func aRetryStormIsReportedOnce() {
+        let monitor = CloudSyncMonitor()
+        var sent: [CloudSyncMonitor.ErrorReport] = []
+        monitor.sendReport = { sent.append($0) }
+
+        for _ in 0..<98 { monitor.apply(error: wrapped(.networkFailure), finished: true) }
+        monitor.apply(error: wrapped(.zoneBusy), finished: true)
+        monitor.apply(error: CKError(.networkFailure), finished: true)
+
+        #expect(sent.count == 3, "one per (domain, code, CloudKit code), not one per event")
+    }
+
+    @Test func theReportCarriesTheDomainAndTheCloudKitCodeBeneath() {
+        let report = CloudSyncMonitor.report(for: wrapped(.serverRejectedRequest))
+        #expect(report.domain == CloudSyncMonitor.Domain.cocoa.rawValue)
+        #expect(report.code == 134_421)
+        #expect(report.cloudKitCode == CKError.Code.serverRejectedRequest.rawValue)
+
+        let bare = CloudSyncMonitor.report(for: NSError(domain: "com.example.Other", code: 7))
+        #expect(bare.domain == CloudSyncMonitor.Domain.other.rawValue)
+        #expect(bare.cloudKitCode == -1)
+    }
+
+    @Test func surfacedErrorsAreNotReported() {
+        let monitor = CloudSyncMonitor()
+        var sent: [CloudSyncMonitor.ErrorReport] = []
+        monitor.sendReport = { sent.append($0) }
+        monitor.apply(error: CKError(.quotaExceeded), finished: true)
+        #expect(sent.isEmpty)
+    }
+}

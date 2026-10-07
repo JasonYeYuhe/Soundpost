@@ -120,7 +120,24 @@ struct SoundAnalysisClassifier: SoundClassifying {
         await analyzer.analyze()
         // `add(_:withObserver:)` does not retain `collector`; keeping it explicitly
         // alive across the await is the whole reason results are not silently lost.
-        return withExtendedLifetime(collector) { collector.best() }
+        return try withExtendedLifetime(collector) {
+            try Self.outcome(failure: collector.failure, labels: collector.best())
+        }
+    }
+
+    /// What a finished analysis means (M20 §4D). Pure, so it is tested without Core ML.
+    ///
+    /// **A failure is not an empty answer.** The observer is where a failure arrives —
+    /// the iOS 27 SDK says errors "flow downstream to the request observers", and
+    /// `analyze()`'s own `didReachEndOfFile` is NO only after `cancelAnalysis`, which
+    /// Soundpost never calls (`SNAnalyzer.h`). The observer's failure callback used to be
+    /// empty, so a clip that failed part-way came back as zero labels and was stored as
+    /// the final answer "analysed, nothing heard" — never retried, and exported as
+    /// `soundsHeard: []`. Throwing makes it `.skipped(.failed)`: left `nil`, retried a
+    /// bounded number of times (`SoundprintRetryLedger`).
+    static func outcome(failure: Error?, labels: [Soundprint.Label]) throws -> [Soundprint.Label] {
+        if let failure { throw failure }
+        return labels
     }
 
     /// Accumulates the per-window classifications the analyzer emits.
@@ -133,6 +150,14 @@ struct SoundAnalysisClassifier: SoundClassifying {
         private let lock = NSLock()
         private var totals: [String: (sum: Double, count: Int)] = [:]
         private var windows = 0
+        private var recordedFailure: Error?
+
+        /// The first failure the analyzer reported for this request, if any.
+        var failure: Error? {
+            lock.lock()
+            defer { lock.unlock() }
+            return recordedFailure
+        }
 
         func request(_ request: SNRequest, didProduce result: SNResult) {
             guard let classification = result as? SNClassificationResult else { return }
@@ -145,7 +170,11 @@ struct SoundAnalysisClassifier: SoundClassifying {
             }
         }
 
-        func request(_ request: SNRequest, didFailWithError error: Error) {}
+        func request(_ request: SNRequest, didFailWithError error: Error) {
+            lock.lock()
+            defer { lock.unlock() }
+            if recordedFailure == nil { recordedFailure = error }
+        }
 
         func best() -> [Soundprint.Label] {
             lock.lock()

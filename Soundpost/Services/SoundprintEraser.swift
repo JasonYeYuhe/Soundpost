@@ -50,8 +50,13 @@ enum SoundprintEraser {
     ///
     /// One save, so the labels and the corrections leave together — a half-applied
     /// erase is the state the Settings alert would then be lying about.
+    ///
+    /// It also empties `SoundprintRetryLedger` once the erase has landed (M20 §4D): every
+    /// capsule is `nil` again, so switching listening back on should try every one of
+    /// them again — including any this device had given up on.
     @discardableResult
-    static func eraseAll(in context: ModelContext) throws -> Erased {
+    static func eraseAll(in context: ModelContext,
+                         ledger: SoundprintRetryLedger = SoundprintRetryLedger()) throws -> Erased {
         let capsules = try context.fetch(FetchDescriptor<Capsule>())
         var soundprints = 0
         for capsule in capsules where capsule.soundprintRaw != nil {
@@ -62,6 +67,7 @@ enum SoundprintEraser {
         for row in rejections { context.delete(row) }
         let erased = Erased(soundprints: soundprints, rejections: rejections.count)
         if !erased.isEmpty { try context.save() }
+        ledger.clearAll()
         return erased
     }
 }

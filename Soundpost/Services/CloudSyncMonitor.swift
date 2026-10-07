@@ -39,6 +39,37 @@ final class CloudSyncMonitor {
 
     private(set) var state: State = .unknown
     private(set) var rung: StorageRung = .local
+
+    /// What an unsurfaced sync error is reported to Sentry as — integers only, so the
+    /// `StaticString` no-PII rule holds (M20 §4D).
+    ///
+    /// It used to be one message per sync *event* with only the outer `NSError.code`:
+    /// 98 messages in eight minutes from one device, all reading "code 134400"-style
+    /// numbers whose domain — and the `CKError` that actually explains them, nested
+    /// under `NSUnderlyingError` — was never sent.
+    struct ErrorReport: Hashable, Sendable {
+        /// The outer error's domain as a fixed small number (`Domain`), never its string.
+        let domain: Int
+        let code: Int
+        /// The first `CKError` code in the underlying chain, or -1 when there is none.
+        let cloudKitCode: Int
+    }
+
+    /// Error domains as numbers. Anything unlisted is `other` — the code still says
+    /// which error it was within whatever domain that is.
+    enum Domain: Int {
+        case other = 0, cocoa = 1, cloudKit = 2, url = 3, posix = 4
+    }
+
+    /// Reports already sent this launch: one per (domain, code, CloudKit code). A
+    /// retry storm is one fact, not ninety-eight.
+    @ObservationIgnored private var reportedThisLaunch: Set<ErrorReport> = []
+
+    /// Where an unsurfaced error goes. Sentry, through `Diagnostics`; a test swaps it.
+    @ObservationIgnored var sendReport: (ErrorReport) -> Void = { report in
+        Diagnostics.notice("CloudKit sync error, not surfaced", domain: report.domain,
+                           code: report.code, cloudKitCode: report.cloudKitCode)
+    }
     private var token: NSObjectProtocol?
     private var center: NotificationCenter?
 
@@ -90,8 +121,10 @@ final class CloudSyncMonitor {
                 state = surfaced
             } else {
                 // Transient/other error: log scrubbed, never surface, and keep the
-                // prior state so a blip doesn't flip honest copy back and forth.
-                Diagnostics.notice("CloudKit sync error, not surfaced", code: (error as NSError).code)
+                // prior state so a blip doesn't flip honest copy back and forth. Once
+                // per kind per launch.
+                let report = Self.report(for: error)
+                if reportedThisLaunch.insert(report).inserted { sendReport(report) }
             }
         } else if finished {
             state = .ok
@@ -126,6 +159,22 @@ final class CloudSyncMonitor {
             }
         }
         return nil
+    }
+
+    /// The integers an error is reported as. Pure, so it is tested without Sentry.
+    static func report(for error: Error) -> ErrorReport {
+        let outer = error as NSError
+        let domain: Domain
+        switch outer.domain {
+        case NSCocoaErrorDomain: domain = .cocoa
+        case CKErrorDomain:      domain = .cloudKit
+        case NSURLErrorDomain:   domain = .url
+        case NSPOSIXErrorDomain: domain = .posix
+        default:                 domain = .other
+        }
+        let cloudKit = errorChain(error).lazy.compactMap { $0 as? CKError }.first
+        return ErrorReport(domain: domain.rawValue, code: outer.code,
+                           cloudKitCode: cloudKit.map { $0.errorCode } ?? -1)
     }
 
     /// An error plus its `NSUnderlyingError` chain (bounded), so a `CKError`

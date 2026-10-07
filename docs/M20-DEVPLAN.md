@@ -858,3 +858,85 @@ for every way a view could be wrong. There is still no UI-test target, by standi
 A probe on the macOS 27 SDK found `rollback()` restoring a mutated object's property there,
 contrary to this repo's notes (`CapsuleStore.update`); the iOS behaviour those notes record
 was not re-measured, and S2 restores by hand regardless.
+
+### S3 — silent wrong answers become retryable or impossible
+
+**What changed**
+
+- **Analysis failure.** `SoundAnalysisClassifier`'s observer records `didFailWithError`, and
+  the pure `SoundAnalysisClassifier.outcome(failure:labels:)` throws it, so
+  `SoundprintService` returns `.skipped(.failed)` instead of an empty result stored as
+  "nothing heard". Checked against the iOS 27 SDK first: `SNAnalyzer.h` says errors "flow
+  downstream to the request observers"; `analyze()`'s `didReachEndOfFile` is only about
+  `cancelAnalysis`.
+- **Bounded retries.** `SoundprintRetryLedger` (device-local `UserDefaults`, a suite per
+  test, keyed by `Capsule.id`, cap 3) counts every "could not listen on this device" result —
+  `.skipped(.failed)` and `analyse` returning `nil` — but not `.notPermitted`, cancellation or
+  a batch dropped for consent; it is cleared when the capsule is written. A capped capsule
+  stays `nil` (never the empty marker) and is left out of the fetch with
+  `soundprintRaw == nil && !excluded.contains($0.id)`, the plain predicate when nothing is
+  excluded.
+- **Reconcile.** `NotificationScheduler.reconcile` takes a ticket from `ReconcileTurnstile`
+  (an actor-based FIFO lock held across the diff's awaits, so the work stays in the caller's
+  task) and does nothing if a newer call took a ticket while it waited. The almanac's 64-slot
+  baseline is untouched — the planner did not change.
+- **Sentry (the first drop-able item, kept).** `CloudSyncMonitor` reports an unsurfaced sync
+  error once per (domain, code, `CKError` code) per launch, as three integers through new
+  `Diagnostics` / `SentryBootstrap` overloads; the domain is a fixed small number, never its
+  string.
+
+**Deviation — one try per capsule per run, with a circuit breaker.** §4D's drain stopped on
+a batch that wrote nothing. That made a *mixed* batch re-fetch the same corrupt clip in every
+following batch of one run, spending all three tries in a single launch. Now a capsule that
+fails is left out of the rest of the run, and the drain goes on after a mixed batch — but a
+batch in which *every* clip failed still stops the run, because that is what a device-wide
+failure looks like (review finding below). So each broken clip is tried once per launch; the
+plan's case is unchanged — the older capsule is labelled on launch `cap + 1`.
+
+**Review** (three lenses: the reconcile turnstile, analysis + ledger + backfill, the Sentry
+dedupe; each finding sent to a verifier told to refute it). Three confirmed, all minor, all
+fixed; three rejected:
+
+| Finding | Fix |
+|---|---|
+| The turnstile numbered calls in the order they *reached* it. `reconcile` is nonisolated, so it hops off the main actor first, and a stalled hop could arrive after a newer call — the older plan applied last, or the newer one skipped | `NotificationCoordinator.sync` numbers each call on the main actor before its first suspension and passes the number in; `isSuperseded` is "a higher number has been seen, or one at least this high was applied" (G1, G2) |
+| A device-wide failure (a full disk failing every scratch write, a classifier that cannot start) no longer ended the run, so one run spent a try on **every** unanalysed capsule and three runs capped the whole library for good | a scratch write that fails is `couldNotStage` — about the device, not counted, and the run ends (B2); an all-failed batch is a circuit breaker (B1) |
+| Nothing ever emptied the ledger, so a capped capsule stayed excluded after listening was switched off and on, contradicting the eraser's "picked up again if the user changes their mind" | `SoundprintEraser.eraseAll` empties it once the erase lands (B3) |
+
+Rejected: "the overlap tests depend on fixed sleeps" (the ordering comes from the FIFO and
+the held `add`, not from the waits); "the CloudKit code is the wrapper's, so partial failures
+share a key" (true of `partialFailure`, and one report per kind per launch is the intent);
+"the local log line is deduped too" (it is, and one line per kind is what the log needs).
+
+**Controls** (all re-run against the final code)
+
+| # | Mutation | Failed |
+|---|---|---|
+| R1 | the scheduler without the turnstile (the pre-M20 code) | `anOlderReconcileCannotPutBackWhatANewerOneRemoved`, `aReconcileOvertakenWhileWaitingIsSkipped`, `anOlderGenerationArrivingLastChangesNothing` |
+| R2 | the turnstile actor kept, but `enter()` never waits | the first two |
+| R3 | **actor-only**: the diff run inside an actor method (`await turnstile.run { await apply(desired) }`) | all three — actor reentrancy interleaves at the same `add` |
+| R4 | an overtaken call still applies its plan | `aReconcileOvertakenWhileWaitingIsSkipped`, `anOlderGenerationArrivingLastChangesNothing` |
+| G1 | tickets in arrival order again (generation ignored) | `anOlderGenerationArrivingLastChangesNothing` |
+| G2 | the coordinator passes no generation | `eachSyncIsNumberedBeforeItCanSuspend` |
+| A1 | `outcome` ignores the failure | `aFailureReportedByTheAnalyzerIsNotAnEmptyAnswer` |
+| A2 | the observer drops the failure again | `theRealClassifierRecordsAndReportsTheObserversFailure` |
+| A3 | capped capsules not excluded | `unreadableClipsCannotStarveOlderOnesAndStopAtTheCap` |
+| A4 | no exclusion at all (the plan's control) | that test and `aBrokenClipIsTriedOncePerLaunchEvenAmongReadableOnes` |
+| A5 | the empty marker written for an unreadable clip | the same two |
+| A5b | the empty marker written for `.skipped(.failed)` | `aClassifierFailureIsCountedAndLeftNil`, `aDeviceWideFailureCostsOneBatchNotTheWholeLibrary` |
+| A6 | failures counted before the consent check | `aBatchDroppedForConsentCountsNothing` |
+| A7 | the ledger not cleared when a capsule is written | `aCapsuleThatIsFinallyReadForgetsItsFailures` |
+| A8 | the drain stops on `written == 0` | **survives — expected**: with the circuit breaker an all-failed batch stops anyway, so the mutation is now equivalent |
+| B1 | no circuit breaker | `aDeviceWideFailureCostsOneBatchNotTheWholeLibrary`, `unreadableClipsCannotStarveOlderOnesAndStopAtTheCap` |
+| B2 | a failed scratch write counted against the clip | `aClipThatCannotBeStagedIsNotCountedAgainstIt` |
+| B3 | the erase keeps the caps | `switchingListeningOffForgetsEveryCap` |
+| B4 | no per-run exclusion | `aBrokenClipIsTriedOncePerLaunchEvenAmongReadableOnes` |
+| D1 | every sync error event reported | `aRetryStormIsReportedOnce` |
+| D2 | the `CKError` beneath not looked for | both report tests |
+| D3 | the Cocoa domain not mapped | `theReportCarriesTheDomainAndTheCloudKitCodeBeneath` |
+
+`ReconcileOverlapTests` was also run 20 times in a row (`-test-iterations 20`), green each
+time: it waits on conditions with deadlines, never on a fixed sleep alone.
+
+**Bars:** 667 tests in 90 suites (clean Xcode 27 build), 0 warnings, i18n 100%; the almanac's
+64-slot baseline unchanged; CI floor raised to 667.
