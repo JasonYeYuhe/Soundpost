@@ -30,12 +30,17 @@ CLAIMS = {
         "on-device":  ["entirely on your iPhone", "on your device"],
         "correction": ["no, it wasn't", "gets it wrong"],
         "search":     ["Search your library by what a moment sounded like", "find a memory by its sound"],
+        # M20: claimed only because both shipped (plan §4G).
+        "seal-at-capture": ["as you save it"],
+        "capture-doors":   ["Siri, Shortcuts"],
     },
     "ja": {
         "listening":  ["聞き取って", "聞き取り"],
         "on-device":  ["iPhoneの中で", "端末の中だけで"],
         "correction": ["ちがいます"],
         "search":     ["音から思い出を探せる", "どんな音だったか"],
+        "seal-at-capture": ["保存するときにも"],
+        "capture-doors":   ["Siri、ショートカット"],
     },
     "zh-Hans": {
         # Distinct phrases per claim. `只在设备上聆听` used to satisfy both, so one
@@ -45,6 +50,8 @@ CLAIMS = {
         "on-device":  ["完全在你的 iPhone 上完成", "只在设备上聆听"],
         "correction": ["不是这个"],
         "search":     ["凭声音找回", "那时听起来是什么"],
+        "seal-at-capture": ["保存时即可封存"],
+        "capture-doors":   ["Siri、快捷指令"],
     },
 }
 

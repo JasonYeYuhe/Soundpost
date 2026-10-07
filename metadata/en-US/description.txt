@@ -9,7 +9,8 @@ Soundpost can also recognise what a clip sounded like — rain, birdsong, a pass
 - Capture in seconds — tap once, record the sound around you
 - Every clip becomes a glanceable, mood-tinted waveform card
 - Add a place and a single line of meaning
-- Seal a capsule to open on a future date
+- Seal a capsule to open on a future date — as you save it, or any time after
+- Start a new capsule from Siri, Shortcuts, Spotlight, the Action Button or the Home Screen icon — it opens ready to record, and records only when you tap
 - Every capsule picks a surprise day to echo back and remind you of today — change or turn it off anytime
 - Soundpost listens on your device and can name what it heard — never uploaded, off in one tap
 - Say "no, it wasn't" to a label that is wrong, and it is gone for good
