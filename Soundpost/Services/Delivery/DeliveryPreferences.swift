@@ -10,9 +10,21 @@ enum DeliveryPreferences {
     /// control reacts to the same key the registrar/service read.
     static let optedOutKey = "delivery.cloudOptedOut"
 
+    /// A private `UserDefaults` suite for the task tree that binds it — tests only, the
+    /// same seam `SoundAnalysisPreferences` has (M20 §4C). The pending-cancel queue is
+    /// one list for the whole app, and `reconcile` drains *all* of it: two suites
+    /// running side by side would each cancel and resolve the other's ids, and a test
+    /// would pass or fail by interleaving.
+    @TaskLocal static var defaultsSuiteName: String?
+
+    private static var defaults: UserDefaults {
+        if let defaultsSuiteName { return UserDefaults(suiteName: defaultsSuiteName) ?? .standard }
+        return .standard
+    }
+
     static var cloudOptedOut: Bool {
-        get { UserDefaults.standard.bool(forKey: optedOutKey) }
-        set { UserDefaults.standard.set(newValue, forKey: optedOutKey) }
+        get { defaults.bool(forKey: optedOutKey) }
+        set { defaults.set(newValue, forKey: optedOutKey) }
     }
 
     // MARK: Durable delete-path job cancels (§S4)
@@ -24,18 +36,18 @@ enum DeliveryPreferences {
     private static let pendingCancelKey = "delivery.pendingCancel"
 
     static var pendingCancelCapsuleIDs: [UUID] {
-        (UserDefaults.standard.stringArray(forKey: pendingCancelKey) ?? []).compactMap(UUID.init(uuidString:))
+        (defaults.stringArray(forKey: pendingCancelKey) ?? []).compactMap(UUID.init(uuidString:))
     }
 
     static func enqueuePendingCancel(_ capsuleID: UUID) {
-        var ids = Set(UserDefaults.standard.stringArray(forKey: pendingCancelKey) ?? [])
+        var ids = Set(defaults.stringArray(forKey: pendingCancelKey) ?? [])
         ids.insert(capsuleID.uuidString)
-        UserDefaults.standard.set(Array(ids), forKey: pendingCancelKey)
+        defaults.set(Array(ids), forKey: pendingCancelKey)
     }
 
     static func resolvePendingCancel(_ capsuleID: UUID) {
-        var ids = Set(UserDefaults.standard.stringArray(forKey: pendingCancelKey) ?? [])
+        var ids = Set(defaults.stringArray(forKey: pendingCancelKey) ?? [])
         ids.remove(capsuleID.uuidString)
-        UserDefaults.standard.set(Array(ids), forKey: pendingCancelKey)
+        defaults.set(Array(ids), forKey: pendingCancelKey)
     }
 }

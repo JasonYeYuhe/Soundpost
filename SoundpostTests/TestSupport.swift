@@ -76,6 +76,20 @@ enum TestSupport {
         }
     }
 
+    /// Run `body` with `DeliveryPreferences` — the pending-cancel queue and the cloud
+    /// opt-out — on storage nobody else shares (M20 §4C).
+    ///
+    /// `reconcile` drains the *whole* queue, so two suites on the shared defaults would
+    /// cancel and resolve each other's ids, and a test would pass or fail by who ran
+    /// first. Async because the reconcile it exists for is.
+    static func withIsolatedDeliveryPreferences<T>(_ body: () async throws -> T) async rethrows -> T {
+        let name = "soundpost.test.delivery.\(UUID().uuidString)"
+        defer { UserDefaults(suiteName: name)?.removePersistentDomain(forName: name) }
+        return try await DeliveryPreferences.$defaultsSuiteName.withValue(name) {
+            try await body()
+        }
+    }
+
     /// A `CapsuleStore` over its **own** container, isolated from every other suite.
     ///
     /// M15's backfill tests broke the shared-container assumption above: they are

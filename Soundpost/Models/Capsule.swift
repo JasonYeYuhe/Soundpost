@@ -160,3 +160,38 @@ extension Capsule {
         return now >= sealUntil
     }
 }
+
+// MARK: - Restoring a failed write (M20 §4C)
+
+extension Capsule {
+    /// Every field a seal or an unseal changes, taken before the write so a failed
+    /// save can put each one back **by hand**.
+    ///
+    /// Not `ModelContext.rollback()`. This project has recorded twice that rollback does
+    /// not restore an object that is already in memory (`CapsuleStore.update`,
+    /// `SoundprintBackfill`), and the cost of trusting it here is a capsule the gallery
+    /// draws as sealed while the store says it is not — until the next unrelated save
+    /// quietly commits the seal the user was told had failed.
+    struct SealFields: Equatable {
+        fileprivate let state: CapsuleState
+        fileprivate let sealUntil: Date?
+        fileprivate let sealTimeZoneID: String?
+        fileprivate let echoAt: Date?
+        fileprivate let serverJobSyncedAt: Date?
+    }
+
+    var sealFields: SealFields {
+        SealFields(state: state, sealUntil: sealUntil, sealTimeZoneID: sealTimeZoneID,
+                   echoAt: echoAt, serverJobSyncedAt: serverJobSyncedAt)
+    }
+
+    /// Put back what `sealFields` recorded. Sets `state` directly: this is undoing a
+    /// transition that never committed, not making a new one.
+    func restore(_ fields: SealFields) {
+        state = fields.state
+        sealUntil = fields.sealUntil
+        sealTimeZoneID = fields.sealTimeZoneID
+        echoAt = fields.echoAt
+        serverJobSyncedAt = fields.serverJobSyncedAt
+    }
+}

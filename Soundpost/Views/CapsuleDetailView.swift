@@ -34,6 +34,10 @@ struct CapsuleDetailView: View {
     @State private var showingEdit = false
     @State private var showingSeal = false
     @State private var sealedWithNotificationsOff = false
+    /// A seal, unseal or delete whose save failed (M20 §4C). The capsule has been put
+    /// back exactly as it was, and this screen stays — it used to dismiss, or announce
+    /// "sealed — but reminders are off", whether or not anything had been saved.
+    @State private var writeFailed = false
     @State private var showingPaywall = false
     @State private var sharePayload: SharePayload?
     @State private var exportFailed = false
@@ -148,14 +152,16 @@ struct CapsuleDetailView: View {
         } message: {
             Text("This capsule is sealed and will reappear here on its date. To be reminded on the day, turn on notifications for Soundpost in Settings.")
         }
-        .sheet(item: $sharePayload) { payload in
-            // Clean the video's temp dir only once the sheet is done with the file —
-            // shared, saved, or cancelled. (No-op for the image share, which owns no
-            // workspace.)
-            ShareSheet(items: payload.items) {
-                videoWorkspace?.clean()
-                videoWorkspace = nil
-            }
+        // Clean the video's temp dir only once the sheet is really gone — shared, saved
+        // or cancelled. Not on the activity's first callback (M20 §4C review): cancelling
+        // a sub-activity such as the Mail composer calls back while the share sheet can
+        // stay up for another try, and the file would be gone under it. (No-op for the
+        // image share, which owns no workspace; a lost dismissal is the launch scavenge's.)
+        .sheet(item: $sharePayload, onDismiss: {
+            videoWorkspace?.clean()
+            videoWorkspace = nil
+        }) { payload in
+            ShareSheet(items: payload.items)
         }
         .sheet(isPresented: $showingPaywall) {
             ProPaywallView(context: "Export & share is a Pro feature.")
@@ -164,6 +170,11 @@ struct CapsuleDetailView: View {
             Button("OK", role: .cancel) { }
         } message: {
             Text("Please try again.")
+        }
+        .alert("Couldn't save your changes", isPresented: $writeFailed) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("Your capsule is unchanged. Please try again.")
         }
         .alert("Couldn't save that", isPresented: $correctionWriteFailed) {
             Button("OK", role: .cancel) { }
@@ -563,12 +574,14 @@ struct CapsuleDetailView: View {
             let granted = await notifications.requestAuthorization()
             let store = CapsuleStore(context: modelContext)
             do {
-                try store.seal(capsule, until: date)
-                try store.save()
+                try store.commitSeal(capsule, until: date)
             } catch {
-                // Surface the rare failure instead of swallowing it (§S8) — a static,
-                // non-PII message to Sentry (Release) + the local log.
+                // A static, non-PII message to Sentry (Release) + the local log — and,
+                // since M20, to the person: nothing was sealed, so nothing here may say
+                // it was, and the screen stays where it is.
                 Diagnostics.notice("Seal failed at user action")
+                writeFailed = true
+                return
             }
             await notifications.sync(capsules: (try? store.all()) ?? [], in: modelContext)
             if granted {
@@ -603,37 +616,27 @@ struct CapsuleDetailView: View {
     private func unseal() {
         let store = CapsuleStore(context: modelContext)
         do {
-            try store.unseal(capsule)
-            try store.save()
+            try store.commitUnseal(capsule)
         } catch {
             Diagnostics.notice("Unseal failed at user action")
+            writeFailed = true
+            return
         }
         Task { await notifications.sync(capsules: (try? store.all()) ?? [], in: modelContext) }
     }
 
+    /// The order — queue the server cancel, save the delete, then remove the file and
+    /// ask the server — lives in `CapsuleActions.delete`, where a failing save can be
+    /// tested; this view only renders the answer.
     private func delete() {
-        // Cancel the far-future server job first: a deleted capsule isn't in the
-        // @Query array, so the sync→reconcile path can't cancel it (§S4). Capture
-        // the id before the delete; offline-first — the local delete proceeds
-        // regardless, and the cancel is best-effort (idempotent, signed-in only).
-        let capsuleID = capsule.id
-        // Persist the cancel intent before deleting so it survives a cold launch
-        // or a momentarily-unresolved key and is retried by reconcile (§S4).
-        DeliveryPreferences.enqueuePendingCancel(capsuleID)
-        if let file = capsule.audioFileName { try? AudioStore().delete(file) }
-        // Through the store, so the capsule's rejections go with it in the same save
-        // (§4F). This used to be a bare `modelContext.delete`, which is why the
-        // pruning lives in `CapsuleStore.delete` where a test can reach it rather
-        // than in this view where nothing could.
-        do {
-            let store = CapsuleStore(context: modelContext)
-            try store.delete(capsule)
-            try modelContext.save()
-        } catch {
-            Diagnostics.notice("Delete save failed at user action")
-        }
-        Task { await notifications.sealDelivery?.cancelJob(capsuleID: capsuleID) }
-        dismiss()
+        let deleted = CapsuleActions.delete(
+            capsule,
+            in: CapsuleStore(context: modelContext),
+            cancelServerJob: { id in
+                Task { await notifications.sealDelivery?.cancelJob(capsuleID: id) }
+            }
+        )
+        if deleted { dismiss() } else { writeFailed = true }
     }
 
     private var durationString: String {

@@ -158,6 +158,7 @@ private struct RootView: View {
                     // M13 §4G). Nothing is in flight at launch, and it only ever
                     // removes children of our own export container.
                     VideoExportWorkspace.scavenge()
+                    VideoExportWorkspace.scavenge(named: VideoExportWorkspace.dataExportContainerName)
                     // Count — never delete — audio clips no capsule points at
                     // (M17 §4E). Until §S0 a capture sheet dismissed mid-take left
                     // one behind, and nothing in the app could see it: every

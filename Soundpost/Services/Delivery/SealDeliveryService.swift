@@ -1,4 +1,5 @@
 import Foundation
+import SwiftData
 import os
 
 /// Pure routing policy for cloud-backed delivery (docs/M10-DEVPLAN.md §4A).
@@ -55,10 +56,14 @@ final class SealDeliveryService {
 
     /// Diff the desired far-seal jobs against the server. Signed-out / unconfigured
     /// ⇒ no-op (jobs are user-scoped and are NOT cancelled on sign-out, §4A).
-    func reconcile(capsules: [Capsule], now: Date = .now) async {
+    ///
+    /// - Parameter context: the store the queued delete-cancels are checked against
+    ///   (M20 §4C) — **not** `capsules`, which can be a snapshot taken before a delete,
+    ///   or `[]` from a fetch that failed.
+    func reconcile(capsules: [Capsule], in context: ModelContext, now: Date = .now) async {
         guard backend.isConfigured else { return }
         guard let userKey = await identity.currentUserKey() else { return } // signed out: local path
-        await drainPendingCancels(userKey: userKey)                         // durable delete-cancels (§S4)
+        await drainPendingCancels(userKey: userKey, in: context)            // durable delete-cancels (§S4)
         guard !isOptedOut() else { return }                                 // user deleted cloud data (§S5)
 
         let desired = SealDeliveryRouter.desiredJobs(capsules: capsules, now: now)
@@ -71,8 +76,17 @@ final class SealDeliveryService {
         // so a reconcile that overlaps this one across the suspension observes the
         // claim and skips — preserving the §S3 debounce (one upsert, no CloudKit
         // thrash). Released on failure so a genuine error retries next sync.
+        //
+        // **Only for a capsule still in the store** (M20 §4C review). `capsules` was
+        // taken before this method's awaits, and a delete can land during any of them —
+        // the key lookup alone can take seconds on a cold launch. The drain above has
+        // already cancelled that capsule's job and resolved its queue entry; upserting
+        // it from the stale snapshot here would re-create a job nothing would ever
+        // cancel, and push "your capsule is ready" for a capsule the user deleted. The
+        // check is synchronous and sits right before the claim, with no await between.
         for job in desired {
-            guard let capsule = byID[job.capsuleID], capsule.serverJobSyncedAt == nil else { continue }
+            guard let capsule = byID[job.capsuleID], capsule.serverJobSyncedAt == nil,
+                  Self.isStored(capsule.id, in: context) == true else { continue }
             capsule.serverJobSyncedAt = now    // claim before the await
             do {
                 try await backend.upsertJob(job, userKey: userKey)
@@ -87,6 +101,9 @@ final class SealDeliveryService {
         // fell within the local horizon). Delete is handled separately (§S4) since
         // a deleted capsule isn't in this array. Same claim-before-await discipline.
         for capsule in capsules where capsule.serverJobSyncedAt != nil && !desiredIDs.contains(capsule.id) {
+            // A capsule deleted since the snapshot is the delete path's to cancel; do not
+            // write to it here.
+            guard Self.isStored(capsule.id, in: context) == true else { continue }
             let prior = capsule.serverJobSyncedAt
             capsule.serverJobSyncedAt = nil    // claim before the await
             do {
@@ -118,8 +135,25 @@ final class SealDeliveryService {
 
     /// Retry every queued delete-path cancel; resolve each only once the server
     /// confirms it (idempotent, so retries are safe).
-    private func drainPendingCancels(userKey: String) async {
+    ///
+    /// **Each id is decided by a fresh fetch, never by `capsules`** (M20 §4C). The
+    /// delete path queues the cancel *before* it saves, so that a cancel survives a cold
+    /// launch. The other side of that order: a kill between the queue and the save left
+    /// a capsule that still exists with its id queued, and this cancelled its server job
+    /// unconditionally. Its `serverJobSyncedAt` stayed set, so the reconcile below never
+    /// upserted it again and the planner scheduled no local reminder for it — a far seal
+    /// that would never notify. Pre-existing since M10.
+    ///
+    /// Still in the store → the delete never committed: resolve without cancelling; the
+    /// ordinary diff owns that job. Gone → cancel, resolve on the server's word. Cannot
+    /// tell → leave it queued.
+    private func drainPendingCancels(userKey: String, in context: ModelContext) async {
         for capsuleID in DeliveryPreferences.pendingCancelCapsuleIDs {
+            guard let stillThere = Self.isStored(capsuleID, in: context) else { continue }
+            if stillThere {
+                DeliveryPreferences.resolvePendingCancel(capsuleID)
+                continue
+            }
             do {
                 try await backend.cancelJob(capsuleID: capsuleID, userKey: userKey)
                 DeliveryPreferences.resolvePendingCancel(capsuleID)
@@ -127,6 +161,14 @@ final class SealDeliveryService {
                 // Leave queued; retried on the next sync.
             }
         }
+    }
+
+    /// Whether a capsule with this id is in the store right now — a fresh fetch, not a
+    /// look at any array a caller is holding. `nil` when the store cannot say.
+    private static func isStored(_ id: UUID, in context: ModelContext) -> Bool? {
+        var lookup = FetchDescriptor<Capsule>(predicate: #Predicate { $0.id == id })
+        lookup.fetchLimit = 1
+        return (try? context.fetchCount(lookup)).map { $0 > 0 }
     }
 
     /// "Delete my cloud data": purge every token + job for this user and set the

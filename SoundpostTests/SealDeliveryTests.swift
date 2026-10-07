@@ -83,13 +83,13 @@ struct SealDeliveryTests {
         let backend = SpyDeliveryBackend(configured: true)
         let service = SealDeliveryService(backend: backend, identity: StubDeliveryIdentity(key: "K"))
 
-        await service.reconcile(capsules: try store.all(), now: now)
+        await service.reconcile(capsules: try store.all(), in: store.context, now: now)
         #expect(backend.upsertedJobs.count == 1)
         #expect(backend.upsertedJobs[0].userKey == "K")
         #expect(c.serverJobSyncedAt != nil)
 
         // Debounced: a second reconcile with unchanged state makes no calls.
-        await service.reconcile(capsules: try store.all(), now: now)
+        await service.reconcile(capsules: try store.all(), in: store.context, now: now)
         #expect(backend.upsertedJobs.count == 1)
     }
 
@@ -103,7 +103,7 @@ struct SealDeliveryTests {
         let backend = SpyDeliveryBackend(configured: true)
         let service = SealDeliveryService(backend: backend, identity: StubDeliveryIdentity(key: "K"))
 
-        await service.reconcile(capsules: try store.all(), now: now)
+        await service.reconcile(capsules: try store.all(), in: store.context, now: now)
         #expect(backend.upsertedJobs.isEmpty)
         #expect(near.serverJobSyncedAt == nil)
     }
@@ -117,14 +117,14 @@ struct SealDeliveryTests {
         // Signed out (no key).
         let backend = SpyDeliveryBackend(configured: true)
         await SealDeliveryService(backend: backend, identity: StubDeliveryIdentity(key: nil))
-            .reconcile(capsules: try store.all(), now: now)
+            .reconcile(capsules: try store.all(), in: store.context, now: now)
         #expect(backend.upsertedJobs.isEmpty)
         #expect(c.serverJobSyncedAt == nil)
 
         // Backend not configured.
         let stub = SpyDeliveryBackend(configured: false)
         await SealDeliveryService(backend: stub, identity: StubDeliveryIdentity(key: "K"))
-            .reconcile(capsules: try store.all(), now: now)
+            .reconcile(capsules: try store.all(), in: store.context, now: now)
         #expect(stub.upsertedJobs.isEmpty)
     }
 
@@ -143,7 +143,7 @@ struct SealDeliveryTests {
         let backend = SpyDeliveryBackend(configured: true)
         let service = SealDeliveryService(backend: backend, identity: StubDeliveryIdentity(key: "K"))
 
-        await service.reconcile(capsules: try store.all(), now: now)
+        await service.reconcile(capsules: try store.all(), in: store.context, now: now)
         #expect(backend.cancelledJobs.count == 2)
         #expect(Set(backend.cancelledJobs.map(\.capsuleID)) == [unsealed.id, resurfaced.id])
         #expect(unsealed.serverJobSyncedAt == nil)
@@ -173,24 +173,95 @@ struct SealDeliveryTests {
         backend.shouldThrow = true
         let service = SealDeliveryService(backend: backend, identity: StubDeliveryIdentity(key: "K"))
 
-        await service.reconcile(capsules: try store.all(), now: now)
+        await service.reconcile(capsules: try store.all(), in: store.context, now: now)
 
         #expect(c.serverJobSyncedAt == nil)   // reverted → planner re-includes the local backstop
         #expect(NotificationPlanner.plan(capsules: [c], now: now).count == 1)
     }
 
     @Test func reconcileDrainsDurableDeleteCancels() async throws {
-        let store = try TestSupport.isolatedStore()
-        let backend = SpyDeliveryBackend(configured: true)
-        let service = SealDeliveryService(backend: backend, identity: StubDeliveryIdentity(key: "K"))
-        let id = UUID()
-        defer { DeliveryPreferences.resolvePendingCancel(id) }   // keep UserDefaults clean
-        DeliveryPreferences.enqueuePendingCancel(id)
+        try await TestSupport.withIsolatedDeliveryPreferences {
+            let store = try TestSupport.isolatedStore()
+            let backend = SpyDeliveryBackend(configured: true)
+            let service = SealDeliveryService(backend: backend, identity: StubDeliveryIdentity(key: "K"))
+            let id = UUID()
+            DeliveryPreferences.enqueuePendingCancel(id)
 
-        await service.reconcile(capsules: try store.all(), now: now)
+            await service.reconcile(capsules: try store.all(), in: store.context, now: now)
 
-        #expect(backend.cancelledJobs.map(\.capsuleID).contains(id))   // retried…
-        #expect(!DeliveryPreferences.pendingCancelCapsuleIDs.contains(id)) // …and resolved on success
+            #expect(backend.cancelledJobs.map(\.capsuleID).contains(id))   // retried…
+            #expect(!DeliveryPreferences.pendingCancelCapsuleIDs.contains(id)) // …and resolved on success
+        }
+    }
+
+    // MARK: M20 §4C — a queued cancel is decided by the store, not by the snapshot
+
+    /// The kill window M20 closes: the delete queued its cancel, then never saved. The
+    /// capsule is still in the store with its server job synced. Cancelling here left a
+    /// far seal nobody would ever be notified about — the upsert skips it
+    /// (`serverJobSyncedAt != nil`) and the planner schedules no local backstop for it.
+    ///
+    /// `capsules` is `[]` on purpose — what `(try? store.all()) ?? []` hands over when
+    /// the fetch fails — so a drain that decided from the array would cancel.
+    @Test func aQueuedCancelForACapsuleStillInTheStoreCancelsNothing() async throws {
+        try await TestSupport.withIsolatedDeliveryPreferences {
+            let store = try TestSupport.isolatedStore()
+            let synced = now.addingTimeInterval(-day)
+            let survivor = try sealed(offset: 100 * day, synced: synced)
+            store.context.insert(survivor)
+            try store.save()
+            DeliveryPreferences.enqueuePendingCancel(survivor.id)
+            let backend = SpyDeliveryBackend(configured: true)
+            let service = SealDeliveryService(backend: backend, identity: StubDeliveryIdentity(key: "K"))
+
+            await service.reconcile(capsules: [], in: store.context, now: now)
+
+            #expect(!backend.cancelledJobs.map(\.capsuleID).contains(survivor.id))
+            #expect(!DeliveryPreferences.pendingCancelCapsuleIDs.contains(survivor.id))
+            #expect(survivor.serverJobSyncedAt == synced)
+        }
+    }
+
+    /// The other side: the array still holds a capsule the store no longer has — a
+    /// snapshot taken by a sync already in flight when the delete saved. Its job must
+    /// still be cancelled. (The stale capsule lives in another store rather than being
+    /// a deleted object, so the test reads nothing SwiftData has torn down.)
+    /// The review's case: the snapshot still holds a far seal that the store no longer
+    /// has, and its job was never synced (sealed offline, or just re-armed). The drain
+    /// has nothing queued for it to stop; only the upsert loop's own existence check
+    /// keeps the job from being created for a capsule that is gone.
+    @Test func aStaleSnapshotDoesNotUpsertAJobForACapsuleTheStoreNoLongerHas() async throws {
+        try await TestSupport.withIsolatedDeliveryPreferences {
+            let store = try TestSupport.isolatedStore()
+            let elsewhere = try TestSupport.isolatedStore()
+            let gone = try sealed(offset: 100 * day)
+            elsewhere.context.insert(gone)
+            try elsewhere.save()
+            let backend = SpyDeliveryBackend(configured: true)
+            let service = SealDeliveryService(backend: backend, identity: StubDeliveryIdentity(key: "K"))
+
+            await service.reconcile(capsules: [gone], in: store.context, now: now)
+
+            #expect(backend.upsertedJobs.isEmpty, "a job was created for a capsule the store does not hold")
+            #expect(gone.serverJobSyncedAt == nil)
+        }
+    }
+
+    @Test func aStaleSnapshotStillHoldingADeletedCapsuleDoesNotSaveItsJob() async throws {
+        try await TestSupport.withIsolatedDeliveryPreferences {
+            let store = try TestSupport.isolatedStore()
+            let elsewhere = try TestSupport.isolatedStore()
+            let stale = elsewhere.create(createdAt: now.addingTimeInterval(-day))
+            try elsewhere.save()
+            DeliveryPreferences.enqueuePendingCancel(stale.id)
+            let backend = SpyDeliveryBackend(configured: true)
+            let service = SealDeliveryService(backend: backend, identity: StubDeliveryIdentity(key: "K"))
+
+            await service.reconcile(capsules: [stale], in: store.context, now: now)
+
+            #expect(backend.cancelledJobs.map(\.capsuleID) == [stale.id])
+            #expect(!DeliveryPreferences.pendingCancelCapsuleIDs.contains(stale.id))
+        }
     }
 
     @Test func deleteAllSucceedsTriviallyWithoutAServer() async {
@@ -215,7 +286,7 @@ struct SealDeliveryTests {
         // After "Delete my cloud data" the reconcile must be a no-op (§S5)…
         let service = SealDeliveryService(
             backend: backend, identity: StubDeliveryIdentity(key: "K"), isOptedOut: { true })
-        await service.reconcile(capsules: try store.all(), now: now)
+        await service.reconcile(capsules: try store.all(), in: store.context, now: now)
         #expect(backend.upsertedJobs.isEmpty)
         #expect(c.serverJobSyncedAt == nil)
         // …but the deletion action itself is never gated.
@@ -246,7 +317,7 @@ struct SealDeliveryTests {
 
         let backend = SpyDeliveryBackend(configured: true)
         let service = SealDeliveryService(backend: backend, identity: StubDeliveryIdentity(key: "K"))
-        await service.reconcile(capsules: try store.all(), now: now)
+        await service.reconcile(capsules: try store.all(), in: store.context, now: now)
 
         #expect(backend.upsertedJobs.count == 1)
         // The server now holds 09:00 JST on the same day — not the old 02:47.

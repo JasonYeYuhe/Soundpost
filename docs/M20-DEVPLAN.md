@@ -769,3 +769,92 @@ i18n 100%, 39 Python policy tests.
 
 The session also ran the disk to zero: the Mac had 123 MB free (85 GB in the Trash), every
 build and even the review's own journal failed with `ENOSPC` until Jason emptied it.
+
+### S2 — every user write lands, or changes nothing where the user can see it
+
+**What changed**
+
+- `CapsuleStore.commitSeal` / `commitUnseal` save as one write and, on a failed save, put
+  every field back by hand from `Capsule.sealFields` (state, seal date, zone, echo,
+  `serverJobSyncedAt`). `commitDelete` undoes the pending deletes of the capsule and its
+  `SoundRejection` rows with `rollback()` — the right tool for a pending *delete*, and proved
+  by test: a later unrelated save does not commit them.
+- `CaptureViewModel.save(using:commit:)` takes its inserted row back out on a failed save;
+  `hasRecordedHere` / `hasStanding` are written only after the save succeeds (moved, never
+  reset). `CaptureView.save` no longer begins with `try? store.save()`.
+- `CapsuleActions.delete` owns the delete order: queue the server cancel → delete + save →
+  only then remove the audio file and call `cancelJob`; on failure resolve the queue entry.
+- `CapsuleDetailView`: a failed seal, unseal or delete shows "Couldn't save your changes /
+  Your capsule is unchanged. Please try again." (an existing EN/JA/ZH-Hans pair — no new
+  strings) and stays; no "sealed — but reminders are off" after a failed seal.
+- `SealDeliveryService.reconcile(capsules:in:now:)`: `drainPendingCancels` decides each
+  queued id by a fresh fetch on the passed context — still there → resolve, no cancel; gone →
+  cancel, resolve on success; fetch error → stay queued. This closes the M10-era kill window
+  between the enqueue and the save.
+- `DeliveryPreferences` gained the task-local `UserDefaults` suite `SoundAnalysisPreferences`
+  already had (production reads `.standard` exactly as before): `reconcile` drains the whole
+  queue, so tests on the shared defaults would cancel each other's ids.
+- Bulk export (the drop-able item, kept): the bundle is built inside a
+  `VideoExportWorkspace` named `SoundpostDataExports`, the uncompressed folder is removed once
+  the zip exists, Settings cleans the workspace when the share sheet finishes, and the launch
+  scavenge reclaims both containers.
+
+**Deviation:** none in substance. The plan allowed "`CapsuleActions` (or methods on
+`CapsuleStore` plus a small coordinator)"; seal and unseal are store methods, delete is the
+coordinator, because only delete has side effects outside the store.
+
+**Controls** (`scratchpad/mutate.py`: `cp` snapshot, apply, `-only-testing`, restore, `cmp`;
+the working tree was compared before and after the whole run):
+
+| # | Mutation | Failed |
+|---|---|---|
+| M1 | `commitSeal` skips the restore | `aFailedSealLeavesTheCapsuleCapturedInMemoryAndInTheStore` |
+| M2 | `commitUnseal` skips the restore | `aFailedUnsealLeavesTheCapsuleSealedInMemoryAndInTheStore` |
+| M3 | capture save keeps its row on failure | `aFailedCaptureSaveLeavesNoRowNoStandingAndATakeToRetry` |
+| M4 | standing flags written before the save | `aFailedCaptureSaveLeavesNoRowNoStandingAndATakeToRetry` |
+| M5 | `commitDelete` without `rollback()` | `aFailedDeleteKeepsTheCapsuleItsCorrectionsItsAudioAndItsPush` |
+| M6 | audio file removed before the save | same |
+| M7 | no `resolvePendingCancel` on failure | same |
+| M8 | `cancelServerJob` called on failure | same |
+| M9 | the drain's existence check disabled | `aQueuedCancelForACapsuleStillInTheStoreCancelsNothing` |
+| M10 | the drain decides from the `capsules` array | that test and `aStaleSnapshotStillHoldingADeletedCapsuleDoesNotSaveItsJob` |
+| M11 | seal's catch shows the alert but does not `return` | `aFailedSealOrUnsealTellsTheUserAndGoesNoFurther` |
+| M12 | delete dismisses whatever happened | `aFailedDeleteDoesNotLeaveTheScreen` |
+| M13 | `try? store.save()` back at the start of capture's save | `theCaptureRetryDoesNotBeginBySaving` |
+| M14 | unseal's catch shows nothing | `aFailedSealOrUnsealTellsTheUserAndGoesNoFurther` |
+| M15 | the cancel queued after the save | `aDeleteThatLandsRemovesTheFileAndAsksTheServerAfterwards` |
+| M16 | the uncompressed folder left beside the zip | `exportLeavesOnlyTheZipAndTheScavengeReclaimsIt` |
+| M17 | the export ignores the workspace it is given | same |
+| M18 | the upsert loop without its existence check | `aStaleSnapshotDoesNotUpsertAJobForACapsuleTheStoreNoLongerHas` |
+| M19 | the view's seal back to `store.seal` + `save()` | `aFailedSealOrUnsealTellsTheUserAndGoesNoFurther` |
+| M20 | seal's catch also `dismiss()`es | same |
+| M21 | the view's unseal back to `store.unseal` + `save()` | same |
+
+**Review** (three lenses — the write paths under a real save failure, far-future delivery,
+test strength — each finding sent to a verifier told to refute it). Three confirmed, all
+minor, all fixed; two rejected:
+
+| Finding | Fix |
+|---|---|
+| A delete landing during one of `reconcile`'s awaits (the cold-launch key lookup takes seconds) left the stale snapshot's far seal to be **upserted again after the drain had cancelled it** — a job nothing would ever cancel, pushing for a deleted capsule. Pre-existing since M10 | the upsert and cancel loops skip a capsule a fresh fetch no longer finds, checked synchronously right before the claim (M18) |
+| The view guard read only the catch block, so reverting the view to `store.seal` + `save()` (no restore) passed every test | it requires `commitSeal(` / `commitUnseal(`, forbids a hand `save()`, and forbids `dismiss()` in the catch (M19–M21) |
+| The export workspace was cleaned on the share sheet's first activity callback, which a cancelled sub-activity fires while the sheet stays up | cleaned in `.sheet(onDismiss:)` — and the video share, which had the same pattern since M13, likewise |
+
+Rejected after verification: "the stale-snapshot test uses a draft capsule" (it tests exactly
+what §4C asks of the drain; the sealed case is now M18's test) and "the failed-seal test
+cannot see `serverJobSyncedAt`" (`restore` writes it back; the unseal test asserts it).
+
+Left as is: a delete that races an upsert *already in flight* can still lose to it on the
+server. Closing that needs the server to refuse an upsert for a cancelled id, which is a
+schema change — M21 if it ever shows up.
+
+**Bars:** 650 tests in 87 suites (clean Xcode 27 build), 0 warnings, i18n 100%; CI floor
+raised to 650.
+
+The view half (M11–M14) is a source-shape guard, `WriteFailureViewGuardTests`, in the
+`ProOfferTests` manner: it fails when the stop-and-tell or the retry's pre-save changes, not
+for every way a view could be wrong. There is still no UI-test target, by standing rule.
+
+A probe on the macOS 27 SDK found `rollback()` restoring a mutated object's property there,
+contrary to this repo's notes (`CapsuleStore.update`); the iOS behaviour those notes record
+was not re-measured, and S2 restores by hand regardless.

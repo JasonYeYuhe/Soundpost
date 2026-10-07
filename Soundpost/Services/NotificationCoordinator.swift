@@ -156,7 +156,7 @@ final class NotificationCoordinator: NSObject, UNUserNotificationCenterDelegate 
 
         // Reconcile the far-seal job set with the server in lockstep with the
         // local plan (no-op when signed out / backend unconfigured).
-        await sealDelivery?.reconcile(capsules: capsules, now: now)
+        await sealDelivery?.reconcile(capsules: capsules, in: context, now: now)
     }
 
     // MARK: Delivery-time dedup

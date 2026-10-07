@@ -170,21 +170,28 @@ struct VideoFrameLayout: Equatable, Sendable {
 /// `folder.deletingLastPathComponent()` and so wiped the whole temporary
 /// directory; that is the mistake this API is shaped to make impossible.)
 struct VideoExportWorkspace: Equatable, Sendable {
-    /// The one directory we own inside `tmp`.
+    /// The directory we own inside `tmp` for video renders.
     static let containerName = "SoundpostVideoExports"
+
+    /// The one for "Export your data" (M20 §4C). Same rules, its own name: the bulk
+    /// export used to build its bundle loose in `tmp` and leave the uncompressed copy
+    /// of every clip beside the zip, with nothing ever removing either.
+    static let dataExportContainerName = "SoundpostDataExports"
 
     let directory: URL
 
-    static func container(inTemporaryDirectory root: URL = FileManager.default.temporaryDirectory) -> URL {
-        root.appending(path: containerName, directoryHint: .isDirectory)
+    static func container(named name: String = containerName,
+                          inTemporaryDirectory root: URL = FileManager.default.temporaryDirectory) -> URL {
+        root.appending(path: name, directoryHint: .isDirectory)
     }
 
     /// A fresh directory for one export run.
     static func makeUnique(
+        named name: String = containerName,
         inTemporaryDirectory root: URL = FileManager.default.temporaryDirectory,
         fileManager: FileManager = .default
     ) throws -> VideoExportWorkspace {
-        let directory = container(inTemporaryDirectory: root)
+        let directory = container(named: name, inTemporaryDirectory: root)
             .appending(path: UUID().uuidString, directoryHint: .isDirectory)
         try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
         return VideoExportWorkspace(directory: directory)
@@ -207,12 +214,13 @@ struct VideoExportWorkspace: Equatable, Sendable {
     /// silently best-effort.
     @discardableResult
     static func scavenge(
+        named name: String = containerName,
         olderThan age: TimeInterval = 0,
         now: Date = .now,
         inTemporaryDirectory root: URL = FileManager.default.temporaryDirectory,
         fileManager: FileManager = .default
     ) -> Int {
-        let container = container(inTemporaryDirectory: root)
+        let container = container(named: name, inTemporaryDirectory: root)
         guard let entries = try? fileManager.contentsOfDirectory(
             at: container,
             includingPropertiesForKeys: [.contentModificationDateKey],

@@ -264,6 +264,59 @@ final class CapsuleStore {
         capsule.sealTimeZoneID = nil
     }
 
+    // MARK: User writes that must land or visibly not (M20 §4C)
+    //
+    // Each of these is one user action and one save. Until M20 the detail screen made
+    // the change, logged a failed save, and went on as if it had worked: a failed seal
+    // dismissed to the gallery, or said "sealed — but reminders are off". Here a failed
+    // save puts the capsule back exactly as it was and throws, so the caller can say so
+    // and stay where it is. `commit` is the same seam `update` uses — SwiftData offers
+    // no supported way to make an in-memory `save()` fail.
+
+    /// Seal and save as one write. On a failed save every field goes back by hand.
+    func commitSeal(_ capsule: Capsule, until date: Date, timeZone: TimeZone = .current,
+                    now: Date = .now, commit: (() throws -> Void)? = nil) throws {
+        let before = capsule.sealFields
+        do {
+            try seal(capsule, until: date, timeZone: timeZone, now: now)
+            if let commit { try commit() } else { try save() }
+        } catch {
+            capsule.restore(before)
+            throw error
+        }
+    }
+
+    /// Unseal and save as one write. On a failed save every field goes back by hand.
+    func commitUnseal(_ capsule: Capsule, commit: (() throws -> Void)? = nil) throws {
+        let before = capsule.sealFields
+        do {
+            try unseal(capsule)
+            if let commit { try commit() } else { try save() }
+        } catch {
+            capsule.restore(before)
+            throw error
+        }
+    }
+
+    /// Delete — the capsule and its corrections — and save, as one write.
+    ///
+    /// On a failed save the pending deletes are undone with `rollback()`, which here is
+    /// the right tool rather than the trap it is for a mutated object: nothing on the
+    /// capsule was changed, and what has to be reversed is the pending *delete* of it
+    /// and of its `SoundRejection` rows. `DeleteFailureTests` proves a later unrelated
+    /// save does not commit them. It also discards anything else pending on `context`;
+    /// every write in this app saves its own change at once, so that is nothing a user
+    /// made.
+    func commitDelete(_ capsule: Capsule, commit: (() throws -> Void)? = nil) throws {
+        do {
+            try delete(capsule)
+            if let commit { try commit() } else { try save() }
+        } catch {
+            context.rollback()
+            throw error
+        }
+    }
+
     func markResurfaced(_ capsule: Capsule) throws {
         try capsule.transition(to: .resurfaced)
     }

@@ -506,7 +506,8 @@ struct CaptureView: View {
 
     private func save() {
         let store = CapsuleStore(context: modelContext)
-        try? store.save() // ensure context is in a clean state
+        // No `try? store.save()` first. It was there to "ensure a clean state", and what
+        // it actually did on a retry was commit the failed attempt's row (M20 §4C).
         do {
             try viewModel.save(using: store)
             saveCount += 1 // success haptic

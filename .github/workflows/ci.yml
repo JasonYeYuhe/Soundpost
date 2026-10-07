@@ -40,7 +40,7 @@ jobs:
       # The executed-test floor (M20 §4B). `** TEST SUCCEEDED **` is printed by a
       # run that executed nothing, so the marker alone proves nothing. Raise it
       # deliberately when tests are added; never lower it to make a run pass.
-      MIN_TESTS: "637"
+      MIN_TESTS: "650"
 
     steps:
       - uses: actions/checkout@v7

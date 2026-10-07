@@ -53,6 +53,8 @@ struct SettingsView: View {
     @State private var isExporting = false
     @State private var exportFailed = false
     @State private var sharePayload: SharePayload?
+    /// Where the data export's zip lives until the share sheet is done with it (M20 §4C).
+    @State private var exportWorkspace: VideoExportWorkspace?
 
     private let privacyURL = URL(string: "https://jasonyeyuhe.github.io/soundpost-site/privacy.html")!
     private let termsURL = URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!
@@ -83,7 +85,15 @@ struct SettingsView: View {
                 }
             }
             .sheet(isPresented: $showingPaywall) { ProPaywallView() }
-            .sheet(item: $sharePayload) { ShareSheet(items: $0.items) }
+            // Cleaned when the sheet is really gone, not on the activity's first
+            // callback: cancelling a sub-activity (the Mail composer, Save to Files)
+            // calls back while the share sheet can stay up for another try.
+            .sheet(item: $sharePayload, onDismiss: {
+                exportWorkspace?.clean()
+                exportWorkspace = nil
+            }) { payload in
+                ShareSheet(items: payload.items)
+            }
             .confirmationDialog("Export your data?", isPresented: $confirmingExport, titleVisibility: .visible) {
                 Button("Export") { startExport() }
             } message: {
@@ -368,7 +378,10 @@ struct SettingsView: View {
         Task {
             let exporter = CapsuleBulkExporter(modelContainer: container)
             do {
-                let url = try await exporter.export()
+                let workspace = try VideoExportWorkspace.makeUnique(
+                    named: VideoExportWorkspace.dataExportContainerName)
+                let url = try await exporter.export(in: workspace)
+                exportWorkspace = workspace
                 sharePayload = SharePayload(items: [url])
             } catch {
                 exportFailed = true

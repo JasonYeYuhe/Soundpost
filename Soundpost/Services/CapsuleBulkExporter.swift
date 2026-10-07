@@ -72,10 +72,25 @@ actor CapsuleBulkExporter {
 
     /// Build the export bundle and zip it; returns the `.zip` URL for the share
     /// sheet. Runs on the actor's isolated background context.
-    func export(audioStore: AudioStore = AudioStore(),
+    ///
+    /// Everything is written inside `workspace` (M20 §4C), which the caller cleans
+    /// when the share sheet is done and the launch scavenge reclaims after a crash.
+    /// The uncompressed folder goes as soon as the zip exists — it is a second copy
+    /// of every clip, and nothing shares it. A failure cleans the whole workspace.
+    func export(in workspace: VideoExportWorkspace? = nil,
+                audioStore: AudioStore = AudioStore(),
                 listening: Bool = SoundAnalysisPreferences.mayReveal) throws -> URL {
-        let base = FileManager.default.temporaryDirectory
-            .appending(path: "Soundpost-Export-\(UUID().uuidString)", directoryHint: .isDirectory)
+        let base = try workspace
+            ?? VideoExportWorkspace.makeUnique(named: VideoExportWorkspace.dataExportContainerName)
+        do {
+            return try buildZip(in: base.directory, audioStore: audioStore, listening: listening)
+        } catch {
+            base.clean()
+            throw error
+        }
+    }
+
+    private func buildZip(in base: URL, audioStore: AudioStore, listening: Bool) throws -> URL {
         let folder = base.appending(path: "Soundpost", directoryHint: .isDirectory)
         // **One fetch for the whole export**, on this actor's own context (M18 §4B).
         // The export covers the entire library, so the whole table is the scope; a
@@ -87,6 +102,7 @@ actor CapsuleBulkExporter {
                              rejecting: rejecting)
         let zipURL = base.appending(path: "Soundpost.zip", directoryHint: .notDirectory)
         try Self.zip(folder: folder, to: zipURL)
+        try? FileManager.default.removeItem(at: folder)
         return zipURL
     }
 

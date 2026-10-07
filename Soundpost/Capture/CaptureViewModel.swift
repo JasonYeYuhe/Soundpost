@@ -252,10 +252,43 @@ final class CaptureViewModel {
 
     /// Persist the reviewed recording as a `Capsule`. Returns it, or nil if
     /// there's nothing recorded. Leaves the file in place (now owned by the capsule).
+    ///
+    /// **A failed save leaves no row behind** (M20 §4C). The capsule is inserted
+    /// before anything here can throw, so on failure it is taken back out by hand.
+    /// Without that the inserted row stayed pending on the shared context, and the
+    /// next save — the retry's own, which used to *begin* with one — committed this
+    /// failed attempt as a second capsule. The take stays in review so the user can
+    /// try again. `commit` is the test seam `CapsuleStore.update` uses.
     @discardableResult
-    func save(using store: CapsuleStore) throws -> Capsule? {
+    func save(using store: CapsuleStore, commit: (() throws -> Void)? = nil) throws -> Capsule? {
         guard let fileName else { return nil }
         let capsule = store.create()
+        do {
+            try fill(capsule, fileName: fileName, using: store)
+            if let commit { try commit() } else { try store.save() }
+        } catch {
+            store.context.delete(capsule)
+            throw error
+        }
+        // Only now that the capsule is durable. This install has recorded something,
+        // so its listening preference is a real answer rather than an untouched
+        // default — which is what gives the launch backfill standing to analyse the
+        // rest of the library (`SoundAnalysisPreferences.hasRecordedHere`). And
+        // therefore this device's listening answer is an answer, not a default —
+        // settled now rather than at the next launch, so the capsule just saved can
+        // show what Soundpost heard on the card the user is about to return to.
+        //
+        // Both are monotonic, so a failed save writes nothing here rather than
+        // `false`: a reset could revoke standing the launch path had granted.
+        SoundAnalysisPreferences.hasRecordedHere = true
+        SoundAnalysisPreferences.hasStanding = true
+        reset(deleteFile: false)
+        return capsule
+    }
+
+    /// Everything a save writes onto the new capsule — the part that can throw before
+    /// the commit.
+    private func fill(_ capsule: Capsule, fileName: String, using store: CapsuleStore) throws {
         try store.markRecording(capsule)
         // Read the just-recorded clip into the canonical `audioData` store so the
         // capsule is durable (and CloudKit-mirrorable) the moment it's saved. The
@@ -277,15 +310,6 @@ final class CaptureViewModel {
         // needed to explain it. `applyToDevice` keeps this mirror current, so asking
         // it at the moment of writing is the check that matches when the data lands.
         capsule.soundprintRaw = SoundAnalysisPreferences.isEnabled ? soundprint?.stored : nil
-        // This install has now recorded something, so its listening preference is a
-        // real answer rather than an untouched default — which is what gives the
-        // launch backfill standing to analyse the rest of the library. See
-        // `SoundAnalysisPreferences.hasRecordedHere`.
-        SoundAnalysisPreferences.hasRecordedHere = true
-        // And therefore this device's listening answer is an answer, not a default —
-        // settled now rather than at the next launch, so the capsule just saved can
-        // show what Soundpost heard on the card the user is about to return to.
-        SoundAnalysisPreferences.hasStanding = true
         let trimmed = note.trimmingCharacters(in: .whitespacesAndNewlines)
         capsule.note = trimmed.isEmpty ? nil : trimmed
         capsule.place = includePlace ? place : nil
@@ -293,9 +317,6 @@ final class CaptureViewModel {
         // `echoAt` carries the recording's raw time-of-day, which would otherwise
         // ring back at, say, 2:47 AM (M12 §S2).
         capsule.echoAt = echoEnabled ? echoAt.map { SealClock.normalize($0) } : nil
-        try store.save()
-        reset(deleteFile: false)
-        return capsule
     }
 
     private func reset(deleteFile: Bool = true) {

@@ -97,10 +97,38 @@ struct CapsuleBulkExporterTests {
         let store = try TestSupport.isolatedStore()
         _ = try seed(store, note: "zip me", mood: .nostalgic, blobByte: 0xC3, bytes: 3000)
         let exporter = CapsuleBulkExporter(modelContainer: store.context.container)
-        let url = try await exporter.export()
-        defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+        let root = FileManager.default.temporaryDirectory
+            .appending(path: "BulkExportTest-\(UUID().uuidString)", directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let workspace = try VideoExportWorkspace.makeUnique(
+            named: VideoExportWorkspace.dataExportContainerName, inTemporaryDirectory: root)
+        let url = try await exporter.export(in: workspace)
         #expect(url.pathExtension == "zip")
         let size = (try FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int) ?? 0
         #expect(size > 0)
+    }
+
+    /// M20 §4C: the export leaves one thing in `tmp` — the zip, inside a workspace the
+    /// share sheet cleans and the launch scavenge reclaims. It used to leave the
+    /// uncompressed copy of every clip beside the zip, loose in `tmp`, forever.
+    @Test func exportLeavesOnlyTheZipAndTheScavengeReclaimsIt() async throws {
+        let store = try TestSupport.isolatedStore()
+        _ = try seed(store, note: "tidy", mood: .calm, blobByte: 0x11, bytes: 2000)
+        let exporter = CapsuleBulkExporter(modelContainer: store.context.container)
+        let root = FileManager.default.temporaryDirectory
+            .appending(path: "BulkExportTest-\(UUID().uuidString)", directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let workspace = try VideoExportWorkspace.makeUnique(
+            named: VideoExportWorkspace.dataExportContainerName, inTemporaryDirectory: root)
+
+        let url = try await exporter.export(in: workspace)
+
+        let left = try FileManager.default.contentsOfDirectory(atPath: workspace.directory.path)
+        #expect(left == [url.lastPathComponent], "only the zip may stay behind: \(left)")
+        #expect(url.deletingLastPathComponent().standardizedFileURL
+                == workspace.directory.standardizedFileURL)
+        #expect(VideoExportWorkspace.scavenge(named: VideoExportWorkspace.dataExportContainerName,
+                                              inTemporaryDirectory: root) == 1)
+        #expect(!FileManager.default.fileExists(atPath: workspace.directory.path))
     }
 }
