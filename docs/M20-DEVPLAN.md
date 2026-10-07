@@ -940,3 +940,71 @@ time: it waits on conditions with deadlines, never on a fixed sleep alone.
 
 **Bars:** 667 tests in 90 suites (clean Xcode 27 build), 0 warnings, i18n 100%; the almanac's
 64-slot baseline unchanged; CI floor raised to 667.
+
+### S4 — seal at capture review, and one onboarding line
+
+**Committed before S0 finished, as §5 allows. No build containing it is uploaded until S0's
+rows are recorded.**
+
+**What changed**
+
+- `CaptureViewModel.ComesBack` — `.echo` (the default), `.sealed(until:)`, `.off`. A seal always
+  carries its day; `chooseSeal(until:)` is called only from the seal sheet's Seal button;
+  `reset()` returns to `.echo`. `echoEnabled` is now derived: turning the echo on replaces a
+  seal, turning it off leaves a seal alone.
+- In `fill`, `echoAt` is written only for `.echo`, and `store.seal` is the last change before
+  the single save. The instant is decided **at Save** (`sealInstant(for:now:)`, review finding
+  below).
+- Capture review's section is now "When it comes back": the echo control and "Seal it until a
+  day you choose", or "Sealed until <day>" with Remove and `SealSheet.promise(for:canPromise:)`
+  — the sheet's own sentence, now a `static func` both screens share. A third `.sheet`
+  presents `SealSheet(initialDate:)`; its `onSeal` sets the choice and requests notification
+  authorisation. Neither it nor the save calls a sync: the gallery observer sees the new
+  `sealSignature`.
+- Onboarding page 3: "…You can change or turn this off anytime, or seal a capsule until a day
+  you choose." Three new strings and the replaced onboarding key, all in EN/JA/ZH-Hans (JA
+  封印, ZH 封存, as the app already says).
+- The comments at `NotificationCoordinator.remindersWouldBeDelivered` and `CaptureView.echoPromise`
+  now say "capture's echo never asks; capture's seal option asks when its date is confirmed,
+  as the seal sheet does". `EchoPromiseTests` unchanged and green.
+
+**Seen in the simulator** (Debug build, iPhone 17 Pro, iOS 26.5): onboarding page 3 shows the
+new line; recorded a take; the review screen shows "When it comes back" with the echo row and
+the seal button; the sheet opened from it; Seal asked for notification permission at that
+moment; with permission denied the row switched to "…Notifications are off, so nothing will
+alert you — it reappears here on its date…"; the saved capsule appeared sealed ("Opens Apr 7,
+2027") and under Coming up. The test install was removed afterwards.
+
+**Review** (two lenses: the model and data path, the views and copy; each finding sent to a
+verifier told to refute it). Confirmed, minor, fixed:
+
+| Finding | Fix |
+|---|---|
+| Sealing **until today** in capture: the picker hands over "a minute from now", but capture seals at Save, minutes later — `humaneInstant` keeps a time already past, so the seal is over at birth and the reminder the row promised is never scheduled. The M17 §S4 defect through the new door | the instant is decided at Save: a time no longer ahead becomes a minute from Save, which is what the detail screen's seal-until-today amounts to; `SealSheet(initialDate:)` also clamps a stale day to its own floor |
+| The row-sentence test checked the authorisation rule and a source string, not which sentence the row shows — swapping `promise`'s branches stayed green | it reads each `LocalizedStringKey`'s catalog key and asserts the reminder sentence for `.notDetermined`/`.authorized` and the notifications-off one for `.denied` |
+
+Rejected: "no test catches the seal moved before the echo line on its own". True, and by
+design — see C1b.
+
+**Controls**
+
+| # | Mutation | Failed |
+|---|---|---|
+| C1 | `store.seal` moved before the echo line **and** the echo line ignoring the choice | `aCaptureSavedSealedIsSealedAtNineAndNeverEchoes`, `unsealingASealedCaptureLeavesNoEchoBehind` |
+| C1b | the reorder alone | **survives — expected**: the three-way choice already writes `nil` for a seal, so the order and the choice each protect on their own |
+| C2 | `reset()` keeps the seal | `theChoiceIsClearedByResetAndNeverExistsWithoutADay` |
+| C3 | Remove on the seal row goes back to the echo | `turningTheEchoOffLeavesASealAloneAndOnReplacesIt` |
+| C4 | turning the echo off clears a seal | same |
+| C5 | the row uses `remindersWouldBeDelivered` | `theSealRowPromisesExactlyWhenTheSealSheetDoes` |
+| C6 | the seal chosen when the sheet opens | `permissionIsAskedOnSealAndNothingInCaptureSyncs` |
+| C7 | capture runs its own sync after Seal | same |
+| C8 | permission asked at Save instead | same |
+| C9 | the seal choice ignored by the save | four tests |
+| C10 | no floor at Save | `aCaptureSealedUntilTodayIsStillAheadWhenItIsSaved` |
+| C11 | `promise`'s branches swapped | `theSealRowPromisesExactlyWhenTheSealSheetDoes` |
+
+Note for Jason (§4E): the rating prompt fires after a reveal, so more seals mean more eligible
+prompts — still once per version.
+
+**Bars:** 675 tests in 91 suites (clean Xcode 27 build), 0 warnings, i18n 100% across 349
+strings; CI floor raised to 675.

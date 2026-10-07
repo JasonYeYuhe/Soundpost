@@ -40,11 +40,12 @@ final class NotificationCoordinator: NSObject, UNUserNotificationCenterDelegate 
     ///
     /// Stricter than `canPromiseAReminder`, and the difference is which screen is
     /// asking. The seal sheet requests authorization as part of its own flow, so
-    /// `.notDetermined` there is a question that is about to be asked. **Capture never
-    /// asks** — onboarding does, and onboarding has a Skip button — so `.notDetermined`
-    /// on the capture sheet means nothing on that path will ever ask, the echo is
-    /// scheduled into a permission the app does not hold, and `UNUserNotificationCenter`
-    /// drops it silently. Promising there is the untruth `canPromiseAReminder` was
+    /// `.notDetermined` there is a question that is about to be asked. **Capture's echo
+    /// never asks; capture's seal option asks when its date is confirmed, as the seal
+    /// sheet does** (M20 §4E). Onboarding asks too, and has a Skip button — so
+    /// `.notDetermined` beside the capture *echo* means nothing on that path will ever
+    /// ask, the echo is scheduled into a permission the app does not hold, and
+    /// `UNUserNotificationCenter` drops it silently. Promising there is the untruth `canPromiseAReminder` was
     /// written to avoid, arriving through the other door (Codex, M17 review).
     ///
     /// Unread (`nil`) promises, deliberately: not knowing yet is not the same as

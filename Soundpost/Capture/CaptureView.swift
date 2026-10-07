@@ -13,6 +13,8 @@ struct CaptureView: View {
     @Environment(NotificationCoordinator.self) private var notifications
     @State private var viewModel = CaptureViewModel()
     @State private var showingEchoPicker = false
+    /// The seal sheet, opened from capture review's "comes back" choice (M20 §4E).
+    @State private var showingSealSheet = false
     /// A stable fallback for the echo-picker binding, seeded once at view init so
     /// the picker selection never re-rolls across body evaluations (§S2). The
     /// picker is only ever presented with `echoAt` already seeded, so this is a
@@ -94,6 +96,16 @@ struct CaptureView: View {
                 Text("It hasn't been saved yet, and this can't be undone.")
             }
             .sheet(isPresented: $showingEchoPicker) { echoPicker }
+            // The choice and its day are set only by Seal; Cancel leaves the previous
+            // choice exactly as it was. Permission is asked here, when the day is
+            // confirmed — the moment the detail screen's seal asks — and not on opening
+            // the sheet, and not at Save, which stays synchronous and calls no sync.
+            .sheet(isPresented: $showingSealSheet) {
+                SealSheet(initialDate: viewModel.sealChoice) { day in
+                    viewModel.chooseSeal(until: day)
+                    Task { await notifications.requestAuthorization() }
+                }
+            }
             .sheet(isPresented: $showingPaywall) {
                 ProPaywallView(context: "Recording up to 5 minutes is a Pro feature.")
             }
@@ -295,7 +307,7 @@ struct CaptureView: View {
 
                 section("Place") { placeControl }
 
-                section("Echo") { echoControl }
+                section("When it comes back") { comesBackControl }
             }
             .padding()
         }
@@ -427,6 +439,38 @@ struct CaptureView: View {
         }
     }
 
+    /// How the capsule comes back (M20 §4E): a surprise echo (the default), sealed until a
+    /// day, or neither. Sealing replaces the echo, exactly as it does on a saved capsule.
+    @ViewBuilder
+    private var comesBackControl: some View {
+        if let day = viewModel.sealChoice {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Button { showingSealSheet = true } label: {
+                        Label("Sealed until \(day.formatted(date: .abbreviated, time: .omitted))",
+                              systemImage: "lock")
+                    }
+                    Spacer()
+                    Button("Remove", role: .destructive) { viewModel.dropSeal() }
+                        .font(.subheadline)
+                }
+                // The seal sheet's own sentence for the chosen day, honest once the
+                // permission answer arrives (`.notDetermined` is a promise: it was just
+                // asked).
+                Text(SealSheet.promise(for: day, canPromise: notifications.canPromiseAReminder))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        } else {
+            VStack(alignment: .leading, spacing: 10) {
+                echoControl
+                Button { showingSealSheet = true } label: {
+                    Label("Seal it until a day you choose", systemImage: "lock")
+                }
+            }
+        }
+    }
+
     /// A `LocalizedStringKey` property rather than a ternary inside `Text(...)`, and
     /// not only for readability: the localization gate reads source, and it finds
     /// literals in a localizing *call* or in a declaration typed `LocalizedStringKey`.
@@ -434,9 +478,10 @@ struct CaptureView: View {
     /// written that way would ship untranslated with the gate green — the same
     /// blindness M17 §S2 closed for interpolated literals, in a different disguise.
     private var echoPromise: LocalizedStringKey {
-        // `remindersWouldBeDelivered`, not `canPromiseAReminder`: this screen never
-        // requests authorization, so `.notDetermined` here is not a question about to
-        // be asked — see the property's own doc.
+        // `remindersWouldBeDelivered`, not `canPromiseAReminder`: capture's echo never
+        // asks; capture's seal option asks when its date is confirmed, as the seal sheet
+        // does — so for the echo, `.notDetermined` is not a question about to be asked.
+        // See the property's own doc.
         notifications.remindersWouldBeDelivered
             ? "A surprise reminder of what today sounded like."
             : "Notifications are off, so this won't reach you until you turn them on."

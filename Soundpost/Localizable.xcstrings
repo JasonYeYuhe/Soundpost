@@ -939,18 +939,18 @@
         }
       }
     },
-    "Each new capsule picks a random day in the future to echo back and remind you of today. You can change or turn this off anytime.": {
+    "Each new capsule picks a random day in the future to echo back and remind you of today. You can change or turn this off anytime, or seal a capsule until a day you choose.": {
       "localizations": {
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "新しいカプセルは未来のランダムな日を選び、今日のことをこだまのように知らせてくれます。日付の変更もオフもいつでもできます。"
+            "value": "新しいカプセルは未来のランダムな日を選び、今日のことをこだまのように知らせてくれます。日付の変更もオフもいつでもできます。選んだ日までカプセルを封印しておくこともできます。"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "每枚新胶囊都会随机选定未来的一天，回响提醒你今天的声音。日期可改，也可随时关闭。"
+            "value": "每枚新胶囊都会随机选定未来的一天，回响提醒你今天的声音。日期可改，也可随时关闭，还可以把胶囊封存到你选定的那一天。"
           }
         }
       }
@@ -2731,6 +2731,22 @@
         }
       }
     },
+    "Seal it until a day you choose": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "選んだ日まで封印する"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "封存到你选定的那一天"
+          }
+        }
+      }
+    },
     "Seal to the future": {
       "localizations": {
         "ja": {
@@ -2776,6 +2792,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "仅已封存"
+          }
+        }
+      }
+    },
+    "Sealed until %@": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@まで封印"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "封存至 %@"
           }
         }
       }
@@ -3750,6 +3782,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "这是什么？"
+          }
+        }
+      }
+    },
+    "When it comes back": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "戻ってくるとき"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "它何时回来"
           }
         }
       }

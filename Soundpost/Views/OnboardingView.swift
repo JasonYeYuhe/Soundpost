@@ -62,7 +62,7 @@ struct OnboardingView: View {
                     symbol: "bell.badge",
                     tint: .purple,
                     title: "Hear today again, someday",
-                    body: "Each new capsule picks a random day in the future to echo back and remind you of today. You can change or turn this off anytime.",
+                    body: "Each new capsule picks a random day in the future to echo back and remind you of today. You can change or turn this off anytime, or seal a capsule until a day you choose.",
                     buttonTitle: "Enable Reminders",
                     action: {
                         requesting = true

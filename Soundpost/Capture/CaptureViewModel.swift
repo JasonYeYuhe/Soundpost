@@ -31,7 +31,45 @@ final class CaptureViewModel {
     /// ("this capsule will remind you of today in N days"), user-editable and
     /// removable in the review step.
     var echoAt: Date?
-    var echoEnabled = true
+
+    /// How this capsule will come back to you (M20 §4E). Capture review offers all three;
+    /// the surprise echo is the default, as it always was.
+    enum ComesBack: Equatable {
+        /// A surprise echo on a random day in the window.
+        case echo
+        /// Sealed until the chosen day: hidden until then, and back on that day.
+        case sealed(until: Date)
+        /// Neither.
+        case off
+    }
+
+    /// The choice. A seal always carries its day — there is no "sealed, date to follow".
+    private(set) var comesBack: ComesBack = .echo
+
+    /// Whether the surprise echo is on. The echo controls read and write this; turning it
+    /// on replaces a seal, turning it off leaves a seal alone.
+    var echoEnabled: Bool {
+        get { comesBack == .echo }
+        set {
+            if newValue { comesBack = .echo } else if comesBack == .echo { comesBack = .off }
+        }
+    }
+
+    /// The day this capture will be sealed until, if a seal was chosen.
+    var sealChoice: Date? {
+        if case .sealed(let day) = comesBack { return day }
+        return nil
+    }
+
+    /// Choose to seal until `day`. Called from the seal sheet's Seal button and nowhere
+    /// else: opening the sheet, or cancelling it, leaves the previous choice exactly as
+    /// it was.
+    func chooseSeal(until day: Date) { comesBack = .sealed(until: day) }
+
+    /// Take the seal back off — neither seal nor echo; the echo can be turned on again.
+    func dropSeal() {
+        if case .sealed = comesBack { comesBack = .off }
+    }
 
     /// What the on-device classifier heard, once it finishes (M15 §4K).
     /// Deliberately **not** awaited before the review screen appears: a 5-minute
@@ -129,7 +167,7 @@ final class CaptureViewModel {
         waveform = extraction?.samples ?? []
         startClassifying(clipAt: clipURL, duration: duration, peak: extraction?.absolutePeak ?? 0)
         echoAt = Self.randomEchoDate(in: echoWindow)
-        echoEnabled = true
+        comesBack = .echo
         phase = .review
     }
 
@@ -260,11 +298,12 @@ final class CaptureViewModel {
     /// failed attempt as a second capsule. The take stays in review so the user can
     /// try again. `commit` is the test seam `CapsuleStore.update` uses.
     @discardableResult
-    func save(using store: CapsuleStore, commit: (() throws -> Void)? = nil) throws -> Capsule? {
+    func save(using store: CapsuleStore, now: Date = .now,
+              commit: (() throws -> Void)? = nil) throws -> Capsule? {
         guard let fileName else { return nil }
         let capsule = store.create()
         do {
-            try fill(capsule, fileName: fileName, using: store)
+            try fill(capsule, fileName: fileName, using: store, now: now)
             if let commit { try commit() } else { try store.save() }
         } catch {
             store.context.delete(capsule)
@@ -288,7 +327,8 @@ final class CaptureViewModel {
 
     /// Everything a save writes onto the new capsule — the part that can throw before
     /// the commit.
-    private func fill(_ capsule: Capsule, fileName: String, using store: CapsuleStore) throws {
+    private func fill(_ capsule: Capsule, fileName: String, using store: CapsuleStore,
+                      now: Date) throws {
         try store.markRecording(capsule)
         // Read the just-recorded clip into the canonical `audioData` store so the
         // capsule is durable (and CloudKit-mirrorable) the moment it's saved. The
@@ -315,8 +355,35 @@ final class CaptureViewModel {
         capsule.place = includePlace ? place : nil
         // Normalize the echo day to a humane hour (09:00 device-local) on save —
         // `echoAt` carries the recording's raw time-of-day, which would otherwise
-        // ring back at, say, 2:47 AM (M12 §S2).
-        capsule.echoAt = echoEnabled ? echoAt.map { SealClock.normalize($0) } : nil
+        // ring back at, say, 2:47 AM (M12 §S2). Only the surprise echo writes one: a seal
+        // or "off" leaves it nil, so a sealed capture never also echoes.
+        capsule.echoAt = comesBack == .echo ? echoAt.map { SealClock.normalize($0) } : nil
+        // **The seal is the last change before the save** (M20 §4E) — after
+        // `markCaptured` and after the echo line above, so nothing can write an echo back
+        // over it, and the capture and its seal are saved, or fail, as one write.
+        // `store.seal` pins the day to 09:00 local in this zone, stamps the zone, and
+        // clears the echo and `serverJobSyncedAt` itself. No sync here: the gallery
+        // observer sees the new sealed capsule through `sealSignature` and syncs it, and
+        // a `nil` `serverJobSyncedAt` makes the next reconcile upsert its far job.
+        if case .sealed(let day) = comesBack {
+            try store.seal(capsule, until: Self.sealInstant(for: day, now: now), now: now)
+        }
+    }
+
+    /// When a capture sealed until `day` should open, decided at **Save**, not when the
+    /// day was picked (M20 §4E review).
+    ///
+    /// The seal sheet hands over an instant: 09:00 on a later day, or — for *today* —
+    /// the picker's floor, a minute after it was opened. The detail screen seals the
+    /// moment Seal is tapped, so that minute is still ahead. Capture seals at Save,
+    /// after a note, a mood, a permission prompt; by then the minute has usually gone,
+    /// `humaneInstant` keeps a time already past, and the seal is over at birth — the
+    /// M17 §S4 defect by a new door, under a row that had just promised a reminder.
+    /// So a time that is no longer ahead becomes a minute from Save, which is what the
+    /// detail screen's seal-until-today amounts to.
+    static func sealInstant(for day: Date, now: Date) -> Date {
+        let instant = CapsuleStore.humaneInstant(for: day, in: .current, now: now)
+        return instant > now ? instant : now.addingTimeInterval(60)
     }
 
     private func reset(deleteFile: Bool = true) {
@@ -333,7 +400,7 @@ final class CaptureViewModel {
         classificationTask?.cancel()
         classificationTask = nil
         soundprint = nil
-        echoEnabled = true
+        comesBack = .echo
         phase = .idle
     }
 }
