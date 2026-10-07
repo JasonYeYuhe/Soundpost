@@ -1175,3 +1175,16 @@ F6b shows it failing.
 
 **Bars:** 689 tests in 92 suites (clean Xcode 27 build), 0 warnings, i18n 100% across 3
 catalogs, store-metadata gate green, 39 Python policy tests; CI floor raised to 689.
+
+**Build 22** (commit `28e4466`, tag `v1.10.0-b22`): archived with Xcode 27.0 (27A266a), uploaded
+2026-10-08 02:53 JST (dSYMs to Sentry), processed `VALID`, attached to 1.10.0 in place of build
+21. CI green on `28e4466` (689 executed, floor 689); every M20 commit has its own green run
+(S5's, cancelled by the next push, was re-run). **Submitted for review 2026-10-08 ~03:10 JST**
+through `asc.py submit` — submission `8457f113-a58d-473f-a0cd-5c1b243b3a4d`, version state
+`READY_FOR_REVIEW`, `releaseType MANUAL`. Nothing goes public until Jason says so
+(`asc.py release`, which only acts on an approved 1.10.0).
+
+**Still open for Jason** (§0, §8): the delivery witness's push arrival (`status = 'sent'`); the
+S5 device check from a killed app, and the intent through Shortcuts on an iOS 17–25 runtime (a
+`Soundpost-iOS18` iOS 18.5 simulator was created for it; the simulator tool needs his one-time
+permission to drive a new device); D5–D9; the release itself.
