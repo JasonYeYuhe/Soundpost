@@ -4,7 +4,8 @@ import os
 
 /// Thin `@UIApplicationDelegateAdaptor`. SwiftUI has no first-class hook for
 /// `application(_:didRegisterForRemoteNotificationsWithDeviceToken:)`, so this
-/// owns **only** the APNs registration handshake (token in / failure). Foreground
+/// owns the APNs registration handshake (token in / failure) — and, since M20, hands
+/// each scene `SoundpostSceneDelegate` for the Home Screen quick action. Foreground
 /// presentation + notification-tap routing stay with `NotificationCoordinator`
 /// (the `UNUserNotificationCenterDelegate`); this class is deliberately *not*
 /// that delegate, so the two never fight over the same callbacks.
@@ -38,6 +39,20 @@ final class SoundpostAppDelegate: NSObject, UIApplicationDelegate {
             }
         }
         return true
+    }
+
+    /// Supplies `SoundpostSceneDelegate`, the only way a SwiftUI-lifecycle app receives
+    /// a Home Screen quick action (M20 §4F). The configuration is otherwise the
+    /// default: no name, the connecting session's own role, and SwiftUI still owns the
+    /// window.
+    func application(
+        _ application: UIApplication,
+        configurationForConnecting connectingSceneSession: UISceneSession,
+        options: UIScene.ConnectionOptions
+    ) -> UISceneConfiguration {
+        let configuration = UISceneConfiguration(name: nil, sessionRole: connectingSceneSession.role)
+        configuration.delegateClass = SoundpostSceneDelegate.self
+        return configuration
     }
 
     func application(

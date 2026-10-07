@@ -675,6 +675,20 @@ from public.notification_jobs order by created_at;
 - Stale comments fixed: `SupabaseDeliveryBackend.swift` (`functionsURL`) and
   `SoundpostApp.swift` (`registrar`) no longer say delivery is inert in production.
 
+**Rows, 2026-10-07** (same read-only queries, 18:00 JST):
+
+| table | row | when (JST) |
+|---|---|---|
+| `device_tokens` | `367e950d`, **`production`** | 16:54 |
+| `notification_jobs` | `367e950d`, seal, **2028-06-09 09:00 Asia/Shanghai**, `pending` | 16:58 |
+
+The first production token and the first job beside it, under a key that is not tombstoned —
+an App Store build registered for APNs and handed a far seal to the server. **This is the S0
+row evidence that gates uploading a build containing S4.** It is not yet the witness: that
+seal is in 2028, so no push can be seen arriving from it. The phone's zone is Asia/Shanghai, so
+a seal to 2026-10-09 fires at 09:00 Shanghai (10:00 JST), and "do not open from 09:00 the day
+before" means 09:00 Shanghai on 10-08. Asked Jason to seal one more capsule to 10-09.
+
 ### S1 — release tooling refuses the wrong app, version, cancel, tree and an unsymbolicated upload
 
 **What changed**
@@ -1008,3 +1022,94 @@ prompts — still once per version.
 
 **Bars:** 675 tests in 91 suites (clean Xcode 27 build), 0 warnings, i18n 100% across 349
 strings; CI floor raised to 675.
+
+### S5 — more ways into capture, through one tested route
+
+**What changed**
+
+- `OpenCaptureIntent` ("New capsule"): `static let openAppWhenRun: Bool = true` **and**
+  `@available(iOS 26.0, *) static let supportedModes: IntentModes = .foreground`, no `#if`;
+  `perform()` only sets the capture request. `SoundpostShortcuts` offers three phrases, each
+  with `\(.applicationName)`, translated in a new `Soundpost/AppShortcuts.xcstrings` (the
+  localization gate globs it — now 3 catalogs). No entity, no Spotlight items for capsules.
+- A static `UIApplicationShortcutItems` "New capsule" entry in `Soundpost-Info.plist`; its title
+  is localized through `InfoPlist.xcstrings` keyed by the title (the system looks a shortcut
+  title up by its own text). Checked in the built bundle: `ja.lproj/InfoPlist.strings` holds
+  "New capsule" = "新しいカプセル", zh-Hans "新建胶囊"; `AppShortcuts.strings` holds the phrases.
+- `SoundpostAppDelegate.application(_:configurationForConnecting:options:)` (new) returns a
+  default `UISceneConfiguration` whose `delegateClass` is `SoundpostSceneDelegate`, which
+  implements only `scene(_:willConnectTo:options:)` (cold: `connectionOptions.shortcutItem`) and
+  `windowScene(_:performActionFor:completionHandler:)` (warm: answers `completionHandler`). It
+  creates no window.
+- `CaptureRequests` — one hook, installed in `SoundpostApp.init` — sets
+  `NotificationCoordinator.pendingCaptureRequest`. On that one main-actor owner: `requestCapture()`
+  drops a waiting notification link, `openFromNotification(_:)` (now what `didReceive` calls)
+  drops a waiting capture request — the newest wins, no clock. Opening capture by any door
+  (`.onChange(of: showingCapture)`) also drops a waiting link.
+- `CaptureLaunchRoute.decide(requested:on:)` — present / alreadyOpen / wait / none: wait through
+  unfinished onboarding and until the gallery exists, never cover a reveal or Settings, never
+  stack on capture. `ContentView` drains it after every `refreshAndSync` (the cold-launch case),
+  on change, and when Settings or a reveal closes.
+
+**Compiled metadata** (`Metadata.appintents/extract.actionsdata` of the Debug build):
+`OpenCaptureIntent` has `openAppWhenRun: true`, `supportedModes: 2` (foreground), title key "New
+capsule", three phrase templates and short title "New capsule". Clean Xcode 27 build: no
+deprecation or other warning from either declaration.
+
+**Seen in the simulator** (Debug, iPhone 17 Pro, iOS 26.5) — the plan's launch check for the
+commit that adds the scene delegate:
+
+1. Launches normally (no black screen) to onboarding.
+2. Home Screen long-press shows "New capsule". Tapped **with onboarding unfinished**: the app
+   stayed on onboarding. After Skip, capture opened — **idle**, record button untouched.
+3. Recorded and saved a capsule, killed the app, sent a push carrying its `capsule_id`
+   (`simctl push`), tapped the banner: the app cold-launched straight to that capsule. The
+   `UNUserNotificationCenter` delegate is unaffected by the scene delegate.
+4. With the app backgrounded on a detail screen, the quick action opened capture (idle) over it.
+
+**Not run here — left for Jason's device check:** the intent through Shortcuts on an iOS 17–25
+runtime. A `Soundpost-iOS18` simulator (iOS 18.5) was created and the build installed, but the
+simulator tool needs Jason's one-time permission for a new device. The compiled
+`openAppWhenRun: true` above is what that runtime reads.
+
+**Controls**
+
+| # | Mutation | Failed |
+|---|---|---|
+| Q1 | the route ignores onboarding | `theRouteDecidesFromTheScreen` |
+| Q2 | the route ignores whether the gallery exists | same |
+| Q3 | `requestCapture` keeps a waiting link | `aCaptureRequestDropsAWaitingLink` |
+| Q4 | `openFromNotification` keeps a waiting request | `aNotificationTapDropsAWaitingCaptureRequest` |
+| Q5 | `openAppWhenRun` removed | `theIntentOpensTheAppOnEverySupportedSystemAndNeverRecords` |
+| Q6 | the scene delegate creates a `UIWindow` | `theSceneDelegateMakesNoWindowAndAnswersTheSystem` |
+| Q7 | the warm path never calls `completionHandler` | same |
+| Q8 | the quick-action type drifts from Info.plist | `theQuickActionInInfoPlistIsTheOneTheAppHandles` |
+| Q9 | `refreshAndSync` no longer drains the request | `theGalleryDrainsAfterItExistsAndCaptureDropsAWaitingLink` |
+| Q10 | opening capture keeps a waiting link | same |
+| Q11 | `didReceive` sets the link directly again | `aNotificationTapGoesThroughTheNewestWinsRule` |
+
+| Q12 | the cold-launch drain moved back behind the sync | `theGalleryDrainsAfterItExistsAndCaptureDropsAWaitingLink` |
+| Q13 | opening a capsule keeps a waiting request | same |
+| Q14 | the rating prompt asked over a capture a closing reveal released | same |
+| Q15 | a capture opened by "+" keeps the request | same |
+
+The door checks are source-shape guards (no UI-test target, by standing rule); the route and
+the newest-wins rule are behaviour tests.
+
+**Review** (two lenses: routing and lifecycle, App Intents and Info.plist; each finding sent to
+a verifier told to refute it). Confirmed and fixed:
+
+| Finding | Fix |
+|---|---|
+| **major** — a cold-launch request is set before the gallery's first body, so only the drain at the *end* of `refreshAndSync` saw it: behind CloudKit's delivery-key lookup and the delivery server, seconds outdoors. Meanwhile the gallery was live, and nothing the person did cancelled the request — capture could slide up over a capsule they had opened, or after a capture they made themselves | drained at the top of `refreshAndSync`, before anything awaits (the trailing drain stays); the person's own navigation supersedes a waiting request as it does a link — opening a capsule, opening Settings, and opening capture by any door consume it (Q12–Q13, Q15) |
+| Closing a reveal with a request waiting asked for a rating and opened capture at once | the request is drained first, and the rating prompt is skipped (and left unspent) when capture opened (Q14) |
+
+Rejected: "the route cannot see the detail screen's own sheets" — true of the route, but SwiftUI
+refuses to present a second sheet from the root while a child sheet is up, the request is then
+consumed without effect, and the person is where they chose to be.
+
+Re-checked in the simulator after the fixes: with onboarding complete and the app killed, the
+quick action opened capture (idle) directly.
+
+**Bars:** 684 tests in 92 suites (clean Xcode 27 build), 0 warnings, i18n 100% across 3 catalogs;
+Release debug-only gate green; CI floor raised to 684.

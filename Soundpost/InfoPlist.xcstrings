@@ -85,6 +85,30 @@
           }
         }
       }
+    },
+    "New capsule" : {
+      "comment" : "Home Screen quick action title (UIApplicationShortcutItemTitle in Soundpost-Info.plist). The system looks a shortcut item's title up by its own text, so the key is the title itself.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New capsule"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新しいカプセル"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新建胶囊"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

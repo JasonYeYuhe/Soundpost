@@ -25,6 +25,9 @@ struct ContentView: View {
     @Query private var rejections: [SoundRejection]
     @State private var showingCapture = false
     @State private var showingSettings = false
+    /// Read for one decision: a capture request from outside must not open past
+    /// unfinished onboarding (`CaptureLaunchRoute`).
+    @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     @State private var path: [Capsule] = []
     /// The capsule currently presented as a full-screen resurface reveal (§S4).
     @State private var revealCapsule: Capsule?
@@ -82,7 +85,12 @@ struct ContentView: View {
                     // export-your-data, Pro, privacy/support. Replaces the M11 minimal
                     // Pro entry (a person icon read as "account"). Sits beside the
                     // primary "New capsule" action.
-                    Button { showingSettings = true } label: {
+                    Button {
+                        // Going somewhere yourself supersedes a capture request still
+                        // waiting (M20 §4F) — the rule `openCapsule` applies to links.
+                        notifications.consumeCaptureRequest()
+                        showingSettings = true
+                    } label: {
                         Image(systemName: "gearshape")
                     }
                     .accessibilityLabel("Settings")
@@ -94,7 +102,7 @@ struct ContentView: View {
                 }
             }
             .sheet(isPresented: $showingCapture) { CaptureView() }
-            .sheet(isPresented: $showingSettings) { SettingsView() }
+            .sheet(isPresented: $showingSettings, onDismiss: drainCaptureRequest) { SettingsView() }
             .fullScreenCover(item: $revealCapsule, onDismiss: requestReviewIfEarned) { capsule in
                 ResurfaceView(capsule: capsule, rejecting: pass.rejecting) {
                     reviewAfterReveal = true
@@ -150,7 +158,21 @@ struct ContentView: View {
         .onChange(of: showingCapture) { _, presented in
             // Capture builds its own player for the unsaved recording; the gallery's
             // must not be sounding underneath it.
-            if presented { playback.stop() }
+            if presented {
+                playback.stop()
+                // Capture is open, by whichever door: a waiting request is honoured.
+                // Without this a "+" capture saved before a slow launch drain would be
+                // followed by a second capture sheet nobody asked for.
+                notifications.consumeCaptureRequest()
+                // Opening capture — by any door — supersedes a link still waiting for
+                // its capsule. Left pending under the sheet it would fire when that
+                // capsule imported, or when this capture saved and the library grew
+                // (M20 §4F). The same rule `openCapsule` applies.
+                notifications.pendingDeepLinkCapsuleID = nil
+            }
+        }
+        .onChange(of: notifications.pendingCaptureRequest) { _, _ in
+            drainCaptureRequest()
         }
         .onChange(of: UpcomingResurfaces.sealSignature(capsules)) { _, _ in
             Task { await notifications.sync(capsules: capsules, in: modelContext) }
@@ -586,6 +608,12 @@ struct ContentView: View {
         _ = try? store.normalizeSealHours()
         _ = try? store.refreshDueSeals()
         try? store.save()
+        // **Before anything awaits** (M20 §4F review). A cold-launch request is set
+        // before the gallery's first body, so `onChange` never sees it, and the sync
+        // below waits on CloudKit and the delivery server — seconds, more outdoors.
+        // Capture needs none of that; the person asked for it now. (A link, by contrast,
+        // waits for its capsule to import, so it drains after the sync.)
+        drainCaptureRequest()
         // Authorization is async and revocable from Settings while the app is
         // backgrounded, so it is read on every foreground rather than once at launch
         // — otherwise the seal sheet goes on promising a reminder the OS has since
@@ -593,6 +621,29 @@ struct ContentView: View {
         await notifications.refreshAuthorization()
         await notifications.sync(capsules: capsules, in: modelContext)
         drainPendingDeepLink()
+        drainCaptureRequest()
+    }
+
+    /// Honour a capture request from outside the app's doors, if one is waiting and the
+    /// screen can take it (M20 §4F). Drained here — after every `refreshAndSync`, so a
+    /// cold launch's request set before any body existed is not lost — and whenever the
+    /// request, the settings sheet or the reveal changes.
+    private func drainCaptureRequest() {
+        let screen = CaptureLaunchRoute.Screen(
+            onboardingComplete: hasCompletedOnboarding,
+            galleryReady: true,              // this view is the gallery
+            captureShowing: showingCapture,
+            revealShowing: revealCapsule != nil,
+            otherSheetShowing: showingSettings)
+        switch CaptureLaunchRoute.decide(requested: notifications.pendingCaptureRequest, on: screen) {
+        case .present:
+            notifications.consumeCaptureRequest()
+            showingCapture = true
+        case .alreadyOpen:
+            notifications.consumeCaptureRequest()
+        case .wait, .none:
+            break
+        }
     }
 
     /// Open the capsule a notification tap asked for, if one is waiting.
@@ -617,6 +668,8 @@ struct ContentView: View {
     /// capsule or navigate to detail otherwise. One decision point, so a due seal
     /// never opens as a plain detail screen.
     private func openCapsule(_ capsule: Capsule) {
+        // A capture request still waiting is superseded the same way (M20 §4F).
+        notifications.consumeCaptureRequest()
         // Opening anything supersedes a link still waiting for its capsule to import.
         // This is what bounds `PendingLink.wait` without inventing a clock: the user
         // going somewhere themselves is the event that means "I have moved on", and
@@ -657,8 +710,13 @@ struct ContentView: View {
     /// After the reveal closes, ask for a rating if this was a genuine resurface
     /// and the per-version cap allows it (§S5). The OS further rate-limits.
     private func requestReviewIfEarned() {
-        guard reviewAfterReveal else { return }
+        let earned = reviewAfterReveal
         reviewAfterReveal = false
+        // A capture request that waited for the reveal to close goes now — and takes the
+        // moment: no rating prompt over the capture screen the person asked for, and the
+        // once-per-version prompt is left for a later reveal (M20 §4F review).
+        drainCaptureRequest()
+        guard earned, !showingCapture else { return }
         ReviewPrompt.requestIfEligible(requestReview)
     }
 

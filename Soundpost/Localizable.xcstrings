@@ -2184,6 +2184,22 @@
         }
       }
     },
+    "Opens Soundpost ready to record. Recording starts only when you tap.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Soundpost を録音できる状態で開きます。録音はタップしたときにだけ始まります。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开 Soundpost 并准备好录音。只有在你点按后才会开始录音。"
+          }
+        }
+      }
+    },
     "Opens this capsule": {
       "extractionState": "manual",
       "localizations": {

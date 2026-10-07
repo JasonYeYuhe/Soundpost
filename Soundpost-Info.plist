@@ -12,5 +12,19 @@
 	<array>
 		<string>remote-notification</string>
 	</array>
+	<!-- The Home Screen quick action (M20 §4F): opens capture, idle. Its title is
+	     localized through InfoPlist.xcstrings, keyed by the title itself; its type is
+	     QuickAction.newCapsuleType, and CaptureLaunchTests holds the two equal. -->
+	<key>UIApplicationShortcutItems</key>
+	<array>
+		<dict>
+			<key>UIApplicationShortcutItemType</key>
+			<string>com.soundpost.Soundpost.newCapsule</string>
+			<key>UIApplicationShortcutItemTitle</key>
+			<string>New capsule</string>
+			<key>UIApplicationShortcutItemIconSymbolName</key>
+			<string>waveform</string>
+		</dict>
+	</array>
 </dict>
 </plist>

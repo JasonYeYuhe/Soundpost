@@ -13,6 +13,36 @@ final class NotificationCoordinator: NSObject, UNUserNotificationCenterDelegate 
     /// Set when a notification is tapped; ContentView observes this to navigate.
     var pendingDeepLinkCapsuleID: UUID?
 
+    /// A request to open capture from outside the app's own doors — an App Shortcut or
+    /// the Home Screen quick action (M20 §4F). ContentView drains it once the gallery
+    /// exists (`CaptureLaunchRoute`).
+    ///
+    /// **The newest request wins, and this and a notification link are never both
+    /// live.** Both live here, on one main-actor owner, so "newest" is simply whichever
+    /// was set last: asking for capture drops a link still waiting for its capsule, and
+    /// a notification tap drops a capture request still waiting for the gallery.
+    private(set) var pendingCaptureRequest = false
+
+    /// Ask for capture (the intent, the quick action). Drops a waiting link: left
+    /// pending under the capture sheet, it would fire when its capsule imported — or
+    /// when the user's own capture saved and the library grew.
+    func requestCapture() {
+        pendingCaptureRequest = true
+        pendingDeepLinkCapsuleID = nil
+    }
+
+    /// A notification was tapped. Drops a waiting capture request: the person went
+    /// somewhere else after asking.
+    func openFromNotification(_ capsuleID: UUID) {
+        pendingDeepLinkCapsuleID = capsuleID
+        pendingCaptureRequest = false
+    }
+
+    /// Capture is on screen; the request has been honoured.
+    func consumeCaptureRequest() {
+        pendingCaptureRequest = false
+    }
+
     /// Whether the OS currently permits Soundpost to post an alert. `nil` until it
     /// has been read once.
     ///
@@ -229,7 +259,7 @@ final class NotificationCoordinator: NSObject, UNUserNotificationCenterDelegate 
         if Self.isServerPush(notification) {
             await self.removeLocalSealRequests(for: uuid)
         }
-        await MainActor.run { self.pendingDeepLinkCapsuleID = uuid }
+        await MainActor.run { self.openFromNotification(uuid) }
     }
 }
 

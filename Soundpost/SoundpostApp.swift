@@ -56,6 +56,9 @@ struct SoundpostApp: App {
         let coordinator = NotificationCoordinator()
         let delivery = SealDeliveryService(backend: backend, identity: identity)
         coordinator.sealDelivery = delivery
+        // The doors outside the view tree — the App Shortcut, the quick action — reach
+        // the coordinator through this one hook, set before any scene connects (M20 §4F).
+        CaptureRequests.coordinator = coordinator
         _notifications = State(initialValue: coordinator)
         _registrar = State(initialValue: DeliveryRegistrar(backend: backend, identity: identity))
         _sealDelivery = State(initialValue: delivery)
