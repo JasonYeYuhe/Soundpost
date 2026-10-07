@@ -574,7 +574,9 @@ struct CapsuleDetailView: View {
             let granted = await notifications.requestAuthorization()
             let store = CapsuleStore(context: modelContext)
             do {
-                try store.commitSeal(capsule, until: date)
+                // The instant is decided now, after the permission prompt above — not
+                // when the day was picked (`CapsuleStore.sealInstant`).
+                try store.commitSeal(capsule, until: CapsuleStore.sealInstant(for: date))
             } catch {
                 // A static, non-PII message to Sentry (Release) + the local log — and,
                 // since M20, to the person: nothing was sealed, so nothing here may say

@@ -634,16 +634,31 @@ struct ContentView: View {
             galleryReady: true,              // this view is the gallery
             captureShowing: showingCapture,
             revealShowing: revealCapsule != nil,
-            otherSheetShowing: showingSettings)
+            otherSheetShowing: showingSettings,
+            unownedPresentationShowing: Self.somethingIsPresented())
         switch CaptureLaunchRoute.decide(requested: notifications.pendingCaptureRequest, on: screen) {
         case .present:
             notifications.consumeCaptureRequest()
             showingCapture = true
-        case .alreadyOpen:
+        case .alreadyOpen, .declined:
             notifications.consumeCaptureRequest()
         case .wait, .none:
             break
         }
+    }
+
+    /// Whether UIKit has a sheet, alert or dialog presented over the key window that is
+    /// not on its way out. The gallery's own presentations are covered by its flags; this
+    /// is for the ones a capsule's screen owns, which the gallery cannot see.
+    private static func somethingIsPresented() -> Bool {
+        UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .flatMap(\.windows)
+            .filter(\.isKeyWindow)
+            .contains { window in
+                guard let presented = window.rootViewController?.presentedViewController else { return false }
+                return !presented.isBeingDismissed
+            }
     }
 
     /// Open the capsule a notification tap asked for, if one is waiting.

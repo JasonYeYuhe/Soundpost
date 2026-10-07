@@ -364,26 +364,14 @@ final class CaptureViewModel {
         // `store.seal` pins the day to 09:00 local in this zone, stamps the zone, and
         // clears the echo and `serverJobSyncedAt` itself. No sync here: the gallery
         // observer sees the new sealed capsule through `sealSignature` and syncs it, and
-        // a `nil` `serverJobSyncedAt` makes the next reconcile upsert its far job.
+        // a `nil` `serverJobSyncedAt` makes that reconcile upsert its far job. (Not
+        // every later one: reconcile stamps the field *before* the upload is confirmed,
+        // so a process killed in between leaves it stamped with no job — pre-existing
+        // since M10, recorded for M21 in docs/M20-DEVPLAN.md §11.)
         if case .sealed(let day) = comesBack {
-            try store.seal(capsule, until: Self.sealInstant(for: day, now: now), now: now)
+            // Decided at Save, not when the day was picked (`CapsuleStore.sealInstant`).
+            try store.seal(capsule, until: CapsuleStore.sealInstant(for: day, now: now), now: now)
         }
-    }
-
-    /// When a capture sealed until `day` should open, decided at **Save**, not when the
-    /// day was picked (M20 §4E review).
-    ///
-    /// The seal sheet hands over an instant: 09:00 on a later day, or — for *today* —
-    /// the picker's floor, a minute after it was opened. The detail screen seals the
-    /// moment Seal is tapped, so that minute is still ahead. Capture seals at Save,
-    /// after a note, a mood, a permission prompt; by then the minute has usually gone,
-    /// `humaneInstant` keeps a time already past, and the seal is over at birth — the
-    /// M17 §S4 defect by a new door, under a row that had just promised a reminder.
-    /// So a time that is no longer ahead becomes a minute from Save, which is what the
-    /// detail screen's seal-until-today amounts to.
-    static func sealInstant(for day: Date, now: Date) -> Date {
-        let instant = CapsuleStore.humaneInstant(for: day, in: .current, now: now)
-        return instant > now ? instant : now.addingTimeInterval(60)
     }
 
     private func reset(deleteFile: Bool = true) {

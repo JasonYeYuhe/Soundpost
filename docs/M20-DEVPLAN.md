@@ -563,6 +563,14 @@ release itself only on Jason's word.
 - `hasRecordedHere`'s `hasCompletedOnboarding` seed grants listening standing on a phone set up
   as new once onboarding completes there, so the protection M15 describes lasts one launch —
   re-decide the seed (found by review round 1, Flash-6).
+- **Far-seal "synced" stamp before the server confirms** (found by the M20 pre-upload review;
+  pre-existing since M10). `SealDeliveryService.reconcile` sets `serverJobSyncedAt` *before*
+  awaiting `upsertJob` (and clears it before `cancelJob`) as an in-flight debounce; an autosave
+  can persist that claim, and a process killed before the request lands leaves a far seal
+  stamped with no server job — no push and, because the planner then skips it, no local
+  backstop. Fix: an in-memory in-flight set for the debounce, and stamp/clear only after the
+  server answers, with a fresh check that the capsule still exists and is still a far seal.
+  Test: a backend that never returns, then a fresh service on the same store must upsert again.
 - Repo hygiene: the unmerged `release/1.6.x` branches (the §11L carve-out record lives only
   there — Jason wanted to revisit it in person), the stale August worktree, `build/` logs and
   the five copies of js's store in `build/js*`.
@@ -1113,3 +1121,57 @@ quick action opened capture (idle) directly.
 
 **Bars:** 684 tests in 92 suites (clean Xcode 27 build), 0 warnings, i18n 100% across 3 catalogs;
 Release debug-only gate green; CI floor raised to 684.
+
+### S6 — the release: 1.10.0, build 22
+
+**Build 21** (commit `7e67776`, tag `v1.10.0-b21`) was archived with Xcode 27.0 (27A266a),
+uploaded at 2026-10-08 01:01 JST (dSYMs to Sentry: 3 files), processed `VALID`, and attached to
+a new 1.10.0 version record (`releaseType MANUAL` — inherited, read back from the API;
+description and What's New pushed in three languages; keywords and screenshots inherited). It
+was **not submitted**: the whole-milestone review below ran in parallel and found one defect
+worth a new build.
+
+**Pre-upload review** — seven cross-cutting lenses over `a12a48b..HEAD` (interactions between
+steps, data and sync, delivery, App Review, copy and localization, tests and CI, concurrency),
+each finding sent to two verifiers told to refute it (one tracing the code path, one judging
+the harm), then a completeness critic that added three focused lenses (presentation state,
+minimum-OS runtime behaviour, state that outlives a device). 31 agents. Outcome:
+
+| Finding | Verdict | Done |
+|---|---|---|
+| A capture request (Siri, Shortcuts, Action Button, quick action) while a capsule's own sheet, alert or dialog is up: the route could not see it and said `.present`. **On iOS 17–25** SwiftUI refused the presentation but left `showingCapture` true, so "+" stopped working until the app was force-quit; on iOS 26 SwiftUI dismissed the person's sheet (unsaved edits too). Read from the SwiftUI binaries of the iOS 18.5 and 26.5 simulator runtimes. New in S5 | contested → **fixed** (the iOS 18 path was confirmed) | `CaptureLaunchRoute.declined`: when UIKit shows a presentation the gallery's flags do not account for, the request is consumed and nothing is toggled (F1–F3). Simulator, iOS 26.5: seal sheet open on a detail screen + quick action → the sheet stays; after closing it "+" opens capture; from the plain gallery the quick action still opens capture idle |
+| Sealing **until today** from the *detail screen* could also store a time already past (it writes after awaiting the permission prompt) — the same defect S4's review fixed for capture. Pre-existing | confirmed, minor → **fixed** | `CapsuleStore.sealInstant(for:in:now:)`, one rule for both doors, decided at the write (F4–F5) |
+| The analysis retry ledger lived in `UserDefaults`, which travels with a backup and with Quick Start: a new phone inherited the old one's caps. New in S3 | confirmed, minor → **fixed** | a JSON file in Application Support marked `isExcludedFromBackup` after every write (F6) |
+| "Export your data" bundles left in `tmp` by 1.9.0 and earlier (an uncompressed copy of every clip) were never reclaimed. Pre-existing | confirmed, minor → **fixed** | a launch scavenge of directories directly in `tmp` named `Soundpost-Export-*` (F7–F8) |
+| The far-seal "synced" stamp is persisted before the server confirms. Pre-existing since M10 | confirmed, minor, not blocking | **M21** (§11); the S4 comment that promised otherwise corrected |
+| Build 21 is already uploaded, so any fix needs build 22 | process | build 22 |
+
+Refuted: "the listing's 'or any time after' is untrue for opened capsules" (×2 — the sentence
+is about a captured capsule, which can be sealed any time), "the quick action may not reach the
+scene delegate for users updating from 1.9.0" (SwiftUI supplies the class each connection; read
+from the binaries), "the Siri phrase 'Record a sound' over-promises" (it opens capture, ready to
+record — §8 D2).
+
+**Controls**
+
+| # | Mutation | Failed |
+|---|---|---|
+| F1 | the route ignores an unowned presentation | `theRouteDecidesFromTheScreen` |
+| F2 | the gallery passes `false` instead of asking UIKit | `theGalleryAsksUIKitAndADeclinedRequestOpensNothing` |
+| F3 | a declined request still sets `showingCapture` | same |
+| F4 | no floor in `sealInstant` | `theSealInstantIsDecidedAtTheWrite`, `aCaptureSealedUntilTodayIsStillAheadWhenItIsSaved` |
+| F5 | the detail screen writes the picked date | `theDetailScreenSealsAtTheInstantOfTheWrite` |
+| F6 | the ledger file not excluded from backup | `theLedgerStaysOnTheDeviceThatWroteIt` |
+| F6b | marked only on the first write, so a rewrite puts it back into backups | same — after the fixes' own review (below) made the test read from disk |
+| F7 | the scavenge removes a matching *file* too | `theLaunchScavengeRemovesOnlyOldExportBundles` |
+| F8 | the scavenge removes nothing | same |
+
+**Review of these fixes** (three lenses — the route and its UIKit probe on every OS version,
+the seal instant, the ledger and the scavenge — each finding sent to two verifiers). The probe
+and the seal-instant lenses found nothing. One confirmed, minor, fixed: the backup-exclusion
+test re-read `ledger.fileURL`, whose resource values a `URL` caches until the run loop turns, so
+its "still excluded after a rewrite" check could not fail; it now reads through a fresh URL, and
+F6b shows it failing.
+
+**Bars:** 689 tests in 92 suites (clean Xcode 27 build), 0 warnings, i18n 100% across 3
+catalogs, store-metadata gate green, 39 Python policy tests; CI floor raised to 689.

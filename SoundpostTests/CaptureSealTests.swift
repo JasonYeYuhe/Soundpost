@@ -140,6 +140,39 @@ struct CaptureSealTests {
                 "the reminder the row promised is never scheduled")
     }
 
+    /// One rule for both seal doors (M20 release review): a picked "today" whose minute
+    /// has gone by the write becomes a minute from the write; any other day keeps 09:00.
+    @Test func theSealInstantIsDecidedAtTheWrite() throws {
+        let tz = try #require(TimeZone(identifier: "Asia/Tokyo"))
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = tz
+        let base = try #require(calendar.date(from: DateComponents(year: 2026, month: 10, day: 8, hour: 15)))
+        let staleFloor = base.addingTimeInterval(60)          // picked at 15:00
+        let writtenAt = base.addingTimeInterval(5 * 60)        // written at 15:05
+
+        #expect(CapsuleStore.sealInstant(for: staleFloor, in: tz, now: writtenAt)
+                == writtenAt.addingTimeInterval(60))
+        let morning = try #require(calendar.date(from: DateComponents(year: 2026, month: 10, day: 8, hour: 7)))
+        let nineToday = try #require(calendar.date(from: DateComponents(year: 2026, month: 10, day: 8, hour: 9)))
+        #expect(CapsuleStore.sealInstant(for: morning.addingTimeInterval(60), in: tz, now: morning) == nineToday)
+        let later = try #require(calendar.date(from: DateComponents(year: 2027, month: 3, day: 1, hour: 15)))
+        let nineLater = try #require(calendar.date(from: DateComponents(year: 2027, month: 3, day: 1, hour: 9)))
+        #expect(CapsuleStore.sealInstant(for: later, in: tz, now: writtenAt) == nineLater)
+    }
+
+    /// The detail screen's seal uses the same rule, after its permission prompt.
+    @Test func theDetailScreenSealsAtTheInstantOfTheWrite() throws {
+        let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .appending(path: "Soundpost/Views/CapsuleDetailView.swift")
+        let code = try String(contentsOf: url, encoding: .utf8)
+        let seal = try #require(code.range(of: "private func seal(until date: Date) {"))
+        let body = code[seal.upperBound...].prefix(900)
+        let prompt = try #require(body.range(of: "requestAuthorization()"))
+        let write = try #require(body.range(of: "store.commitSeal(capsule, until: CapsuleStore.sealInstant(for: date))"),
+                                 "the detail seal writes the picked instant, which may be past by now")
+        #expect(prompt.lowerBound < write.lowerBound)
+    }
+
     /// Asked when the day is confirmed — inside Seal — and nowhere else; and neither that
     /// nor the save calls a sync (the gallery observer owns it, §4E).
     @Test func permissionIsAskedOnSealAndNothingInCaptureSyncs() throws {

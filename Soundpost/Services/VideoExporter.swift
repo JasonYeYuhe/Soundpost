@@ -206,6 +206,31 @@ struct VideoExportWorkspace: Equatable, Sendable {
         try? fileManager.removeItem(at: directory)
     }
 
+    /// The prefix 1.9.0 and earlier gave each "Export your data" bundle, loose in `tmp`.
+    static let legacyDataExportPrefix = "Soundpost-Export-"
+
+    /// Remove the data-export bundles builds before 1.10.0 left in `tmp` and never
+    /// removed — an uncompressed copy of every clip plus the zip, each time (M20 release
+    /// review). 1.10.0 never creates that name, so every match is left over.
+    ///
+    /// Only **directories directly in `tmp`** whose name starts with the old prefix: no
+    /// parent, nothing nested, no file.
+    @discardableResult
+    static func scavengeLegacyDataExports(
+        inTemporaryDirectory root: URL = FileManager.default.temporaryDirectory,
+        fileManager: FileManager = .default
+    ) -> Int {
+        guard let entries = try? fileManager.contentsOfDirectory(
+            at: root, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles]
+        ) else { return 0 }
+        var removed = 0
+        for entry in entries where entry.lastPathComponent.hasPrefix(legacyDataExportPrefix) {
+            guard (try? entry.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true else { continue }
+            if (try? fileManager.removeItem(at: entry)) != nil { removed += 1 }
+        }
+        return removed
+    }
+
     /// Remove export directories left behind by a previous launch (a crash, a kill,
     /// or a share sheet that never called back). Called once at launch, where
     /// nothing is in flight; `olderThan` exists so it is safe to call at any time.

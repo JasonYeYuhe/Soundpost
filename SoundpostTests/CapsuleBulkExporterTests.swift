@@ -131,4 +131,32 @@ struct CapsuleBulkExporterTests {
                                               inTemporaryDirectory: root) == 1)
         #expect(!FileManager.default.fileExists(atPath: workspace.directory.path))
     }
+
+    /// 1.9.0 and earlier left every export loose in `tmp` as `Soundpost-Export-<UUID>`.
+    /// The launch scavenge removes those directories and nothing else in `tmp`.
+    @Test func theLaunchScavengeRemovesOnlyOldExportBundles() throws {
+        let fm = FileManager.default
+        let root = fm.temporaryDirectory
+            .appending(path: "LegacyExportTest-\(UUID().uuidString)", directoryHint: .isDirectory)
+        defer { try? fm.removeItem(at: root) }
+        let old = root.appending(path: "Soundpost-Export-\(UUID().uuidString)", directoryHint: .isDirectory)
+        try fm.createDirectory(at: old.appending(path: "Soundpost", directoryHint: .isDirectory),
+                               withIntermediateDirectories: true)
+        try Data([1]).write(to: old.appending(path: "Soundpost.zip"))
+        let file = root.appending(path: "Soundpost-Export-notes.txt")
+        try Data([2]).write(to: file)
+        let other = root.appending(path: "SomethingElse", directoryHint: .isDirectory)
+        try fm.createDirectory(at: other, withIntermediateDirectories: true)
+        let current = VideoExportWorkspace.container(named: VideoExportWorkspace.dataExportContainerName,
+                                                     inTemporaryDirectory: root)
+        try fm.createDirectory(at: current, withIntermediateDirectories: true)
+
+        #expect(VideoExportWorkspace.scavengeLegacyDataExports(inTemporaryDirectory: root) == 1)
+
+        #expect(!fm.fileExists(atPath: old.path))
+        #expect(fm.fileExists(atPath: file.path), "a file, not an export bundle")
+        #expect(fm.fileExists(atPath: other.path))
+        #expect(fm.fileExists(atPath: current.path), "this build's own container")
+        #expect(fm.fileExists(atPath: root.path), "never the directory it was given")
+    }
 }

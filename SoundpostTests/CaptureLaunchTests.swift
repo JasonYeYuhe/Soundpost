@@ -21,6 +21,20 @@ struct CaptureLaunchTests {
             ("capture already open", true, Screen(onboardingComplete: true, galleryReady: true, captureShowing: true), .alreadyOpen),
             ("a reveal on screen", true, Screen(onboardingComplete: true, galleryReady: true, revealShowing: true), .wait),
             ("settings on screen", true, Screen(onboardingComplete: true, galleryReady: true, otherSheetShowing: true), .wait),
+            // M20 release review: a capsule's own sheet or alert, which the gallery
+            // cannot see. Presenting over it left "+" dead on iOS 17–25.
+            ("a capsule's own sheet on screen", true,
+             Screen(onboardingComplete: true, galleryReady: true, unownedPresentationShowing: true), .declined),
+            // The gallery's own flags decide first: capture open is still "already
+            // open", and Settings or a reveal still keep the request for their dismissal.
+            ("capture open (also a presentation)", true,
+             Screen(onboardingComplete: true, galleryReady: true, captureShowing: true, unownedPresentationShowing: true), .alreadyOpen),
+            ("settings open (also a presentation)", true,
+             Screen(onboardingComplete: true, galleryReady: true, otherSheetShowing: true, unownedPresentationShowing: true), .wait),
+            ("a reveal open (also a presentation)", true,
+             Screen(onboardingComplete: true, galleryReady: true, revealShowing: true, unownedPresentationShowing: true), .wait),
+            ("onboarding, with something presented", true,
+             Screen(onboardingComplete: false, galleryReady: true, unownedPresentationShowing: true), .wait),
         ]
         for (name, requested, screen, expected) in cases {
             #expect(CaptureLaunchRoute.decide(requested: requested, on: screen) == expected, "\(name)")
@@ -126,6 +140,23 @@ struct CaptureLaunchTests {
         #expect(coordinator.contains("await MainActor.run { self.openFromNotification(uuid) }"))
         #expect(!coordinator.contains("self.pendingDeepLinkCapsuleID = uuid"),
                 "the tap sets the link directly and leaves a capture request standing")
+    }
+
+    /// The gallery asks UIKit what is on screen, and a declined request is consumed
+    /// without touching `showingCapture` — the flag nothing else would ever reset.
+    @Test func theGalleryAsksUIKitAndADeclinedRequestOpensNothing() throws {
+        let gallery = try Self.code("Soundpost/ContentView.swift")
+        let drain = try #require(gallery.range(of: "private func drainCaptureRequest() {"))
+        let end = try #require(gallery.range(of: "\n    }\n", range: drain.upperBound..<gallery.endIndex))
+        let body = gallery[drain.upperBound..<end.lowerBound]
+        #expect(body.contains("unownedPresentationShowing: Self.somethingIsPresented()"),
+                "the route cannot see a capsule's own sheets without asking UIKit")
+        let declined = try #require(body.range(of: "case .alreadyOpen, .declined:"),
+                                    "a declined request must be consumed, and only consumed")
+        let nextArm = body.range(of: "case .", range: declined.upperBound..<body.endIndex)?.lowerBound ?? body.endIndex
+        let declinedArm = body[declined.upperBound..<nextArm]
+        #expect(declinedArm.contains("notifications.consumeCaptureRequest()"))
+        #expect(!declinedArm.contains("showingCapture"))
     }
 
     /// The gallery drains the request after it exists, and any door into capture drops a

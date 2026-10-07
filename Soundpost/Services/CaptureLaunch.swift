@@ -19,6 +19,13 @@ enum CaptureLaunchRoute: Equatable {
     /// Keep the request: onboarding is not finished, the gallery is not there yet, or a
     /// reveal or another sheet is on screen and must not be covered.
     case wait
+    /// Consume the request and open nothing: something the gallery does not own is on
+    /// screen — a capsule's own sheet, alert or dialog (M20 release review). A second
+    /// sheet cannot be presented over it. On iOS 17–25 SwiftUI refused the
+    /// presentation but left `showingCapture` true, so "+" stopped working until the
+    /// app was force-quit; on iOS 26 it dismissed the person's sheet, unsaved edits
+    /// and all, to make room. The person is in the middle of something they chose.
+    case declined
     /// Nothing is requested.
     case none
 
@@ -29,6 +36,9 @@ enum CaptureLaunchRoute: Equatable {
         var captureShowing = false
         var revealShowing = false
         var otherSheetShowing = false
+        /// UIKit has something presented over the window that none of the flags above
+        /// accounts for — read from UIKit itself, since that state lives in child views.
+        var unownedPresentationShowing = false
     }
 
     static func decide(requested: Bool, on screen: Screen) -> CaptureLaunchRoute {
@@ -38,6 +48,7 @@ enum CaptureLaunchRoute: Equatable {
         guard screen.onboardingComplete, screen.galleryReady else { return .wait }
         if screen.captureShowing { return .alreadyOpen }
         if screen.revealShowing || screen.otherSheetShowing { return .wait }
+        if screen.unownedPresentationShowing { return .declined }
         return .present
     }
 }

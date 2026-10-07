@@ -27,9 +27,10 @@ struct SoundprintRetryTests {
     private let epoch = Date(timeIntervalSince1970: 1_800_000_000)
 
     private func withLedger<T>(_ body: (SoundprintRetryLedger) async throws -> T) async rethrows -> T {
-        let name = "soundpost.test.retry.\(UUID().uuidString)"
-        defer { UserDefaults(suiteName: name)?.removePersistentDomain(forName: name) }
-        return try await body(SoundprintRetryLedger(suiteName: name))
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: "RetryLedger-\(UUID().uuidString)", directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        return try await body(SoundprintRetryLedger(directory: directory))
     }
 
     private func realClip() throws -> (store: AudioStore, data: Data, directory: URL) {
@@ -191,6 +192,31 @@ struct SoundprintRetryTests {
 
             #expect(written == 0)
             for capsule in capsules { #expect(ledger.attempts(for: capsule.id) == 0) }
+        }
+    }
+
+    /// The caps belong to the device that counted them. Preferences travel with a backup
+    /// and with Quick Start, so a restored phone inherited the old one's caps; the ledger
+    /// is a file excluded from backup instead (M20 release review).
+    @Test func theLedgerStaysOnTheDeviceThatWroteIt() async throws {
+        try await withLedger { ledger in
+            // Read from disk through a fresh URL each time: a URL caches its resource
+            // values until the run loop turns, so re-reading `ledger.fileURL` would only
+            // repeat the first answer.
+            func excludedOnDisk() throws -> Bool? {
+                try URL(filePath: ledger.fileURL.path).resourceValues(forKeys: [.isExcludedFromBackupKey])
+                    .isExcludedFromBackup
+            }
+            ledger.recordFailures([UUID()])
+            let first = try excludedOnDisk()
+            #expect(first == true, "the caps would follow a backup to a new phone")
+            // Still excluded after a rewrite: an atomic write replaces the file, and the
+            // replacement does not keep the old one's resource values.
+            ledger.recordFailures([UUID()])
+            let afterRewrite = try excludedOnDisk()
+            #expect(afterRewrite == true, "a rewrite put the ledger back into backups")
+            // And not in the preferences a backup carries.
+            #expect(UserDefaults.standard.object(forKey: "soundprint.failedAttempts") == nil)
         }
     }
 

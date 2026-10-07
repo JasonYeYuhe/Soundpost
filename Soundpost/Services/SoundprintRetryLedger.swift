@@ -16,26 +16,44 @@ import Foundation
 /// Emptied whenever listening is switched off (`SoundprintEraser.eraseAll`), so
 /// switching it back on is a real retry — the eraser's promise that a `nil` capsule is
 /// picked up again "if the user changes their mind" holds for capped ones too.
+///
+/// **A file excluded from backup, not `UserDefaults`** (M20 release review). Preferences
+/// travel with an iCloud or Finder backup and with Quick Start, so a new phone inherited
+/// the old one's caps and never tried clips it might well read. A file in Application
+/// Support marked `isExcludedFromBackup` stays on the device that wrote it.
 struct SoundprintRetryLedger: Sendable {
     /// Tries before a capsule is left alone on this device.
     static let cap = 3
 
-    private static let key = "soundprint.failedAttempts"
+    static let fileName = "soundprint-retry-ledger.json"
 
-    /// A private `UserDefaults` suite (tests); `nil` is the app's own defaults.
-    let suiteName: String?
+    /// Where the counts live. Tests pass a directory of their own.
+    let fileURL: URL
 
-    init(suiteName: String? = nil) {
-        self.suiteName = suiteName
-    }
-
-    private var defaults: UserDefaults {
-        suiteName.flatMap(UserDefaults.init(suiteName:)) ?? .standard
+    init(directory: URL? = nil) {
+        let base = directory
+            ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        fileURL = base.appending(path: Self.fileName, directoryHint: .notDirectory)
     }
 
     private var counts: [String: Int] {
-        get { defaults.dictionary(forKey: Self.key) as? [String: Int] ?? [:] }
-        nonmutating set { defaults.set(newValue, forKey: Self.key) }
+        get {
+            guard let data = try? Data(contentsOf: fileURL) else { return [:] }
+            return (try? JSONDecoder().decode([String: Int].self, from: data)) ?? [:]
+        }
+        nonmutating set {
+            let manager = FileManager.default
+            try? manager.createDirectory(at: fileURL.deletingLastPathComponent(),
+                                         withIntermediateDirectories: true)
+            guard let data = try? JSONEncoder().encode(newValue),
+                  (try? data.write(to: fileURL, options: .atomic)) != nil else { return }
+            // Set after every write: an atomic write replaces the file, and a replaced
+            // file does not keep the old one's resource values.
+            var values = URLResourceValues()
+            values.isExcludedFromBackup = true
+            var url = fileURL
+            try? url.setResourceValues(values)
+        }
     }
 
     func attempts(for id: UUID) -> Int { counts[id.uuidString] ?? 0 }
@@ -59,6 +77,6 @@ struct SoundprintRetryLedger: Sendable {
     }
 
     func clearAll() {
-        defaults.removeObject(forKey: Self.key)
+        try? FileManager.default.removeItem(at: fileURL)
     }
 }

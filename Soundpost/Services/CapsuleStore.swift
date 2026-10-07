@@ -154,6 +154,21 @@ final class CapsuleStore {
         return normalized > now ? normalized : date
     }
 
+    /// When a seal chosen in the seal sheet should open, decided **when the seal is
+    /// written**, not when the day was picked (M20 §4E and its release review).
+    ///
+    /// The sheet hands over an instant: 09:00 on a later day, or — for *today* — the
+    /// picker's floor, a minute after the sheet opened. Both seal doors write later than
+    /// that: capture at Save, after a note or a mood; the detail screen after the
+    /// first-time notification prompt it awaits. By then the minute has often gone,
+    /// `humaneInstant` keeps a time already past, and the seal is over at birth with no
+    /// reminder — the M17 §S4 defect. So a time no longer ahead becomes a minute from
+    /// the write.
+    static func sealInstant(for day: Date, in timeZone: TimeZone = .current, now: Date = .now) -> Date {
+        let instant = humaneInstant(for: day, in: timeZone, now: now)
+        return instant > now ? instant : now.addingTimeInterval(60)
+    }
+
     /// What an edit may do to a capsule's place.
     ///
     /// **The coordinates are never editable**, and that is the point of the type
