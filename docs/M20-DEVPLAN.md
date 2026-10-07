@@ -629,3 +629,143 @@ right.
   lines inline instead.)
 
 **Outcome:** both reviewers approve; no open findings.
+
+---
+
+## 13. Build record
+
+### S0 — delivery witness (Jason's part runs in parallel; agent part landed with S1)
+
+**Queries** (project `gkjwsxotmwrgqsvfijzs`, read-only; the user key is a bearer secret, so
+only an 8-character md5 prefix is ever printed):
+
+```sql
+-- 1. Tombstones first: a tombstoned key makes registration fail for a reason that is not code.
+select left(md5(user_key), 8) as key_hash, created_at from public.delivery_optouts order by created_at;
+-- 2. Device tokens by environment (the witness expects a `production` row).
+select environment, count(*), max(updated_at) from public.device_tokens group by environment;
+-- 3. Jobs (the witness expects Asia/Tokyo, 09:00 on the sealed day, `pending`, then `sent`).
+select left(md5(user_key), 8) as key_hash, capsule_id, kind, wall_clock, time_zone, status,
+       attempts, last_error, updated_at
+from public.notification_jobs order by created_at;
+```
+
+**Before the witness, 2026-10-07 15:00 JST:**
+
+| table | rows | detail |
+|---|---|---|
+| `delivery_optouts` | **2** (the plan expected 1) | `b423c1b2` 2026-08-18 03:15 UTC; `7f251443` **2026-09-26 15:24 UTC** — six minutes after build 20's resubmission (15:18 UTC) |
+| `device_tokens` | 0 | none in either environment |
+| `notification_jobs` | 1 | `525b7989`, seal, 2027-09-15 09:00 America/Los_Angeles, `pending` |
+
+- The job is the first evidence that a shipped build has written to the server — so
+  `DeliveryIdentity` does work in Production since 2026-08-28. No token sits beside it. That
+  is what declining notifications produces: `SoundpostAppDelegate` registers for APNs only
+  when notifications are authorised, while `SealDeliveryService.reconcile` upserts a far seal
+  regardless. The poller defers such a job without burning attempts (`mark_job_deferred`), so
+  it is benign. A Los Angeles time zone on a sandbox-era date reads as App Review's device.
+- The second tombstone's author is unknown. Asked Jason whether he pressed "Delete my cloud
+  data" on js then; if js's key is tombstoned, the witness cannot pass and lifting the
+  tombstone is a production write that is his call.
+- Steps sent to Jason in Chinese: seal on **2026-10-09** (the day after tomorrow, 09:00
+  JST), do not open Soundpost from 2026-10-08 09:00 until the push arrives, do not tap the
+  push until `status = 'sent'` has been read (opening the app cancels the job), then tap it
+  from a killed app for the cold-launch deep link. Reinstalling 1.9.0 over the uninstalled
+  dev build also exercises "audio comes back from iCloud" (M9 §8).
+- Stale comments fixed: `SupabaseDeliveryBackend.swift` (`functionsURL`) and
+  `SoundpostApp.swift` (`registrar`) no longer say delivery is inert in production.
+
+### S1 — release tooling refuses the wrong app, version, cancel, tree and an unsymbolicated upload
+
+**What changed**
+
+- `scripts/asc_policy.py` (stdlib only): `assert_app_identity`, `pick_version`,
+  `releasable`, `may_cancel`, `submit_plan`, `build_number_is_new`, `screenshot_swap`. Each
+  returns the decision or raises `Refusal`; `asc.py`'s `main()` turns that into a non-zero
+  exit.
+- `scripts/asc.py`: every write checks the app through the policy; `release` asks
+  `releasable(versions, MARKETING_VERSION)`; `cancel` and `submit` keep a rejected
+  (`UNRESOLVED_ISSUES`) submission unless `--force-cancel`, and print the thread-keeping path
+  (attach → reply in the thread → Update Review → Resubmit); versions are fetched with
+  `limit: 200` or `filter[versionString]` and picked by name; review submissions with
+  `limit: 200` (20 unordered could hide a rejected one from the guard); screenshots upload
+  and verify the new set before deleting the old; new read-only `check-build-number <n>`.
+- `scripts/release-preflight.sh` (new) and `build-upload-asc.sh`: `PROJECT_DIR` derived from
+  the script; preflight = one `MARKETING_VERSION`/`CURRENT_PROJECT_VERSION`, no `* 2.*` /
+  `* 2` copies, keychain not locked + a one-second `codesign` probe, and for an upload also a
+  clean tree (untracked files included), a build number above App Store Connect's newest and
+  a usable `SENTRY_AUTH_TOKEN`; an upload refuses an archive with no dSYMs or a failed Sentry
+  upload; `git tag v<version>-b<build>` after a successful upload. One override:
+  `RELEASE_PREFLIGHT_OVERRIDE=yes`, which lists what it skipped.
+- CI: asserts `xcodebuild -version` is `Xcode 26.6`; "Release-tooling policy tests" runs
+  `unittest discover` into `build/py-tests.log` and fails without `Ran N tests`, N ≥ 1;
+  after the test step, fails unless `Test run with N tests` is present with N ≥ `MIN_TESTS`
+  (637, raised from the plan's 634 by S1's three new tests).
+- `TestSupport.freshStore` clears `SoundRejection`, and its list of cleared models is held
+  equal to the shipping schema; `VocabularyPinTests` pins the 93 allowed identifiers.
+
+**Deviations from §4B, and why**
+
+- The preflight is its own script rather than inline in `build-upload-asc.sh`, so a release
+  can see where it stands without starting a twenty-minute archive. A local `archive` runs
+  only the iCloud-copy and signing checks.
+- The tag is created locally and the push is printed, not run: pushing is outward-facing,
+  and the person releasing pushes it.
+- `cancel` refuses a rejected submission too, not only `submit`/`resubmit`.
+
+**Review** (a three-lens adversarial pass — `asc.py`/policy against the ASC API, the shell
+scripts under bash 3.2, CI and test vacuity — with every finding sent to an independent
+verifier told to refute it). No blocker; seven confirmed, all minor, all fixed:
+
+| Finding | Fix |
+|---|---|
+| The screenshot-order test only checked that `screenshot_swap` was *called*; deleting `old_ids` first passed | the test now requires the only pre-upload delete loop to iterate `delete_before` and the only post-upload one `delete_after` (P8b, P8c) |
+| The refusal test accepted `sys.exit(0)` / `sys.exit()` in the handler | it now requires exactly one `sys.exit(str(<the refusal>))` inside the `Refusal` handler (P11, P11b) |
+| `check-build-number` compared against whatever app `APP_ID` named | it checks the app first (P12) |
+| The clean-tree check read a failing `git status` as clean | fails closed on git's exit status and on an unresolvable HEAD (R4) |
+| The iCloud scan matched only ` 2`; the next copy is ` 3` | one regex for any copy number (R5); no tracked file matches it |
+| The tag went on whatever HEAD was after a 20-minute archive; a failed `git tag` reported a finished upload as failed | the commit is recorded after the preflight, an upload refuses if HEAD moved or the tree got dirty during the archive, the tag names the recorded commit, and tagging only warns |
+| The floor step's count assignment exited silently under `bash -e` before its own message | `|| true` inside the substitution |
+| `TestSupportTests` named three entities and could not fail for a fourth | `clearedModels` is held equal to `productionSchema` (S1b) |
+
+**Controls** (snapshot with `cp`, restored and `cmp`-checked after each):
+
+| # | Mutation | Failed |
+|---|---|---|
+| P1 | `UNRESOLVED_ISSUES` back into `asc_policy.CANCELABLE` | `a_rejected_submission_is_kept_without_force`, `the_rejected_state_is_not_in_the_cancel_set` |
+| P2 | `asc.py` grows its own `CANCELABLE` holding `UNRESOLVED_ISSUES` | `no_cancel_set_in_asc_py_holds_the_rejected_state` |
+| P3 | bundle check dropped from `req()` | `every_write_checks_the_app_first` |
+| P4 | `releasable` takes `pending[0]` | `never_releases_a_different_approved_version`, `picks_the_projects_version_even_when_it_is_not_first` |
+| P5 | `cmd_release` picks by state itself | `release_asks_releasable` |
+| P6 | `cmd_submit` skips `submit_plan` | `submit_asks_submit_plan_before_cancelling` |
+| P7 | `may_cancel` lets `UNRESOLVED_ISSUES` through without force | `a_rejected_submission_is_kept_without_force` |
+| P8 | `screenshot_swap` deletes everything first | `five_over_five_uploads_before_deleting_anything`, `only_the_overflow_goes_first` |
+| P9 | `ios_versions` back to `limit: 10` | `versions_are_picked_by_name` |
+| P10 | build numbers compared as strings | `numbers_compare_as_numbers` |
+| C1–C3 | CI Python step run as committed / test file renamed / deleted | passes / **red** (`Ran 0 tests`) / **red** |
+| C4–C7 | CI floor step: 12 tests / marker without a count / the real 636 / `MIN_TESTS=0` with 12 | **red** / **red** / passes / passes (what the floor exists to catch) |
+| S1 | `freshStore` stops deleting `SoundRejection` | `freshStoreLeavesNoRowOfAnyEntity` |
+| S2 | `"rain"` renamed `"rainfall"` in the vocabulary | `theAllowedIdentifiersAreExactlyThePinnedSet` (both directions) |
+| R1 | `Soundpost/Probe 2.swift` present | preflight red; with the override, passes and lists it |
+| R2 | `SENTRY_AUTH_TOKEN` unset / `"<abc>"` | preflight red, each with its own reason |
+| R3 | dirty tree; build 20 against App Store Connect's 20 | preflight red on both (seen on the uncommitted S1 tree) |
+| P8b | `cmd_screenshots` deletes `old_ids` before uploading | `screenshots_upload_before_deleting` |
+| P8c | the `delete_after` loop moved above the upload | `screenshots_upload_before_deleting` |
+| P11 / P11b | the `Refusal` handler exits `0` / calls `sys.exit()` bare | `a_refusal_exits_non_zero` (both) |
+| P12 | `check-build-number` skips the app check | `build_number_check_is_wired` |
+| S1b | `SoundRejection` dropped from `clearedModels` | `freshStoreClearsEveryEntityTheAppShips`, `freshStoreLeavesNoRowOfAnyEntity` |
+| R4 | preflight run from a copy with no `.git` | red: "git status failed" |
+| R5 | `Soundpost/Probe 3.swift` present | red, names the file |
+
+Not exercised: the locked-keychain branch. Locking `login.keychain-db` to see it fail needs
+Jason's password to undo; its detection lines are the ones the global notes measured on
+2026-09-08.
+
+Not exercised either: the "checkout changed during the archive" refusal, which needs a real
+twenty-minute archive to race; it was read, not run.
+
+**Bars:** 637 tests in 85 suites (clean Xcode 27 build, scratch DerivedData), 0 warnings,
+i18n 100%, 39 Python policy tests.
+
+The session also ran the disk to zero: the Mac had 123 MB free (85 GB in the Trash), every
+build and even the review's own journal failed with `ENOSPC` until Jason emptied it.

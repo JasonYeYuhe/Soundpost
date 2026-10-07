@@ -32,14 +32,44 @@ jobs:
     name: Build, test & guard standing bars
     runs-on: macos-26
     timeout-minutes: 30
+    env:
+      # The toolchain this job claims to test with. Asserted, not just printed: a
+      # runner image that moves its default Xcode would otherwise change the
+      # compiler under every "CI is green" without a line of this repo changing.
+      EXPECTED_XCODE: "Xcode 26.6"
+      # The executed-test floor (M20 §4B). `** TEST SUCCEEDED **` is printed by a
+      # run that executed nothing, so the marker alone proves nothing. Raise it
+      # deliberately when tests are added; never lower it to make a run pass.
+      MIN_TESTS: "637"
 
     steps:
       - uses: actions/checkout@v7
 
-      - name: Show toolchain
+      - name: Show and assert toolchain
         run: |
           xcodebuild -version
           swift --version
+          python3 --version
+          ACTUAL="$(xcodebuild -version | head -1)"
+          if [ "$ACTUAL" != "$EXPECTED_XCODE" ]; then
+            echo "::error::This job claims $EXPECTED_XCODE but the runner has $ACTUAL. Update EXPECTED_XCODE deliberately." >&2
+            exit 1
+          fi
+
+      # The release tooling's decisions (scripts/asc_policy.py): which app, which
+      # version, what may be cancelled. Not a bare `python3 -m unittest` — scripts/
+      # is not a package, so that finds 0 tests and on Python < 3.12 still exits 0.
+      # Not through `tee` either: this shell has no pipefail. The `Ran N` check is
+      # what turns "found nothing" into a failure.
+      - name: Release-tooling policy tests
+        run: |
+          mkdir -p build
+          python3 -m unittest discover -s scripts -p 'test_*.py' -v > build/py-tests.log 2>&1 || { cat build/py-tests.log; exit 1; }
+          cat build/py-tests.log
+          if ! grep -Eq '^Ran [1-9][0-9]* tests?' build/py-tests.log; then
+            echo "::error::No release-tooling policy tests ran." >&2
+            exit 1
+          fi
 
       - name: Localization gate (xcstrings 100% translated)
         run: ./scripts/check-localization.sh
@@ -100,6 +130,19 @@ jobs:
           # post-test/teardown quirk), so gate on the actual result marker.
           if ! grep -q "\*\* TEST SUCCEEDED \*\*" build/xcodebuild.log; then
             echo "Tests did not succeed (no TEST SUCCEEDED marker)." >&2
+            exit 1
+          fi
+          # ...and the marker is printed by a run that executed nothing, so count.
+          # `|| true`: under `bash -e` a missing line would otherwise end the step
+          # here, silently, before the message below says why.
+          EXECUTED="$(grep -Eo 'Test run with [0-9]+ tests?' build/xcodebuild.log | tail -1 | grep -Eo '[0-9]+' || true)"
+          if [ -z "$EXECUTED" ]; then
+            echo "::error::No 'Test run with N tests' line — this run proves nothing." >&2
+            exit 1
+          fi
+          echo "Executed $EXECUTED tests (floor $MIN_TESTS)."
+          if [ "$EXECUTED" -lt "$MIN_TESTS" ]; then
+            echo "::error::Only $EXECUTED tests ran; the floor is $MIN_TESTS." >&2
             exit 1
           fi
 

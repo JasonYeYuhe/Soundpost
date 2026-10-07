@@ -35,12 +35,24 @@ enum TestSupport {
     /// completion. Anything `async` must use `isolatedStore()` instead.
     static func freshStore() throws -> CapsuleStore {
         let context = ModelContext(container)
-        try context.delete(model: Capsule.self)
-        // ListeningConsent too, or a row written by one test resolves for the next
-        // one and silently decides its consent for it.
-        try context.delete(model: ListeningConsent.self)
+        for model in clearedModels { try clear(model, in: context) }
         try context.save()
         return CapsuleStore(context: context)
+    }
+
+    /// Every entity `freshStore()` deletes. `TestSupportTests` holds this equal to the
+    /// shipping schema, so an entity added to the app fails there until it is cleared
+    /// here — the list had already fallen one behind once (M20 §4B).
+    ///
+    /// ListeningConsent, or a row written by one test resolves for the next one and
+    /// silently decides its consent for it. SoundRejection, or a correction left by one
+    /// test is read by the next as its own — a test that fixes its ids, or counts rows.
+    static let clearedModels: [any PersistentModel.Type] = [
+        Capsule.self, ListeningConsent.self, SoundRejection.self,
+    ]
+
+    private static func clear<T: PersistentModel>(_ model: T.Type, in context: ModelContext) throws {
+        try context.delete(model: model)
     }
 
     /// Run `body` with `SoundAnalysisPreferences` pointed at storage nobody else

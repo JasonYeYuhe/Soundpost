@@ -7,15 +7,27 @@ Usage (run with the venv that has pyjwt+requests):
   /tmp/asc-venv/bin/python3 scripts/asc.py create-version 1.4.0     # new version record
   /tmp/asc-venv/bin/python3 scripts/asc.py notes                    # metadata/*/release_notes.txt -> whatsNew
   /tmp/asc-venv/bin/python3 scripts/asc.py attach <build-version>   # e.g. 5
-  /tmp/asc-venv/bin/python3 scripts/asc.py submit
+  /tmp/asc-venv/bin/python3 scripts/asc.py submit [--force-cancel]
   /tmp/asc-venv/bin/python3 scripts/asc.py release             # APPROVED -> live (manual release)
   /tmp/asc-venv/bin/python3 scripts/asc.py resubmit <build-version> # attach + submit
+  /tmp/asc-venv/bin/python3 scripts/asc.py check-build-number <n>  # read-only: is <n> new?
+
+After a REJECTION, do not `resubmit`: a rejected (UNRESOLVED_ISSUES) submission carries the
+App Review thread, and cancelling it makes the thread read-only. `submit` refuses it unless
+`--force-cancel` is given, and prints the path that keeps the thread (M19 §8-iii).
+
+The decisions — which app, which version, what may be cancelled — live in asc_policy.py
+(stdlib only) so CI can test them; scripts/test_asc_policy.py checks they are called here.
 
 Rebuilding the venv:
   python3 -m venv /tmp/asc-venv && /tmp/asc-venv/bin/python3 -m pip install "pyjwt[crypto]" requests
 """
 import sys, time, json, os, re, hashlib
 import jwt, requests
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import asc_policy
+from asc_policy import Refusal
 
 KEY_ID  = os.environ.get('ASC_API_KEY_ID', 'DMMFP6XTXX')
 ISSUER  = os.environ.get('ASC_API_ISSUER', 'c5671c11-49ec-47d9-bd38-5e3c1a249416')
@@ -27,7 +39,6 @@ KEY_PATH = os.environ.get('ASC_API_KEY_PATH',
 # Soundpost. Found 2026-10-07. `SOUNDPOST_ASC_APP_ID` overrides it, and every write is
 # checked against the bundle id below before it is sent.
 APP_ID  = os.environ.get('SOUNDPOST_ASC_APP_ID', '6778389097')
-SOUNDPOST_BUNDLE_ID = 'com.soundpost.Soundpost'
 BASE    = 'https://api.appstoreconnect.apple.com'
 
 
@@ -54,10 +65,7 @@ def assert_soundpost_app():
         return
     r = requests.get(f'{BASE}/v1/apps/{APP_ID}', headers=H(), timeout=90)
     r.raise_for_status()
-    bundle = r.json()['data']['attributes'].get('bundleId')
-    if bundle != SOUNDPOST_BUNDLE_ID:
-        sys.exit(f'Refusing to write: app {APP_ID} is {bundle!r}, not {SOUNDPOST_BUNDLE_ID}.\n'
-                 f'  Check SOUNDPOST_ASC_APP_ID in your environment.')
+    asc_policy.assert_app_identity(APP_ID, r.json()['data']['attributes'].get('bundleId'))
     _identity_checked = True
 
 
@@ -79,10 +87,17 @@ def patch(path, pl):   return req('PATCH', path, pl)
 def post(path, pl):    return req('POST', path, pl)
 
 
-def ios_versions():
-    return get(f'/v1/apps/{APP_ID}/appStoreVersions',
-               **{'filter[platform]': 'IOS', 'limit': 10,
-                  'include': 'build'}).get('data', [])
+def ios_versions(version_string=None):
+    """Every iOS version record, or only those called `version_string`.
+
+    It used to ask for `limit: 10` with no order, and the app now has more than ten
+    versions — so the one a command was looking for could simply not be in the page.
+    200 is the API's maximum; a lookup by name asks the server to filter instead.
+    """
+    params = {'filter[platform]': 'IOS', 'limit': 200, 'include': 'build'}
+    if version_string is not None:
+        params['filter[versionString]'] = version_string
+    return get(f'/v1/apps/{APP_ID}/appStoreVersions', **params).get('data', [])
 
 
 def recent_builds(n=10):
@@ -91,8 +106,10 @@ def recent_builds(n=10):
 
 
 def review_submissions():
+    # 200, not 20: the list is every submission the app has ever had, unordered, and
+    # a rejected one beyond the first page would be invisible to the cancel guard.
     return get(f'/v1/apps/{APP_ID}/reviewSubmissions',
-               **{'filter[platform]': 'IOS', 'limit': 20}).get('data', [])
+               **{'filter[platform]': 'IOS', 'limit': 200}).get('data', [])
 
 
 EDITABLE_STATES = ('PREPARE_FOR_SUBMISSION', 'REJECTED', 'DEVELOPER_REJECTED',
@@ -130,11 +147,11 @@ def editable_version():
     binary to the old version string. Nothing downstream would have noticed.
     """
     expected = project_marketing_version()
+    v = asc_policy.pick_version(ios_versions(expected), expected)
+    if v and v['attributes']['appStoreState'] in EDITABLE_STATES:
+        return v
     editable = [v for v in ios_versions()
                 if v['attributes']['appStoreState'] in EDITABLE_STATES]
-    for v in editable:
-        if v['attributes']['versionString'] == expected:
-            return v
     if editable:
         others = ', '.join(f"{v['attributes']['versionString']} ({v['attributes']['appStoreState']})"
                            for v in editable)
@@ -147,7 +164,7 @@ def editable_version():
 
 
 def find_build(version_str):
-    for b in recent_builds(20):
+    for b in recent_builds(200):
         if b['attributes']['version'] == str(version_str):
             return b
     return None
@@ -155,7 +172,8 @@ def find_build(version_str):
 
 def cmd_status():
     print('=== iOS App Store versions ===')
-    for v in ios_versions():
+    for v in sorted(ios_versions(), key=lambda v: v['attributes'].get('createdDate') or '',
+                    reverse=True):
         a = v['attributes']
         bid = (v.get('relationships', {}).get('build', {}).get('data') or {}).get('id')
         print(f"  v{a['versionString']:8} state={a['appStoreState']:24} build_rel={bid}  id={v['id']}")
@@ -175,7 +193,7 @@ PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # Apple is actively looking at these. `editable_version()` still returns them (you
 # may legitimately want to cancel and re-attach), but silently mutating one from a
 # script would disturb a live submission — so the mutating commands stop first.
-IN_APPLES_HANDS = ('WAITING_FOR_REVIEW', 'IN_REVIEW')
+IN_APPLES_HANDS = asc_policy.IN_APPLES_HANDS
 
 
 def guard_not_in_review(version, action):
@@ -193,18 +211,11 @@ def cmd_release():
 
     This is the one genuinely public, irreversible action in this script: it puts
     the build in front of users. So it only ever acts on a version Apple has
-    already approved and is holding for you — it will not submit, attach, or
+    already approved and is holding for you — and only the project's own
+    MARKETING_VERSION (`asc_policy.releasable`). It will not submit, attach, or
     otherwise nudge anything that is still in the queue.
     """
-    pending = [v for v in ios_versions()
-               if v['attributes']['appStoreState'] == 'PENDING_DEVELOPER_RELEASE']
-    if not pending:
-        states = ', '.join(f"v{v['attributes']['versionString']}={v['attributes']['appStoreState']}"
-                           for v in ios_versions()) or '(no versions)'
-        sys.exit('Nothing is approved and waiting for release.\n'
-                 f'  Current: {states}\n'
-                 '  A version is releasable only in PENDING_DEVELOPER_RELEASE.')
-    v = pending[0]
+    v = asc_policy.releasable(ios_versions(), project_marketing_version())
     version = v['attributes']['versionString']
     post('/v1/appStoreVersionReleaseRequests',
          {'data': {'type': 'appStoreVersionReleaseRequests',
@@ -221,11 +232,11 @@ def cmd_create_version(version_string):
     version cannot affect an already-live one, and a PREPARE_FOR_SUBMISSION version
     can be deleted in ASC, so this is reversible.
     """
-    for v in ios_versions():
-        if v['attributes']['versionString'] == version_string:
-            print(f"Version {version_string} already exists "
-                  f"(state={v['attributes']['appStoreState']}, id={v['id']}) — leaving it alone.")
-            return v
+    v = asc_policy.pick_version(ios_versions(version_string), version_string)
+    if v:
+        print(f"Version {version_string} already exists "
+              f"(state={v['attributes']['appStoreState']}, id={v['id']}) — leaving it alone.")
+        return v
     v = post('/v1/appStoreVersions',
              {'data': {'type': 'appStoreVersions',
                        'attributes': {'platform': 'IOS', 'versionString': version_string},
@@ -315,19 +326,24 @@ def cmd_attach(build_version):
 # States that occupy the single active-submission slot for the app.
 BLOCKING = ('READY_FOR_REVIEW', 'WAITING_FOR_REVIEW', 'WAITING_FOR_EXPORT_COMPLIANCE',
             'UNRESOLVED_ISSUES', 'IN_REVIEW', 'CANCELING')
-# States we may cancel to free the slot before creating a fresh submission.
-CANCELABLE = ('READY_FOR_REVIEW', 'WAITING_FOR_REVIEW', 'WAITING_FOR_EXPORT_COMPLIANCE',
-              'UNRESOLVED_ISSUES')
 
 
-def cmd_cancel():
-    """Cancel any submission holding the active slot; wait until it clears."""
-    for s in review_submissions():
+def cmd_cancel(force_cancel=False):
+    """Cancel what `asc_policy.may_cancel` allows; wait until the slot clears.
+
+    A rejected submission is cancelled only with `--force-cancel`: it carries the App
+    Review thread, and cancelling it is what made build 19's thread read-only.
+    """
+    submissions = review_submissions()
+    if any(s['attributes'].get('state') == asc_policy.REJECTED for s in submissions) \
+            and not force_cancel:
+        raise Refusal(asc_policy.THREAD_KEEPING_PATH)
+    for s in submissions:
         st = s['attributes'].get('state')
-        if st in ('WAITING_FOR_REVIEW', 'IN_REVIEW'):
+        if st in IN_APPLES_HANDS:
             print(f"  ! submission {s['id']} is {st} (genuinely in Apple's queue) — "
                   f"cancel it in ASC if you really mean to.")
-        elif st in CANCELABLE:
+        elif asc_policy.may_cancel(st, force_cancel):
             patch(f"/v1/reviewSubmissions/{s['id']}",
                   {'data': {'type': 'reviewSubmissions', 'id': s['id'],
                             'attributes': {'canceled': True}}})
@@ -342,15 +358,18 @@ def cmd_cancel():
     print('  ! timed out waiting for submission slot to clear; check `status`')
 
 
-def cmd_submit():
+def cmd_submit(force_cancel=False):
     v = editable_version()
     if not v:
         sys.exit('No editable App Store version found.')
-    for s in review_submissions():
-        if s['attributes'].get('state') in ('WAITING_FOR_REVIEW', 'IN_REVIEW'):
-            print(f"A submission is already {s['attributes']['state']} (id={s['id']}). Nothing to do.")
-            return
-    cmd_cancel()
+    submissions = review_submissions()
+    plan = asc_policy.submit_plan([s['attributes'].get('state') for s in submissions],
+                                  force_cancel)
+    if plan == 'in_review':
+        s = next(s for s in submissions if s['attributes'].get('state') in IN_APPLES_HANDS)
+        print(f"A submission is already {s['attributes']['state']} (id={s['id']}). Nothing to do.")
+        return
+    cmd_cancel(force_cancel)
     # Creating a new submission can briefly 409 (CONCURRENT_REVIEW_SUBMISSION_
     # TRY_AGAIN) while a just-canceled submission settles on Apple's backend.
     sub = None
@@ -499,12 +518,16 @@ def cmd_screenshots():
                                         'data': {'type': 'appStoreVersionLocalizations',
                                                  'id': localizations[locale]}}}}})['data']['id']
 
-        # Delete before creating, not after. A set holds at most ten images; five old
-        # plus five new is fine but five plus six is not, and the failure would land
-        # mid-locale.
-        for existing in get(f'/v1/appScreenshotSets/{set_id}/appScreenshots',
-                            limit=200).get('data', []):
-            req('DELETE', f"/v1/appScreenshots/{existing['id']}")
+        # Upload and verify the new set first, then delete the old one
+        # (`asc_policy.screenshot_swap`). It used to delete first, so a failure part
+        # way through — a rejected PNG, a dropped connection — left the locale with
+        # no screenshots at all. Only the set's ten-image capacity makes anything go
+        # first, and then only as many as the new set needs room for.
+        old_ids = [s['id'] for s in get(f'/v1/appScreenshotSets/{set_id}/appScreenshots',
+                                        limit=200).get('data', [])]
+        delete_before, delete_after = asc_policy.screenshot_swap(old_ids, len(files))
+        for old in delete_before:
+            req('DELETE', f'/v1/appScreenshots/{old}')
 
         uploaded = []
         for name in files:
@@ -530,6 +553,15 @@ def cmd_screenshots():
             uploaded.append(reserved['id'])
             print(f'  {locale}: {name} ({len(data):,} bytes)')
 
+        held = {s['id'] for s in get(f'/v1/appScreenshotSets/{set_id}/appScreenshots',
+                                     limit=200).get('data', [])}
+        missing = [i for i in uploaded if i not in held]
+        if missing:
+            sys.exit(f'  ! {locale}: {len(missing)} uploaded screenshots are not in the set; '
+                     f'the old ones were left in place.')
+        for old in delete_after:
+            req('DELETE', f'/v1/appScreenshots/{old}')
+
         # Order is the set's relationship linkage, not an attribute on the image.
         # Creation order usually gives the right answer already; this is the only
         # thing that guarantees it, and it is idempotent.
@@ -553,14 +585,37 @@ def cmd_keywords():
     push_localized_field('keywords.txt', 'keywords', 'keywords')
 
 
+def cmd_check_build_number(build_number):
+    """Read-only: refuse unless `build_number` is newer than every uploaded build.
+
+    `build-upload-asc.sh` calls this before it archives, so a reused number is caught
+    in a second instead of after a twenty-minute archive and upload. A read, but it
+    still checks the app first: compared against another app's builds, "new" means
+    nothing.
+    """
+    assert_soundpost_app()
+    newest = asc_policy.build_number_is_new(
+        build_number, [b['attributes']['version'] for b in recent_builds(200)])
+    print(f'Build {build_number} is new (newest on App Store Connect: {newest}).')
+
+
 def main():
-    cmd = sys.argv[1] if len(sys.argv) > 1 else 'status'
+    args = [a for a in sys.argv[1:] if a != '--force-cancel']
+    force_cancel = '--force-cancel' in sys.argv[1:]
+    try:
+        dispatch(args, force_cancel)
+    except Refusal as refusal:
+        sys.exit(str(refusal))
+
+
+def dispatch(args, force_cancel):
+    cmd = args[0] if args else 'status'
     if cmd == 'status':
         cmd_status()
     elif cmd == 'release':
         cmd_release()
     elif cmd == 'create-version':
-        cmd_create_version(sys.argv[2])
+        cmd_create_version(args[1])
     elif cmd == 'notes':
         cmd_notes()
     elif cmd == 'description':
@@ -570,14 +625,16 @@ def main():
     elif cmd == 'screenshots':
         cmd_screenshots()
     elif cmd == 'cancel':
-        cmd_cancel()
+        cmd_cancel(force_cancel)
     elif cmd == 'attach':
-        cmd_attach(sys.argv[2])
+        cmd_attach(args[1])
     elif cmd == 'submit':
-        cmd_submit()
+        cmd_submit(force_cancel)
     elif cmd == 'resubmit':
-        cmd_attach(sys.argv[2])
-        cmd_submit()
+        cmd_attach(args[1])
+        cmd_submit(force_cancel)
+    elif cmd == 'check-build-number':
+        cmd_check_build_number(args[1])
     else:
         sys.exit(f'Unknown command: {cmd}')
 

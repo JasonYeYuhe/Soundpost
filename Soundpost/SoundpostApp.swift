@@ -15,10 +15,11 @@ struct SoundpostApp: App {
     @State private var playback = PlaybackController()
 
     /// Cloud-backed delivery: device-token registration + per-user identity
-    /// bootstrap (M10 §S1). Until the backend's config is filled in (after S2
-    /// deploy), `SupabaseDeliveryBackend.isConfigured == false`, so this is inert
-    /// in production — it caches the token and does no network work; the local
-    /// path keeps working.
+    /// bootstrap (M10 §S1). **Live in production**: the backend is configured in
+    /// every shipped build (`SupabaseDeliveryConfig.current`), so a signed-in device
+    /// registers its APNs token with the `cli-pulse` Supabase project. It stays
+    /// quiet only while there is no iCloud account or delivery key, or after
+    /// "Delete my cloud data".
     @State private var registrar: DeliveryRegistrar
 
     /// The far-seal job reconciler (M10 §S3), sharing the same backend + identity

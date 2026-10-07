@@ -6,9 +6,10 @@ import Foundation
 /// and never stored here. The real APNs `.p8` + service-role key live ONLY in
 /// the function env (§G).
 struct SupabaseDeliveryConfig: Sendable {
-    /// e.g. `https://<project-ref>.functions.supabase.co` — empty until S2 is
-    /// deployed, which keeps `SupabaseDeliveryBackend.isConfigured == false` so
-    /// the app stays on the local path (fully functional) until the server lands.
+    /// The Edge Functions base URL. **Live in every shipped build** (`current`
+    /// below), so `SupabaseDeliveryBackend.isConfigured` is always true and every
+    /// signed-in user's far seals are routed to the server. An empty string is the
+    /// only way to keep a build on the local path, and nothing ships that way.
     let functionsURL: String
     /// The project's anon (publishable) key, passed as the `apikey` header.
     let anonKey: String
