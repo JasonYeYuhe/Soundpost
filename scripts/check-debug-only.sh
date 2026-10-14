@@ -73,7 +73,13 @@ else
   # (above) no longer takes them. On CI this adds nothing. See scripts/lib/build_cache.sh.
   # shellcheck source=lib/build_cache.sh
   source "$PROJECT_DIR/scripts/lib/build_cache.sh"
-  local_build_args "$PROJECT_DIR" || exit 1
+  # One build at a time in $DD: it is per $TMPDIR, not per checkout, so two checkouts would
+  # otherwise share its build.db, and one's wipe-and-retry would delete the other's root.
+  if [ -z "${CI:-}" ]; then
+    build_lock_take "$DD.lock" "check-debug-only.sh in $PROJECT_DIR" || exit 1
+    trap 'build_lock_release "$DD.lock"' EXIT
+  fi
+  local_build_args "$PROJECT_DIR" -derivedDataPath "$DD" || exit 1
   build_once() {
     xcodebuild build -project "$PROJECT_DIR/Soundpost.xcodeproj" -scheme Soundpost \
       -configuration Release -destination 'generic/platform=iOS Simulator' \
@@ -84,6 +90,7 @@ else
   if ! build_once; then
     printf '  build failed; wiping derived data and retrying once…\n'
     rm -rf "$DD"
+    local_build_retry_args "$PROJECT_DIR"
     build_once || { printf '\033[31m✗ Release build failed twice — see build/release-check.log\033[0m\n' >&2; exit 1; }
   fi
   APP="$DD/Build/Products/Release-iphonesimulator/Soundpost.app"

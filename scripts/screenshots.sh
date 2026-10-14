@@ -85,7 +85,12 @@ DD="${TMPDIR:-/tmp}soundpost-screenshots-dd"
 # ~/Library/Caches/Soundpost-build, not from a copy inside $DD: scripts/lib/build_cache.sh.
 # shellcheck source=lib/build_cache.sh
 source "$PROJECT_DIR/scripts/lib/build_cache.sh"
-local_build_args "$PROJECT_DIR" || exit 1
+# One run at a time in $DD: it is per $TMPDIR, not per checkout, so two checkouts would
+# otherwise share its build.db, and one's wipe-and-retry would delete the other's root. Held
+# until exit, since the app is installed from $DD.
+build_lock_take "$DD.lock" "screenshots.sh in $PROJECT_DIR" || exit 1
+trap 'build_lock_release "$DD.lock"' EXIT
+local_build_args "$PROJECT_DIR" -derivedDataPath "$DD" || exit 1
 
 # macOS periodically empties $TMPDIR, and it does not do so atomically — it can leave
 # a half-deleted `SourcePackages/artifacts` tree behind. The next build then fails with
@@ -93,7 +98,8 @@ local_build_args "$PROJECT_DIR" || exit 1
 # dependency and says nothing about the cache, and reads like a broken checkout. Hit
 # twice in one afternoon. So: one wipe-and-retry, and only then believe the failure.
 # (With the shared package checkout the packages are no longer in $DD; the retry still
-# covers a half-purged Build tree, and runs that fall back to resolving into $DD.)
+# covers a half-purged Build tree, and it resolves into $DD in case the shared checkout is
+# the damaged one.)
 build_once() {
   xcodebuild build -project "$PROJECT_DIR/Soundpost.xcodeproj" -scheme Soundpost \
     -destination "platform=iOS Simulator,id=$UDID" \
@@ -105,6 +111,7 @@ printf '  building…\n'
 if ! build_once; then
   printf '  build failed; wiping derived data and retrying once…\n'
   rm -rf "$DD"
+  local_build_retry_args "$PROJECT_DIR"
   build_once || { red "build failed twice — see build/shots-build.log"; exit 1; }
 fi
 APP="$DD/Build/Products/Debug-iphonesimulator/Soundpost.app"
