@@ -68,10 +68,17 @@ else
   if [ -n "${CI:-}" ]; then
     SIGNING=(CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY="-" PROVISIONING_PROFILE_SPECIFIER="" DEVELOPMENT_TEAM="")
   fi
+  # Locally, Swift packages (~1.9 GB of Sentry) come from the shared checkout in
+  # ~/Library/Caches/Soundpost-build rather than a copy inside $DD, so a $TMPDIR purge
+  # (above) no longer takes them. On CI this adds nothing. See scripts/lib/build_cache.sh.
+  # shellcheck source=lib/build_cache.sh
+  source "$PROJECT_DIR/scripts/lib/build_cache.sh"
+  local_build_args "$PROJECT_DIR" || exit 1
   build_once() {
     xcodebuild build -project "$PROJECT_DIR/Soundpost.xcodeproj" -scheme Soundpost \
       -configuration Release -destination 'generic/platform=iOS Simulator' \
-      -derivedDataPath "$DD" ${SIGNING[@]+"${SIGNING[@]}"} > "$PROJECT_DIR/build/release-check.log" 2>&1
+      -derivedDataPath "$DD" ${SIGNING[@]+"${SIGNING[@]}"} \
+      ${LOCAL_BUILD_ARGS[@]+"${LOCAL_BUILD_ARGS[@]}"} > "$PROJECT_DIR/build/release-check.log" 2>&1
   }
   printf '  building Release…\n'
   if ! build_once; then

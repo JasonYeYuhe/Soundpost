@@ -81,16 +81,24 @@ xcrun simctl bootstatus "$UDID" -b >/dev/null 2>&1 || true
 # information, or similar detritus not allowed" — a code-signing error whose message
 # says nothing about iCloud, arriving after a full compile.
 DD="${TMPDIR:-/tmp}soundpost-screenshots-dd"
+# Swift packages (~1.9 GB of Sentry) come from the shared checkout in
+# ~/Library/Caches/Soundpost-build, not from a copy inside $DD: scripts/lib/build_cache.sh.
+# shellcheck source=lib/build_cache.sh
+source "$PROJECT_DIR/scripts/lib/build_cache.sh"
+local_build_args "$PROJECT_DIR" || exit 1
 
 # macOS periodically empties $TMPDIR, and it does not do so atomically — it can leave
 # a half-deleted `SourcePackages/artifacts` tree behind. The next build then fails with
 # "There is no Info.plist found at .../Sentry.xcframework/Info.plist", which names a
 # dependency and says nothing about the cache, and reads like a broken checkout. Hit
 # twice in one afternoon. So: one wipe-and-retry, and only then believe the failure.
+# (With the shared package checkout the packages are no longer in $DD; the retry still
+# covers a half-purged Build tree, and runs that fall back to resolving into $DD.)
 build_once() {
   xcodebuild build -project "$PROJECT_DIR/Soundpost.xcodeproj" -scheme Soundpost \
     -destination "platform=iOS Simulator,id=$UDID" \
-    -derivedDataPath "$DD" > "$PROJECT_DIR/build/shots-build.log" 2>&1
+    -derivedDataPath "$DD" ${LOCAL_BUILD_ARGS[@]+"${LOCAL_BUILD_ARGS[@]}"} \
+    > "$PROJECT_DIR/build/shots-build.log" 2>&1
 }
 
 printf '  building…\n'
