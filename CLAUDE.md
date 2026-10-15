@@ -33,5 +33,6 @@ one.
 
 - `~/Library/Caches/Soundpost-build/SourcePackages-*` and their `.resolve.log`: a shared cache,
   not session leftovers. Never move or rename one (`workspace-state.json` holds absolute paths).
-  Old package sets (one per Sentry bump) are retired at release end, while nothing builds, by
-  the mtime of their `.soundpost-resolved`, which every use touches.
+  Old package sets (one per Sentry bump) are retired by the daily cleanup job
+  (`~/Library/Scripts/cleanup-build-data.py`): it keeps the two most recently used and retires
+  older ones once idle 7 days. Don't retire them yourself.
