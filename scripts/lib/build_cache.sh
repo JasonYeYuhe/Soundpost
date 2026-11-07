@@ -44,9 +44,8 @@
 #
 # The package directory: ~/Library/Caches/Soundpost-build/SourcePackages-<8 hex>, the sha256 of
 # Package.resolved plus the project's package references (project.pbxproj's
-# XCRemote/XCLocalSwiftPackageReference sections). That is NOT the global CLAUDE.md default
-# (the first 8 of Package.resolved's sha alone), which is why CLAUDE.md here names the
-# directory by the command that prints it. Never under ~/Documents (iCloud; codesign
+# XCRemote/XCLocalSwiftPackageReference sections), not of Package.resolved alone — so never
+# compute the name by hand; CLAUDE.md here names the directory by the command that prints it. Never under ~/Documents (iCloud; codesign
 # trips on its xattrs) and never under $TMPDIR (purged, and not atomically: the half-deleted
 # `SourcePackages/artifacts` that both scripts' wipe-and-retry was written for). Keying by both
 # files means a branch that bumps Sentry gets its own directory instead of re-resolving the one
@@ -69,8 +68,8 @@
 # Never move or rename the directory: workspace-state.json records absolute paths. Never delete
 # it while a build may be using it. Deleting it otherwise is safe: the next build resolves it
 # again. It is a shared cache, not session leftovers (global CLAUDE.md "Never trash"). Each
-# package set (every Sentry bump) gets its own ~1.9 GB directory, so old ones are retired at
-# release end, by the orchestrator, when nothing is building: every use touches
+# package set (every Sentry bump) gets its own ~1.9 GB directory. Old ones are retired by the
+# daily cleanup job (~/Library/Scripts/cleanup-build-data.py), never by hand: every use touches
 # <dir>/.soundpost-resolved, so its mtime is the directory's last use.
 #
 # Environment:
