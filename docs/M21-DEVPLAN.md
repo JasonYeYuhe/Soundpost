@@ -866,8 +866,8 @@ connection string) or says no. The privacy policy (`M10-privacy-policy-delta.md`
 deletion") promises removal at delete, unseal, resurface and "Delete my cloud data"; this only
 removes rows sooner, so nothing it says becomes untrue. A sentence about the 90 days is optional.
 
-**Controls** (`/tmp`-free: each mutation written over the migration, `run-local.sh`, restored
-from a snapshot, compared equal):
+**Controls** (each mutation written over the migration, `run-local.sh` run, the file restored
+from a snapshot and compared equal):
 
 | # | Mutation | The test said |
 |---|---|---|
@@ -883,3 +883,13 @@ from a snapshot, compared equal):
 
 **Bars:** no app code changed: 723 tests, 0 warnings, i18n 100% as at S4 (no rebuild needed);
 SQL test and Deno tests green locally.
+
+**CI, first run red (`2699069`, run 42480267315), fixed in the next commit.** The new step's
+Homebrew Deno was 2.9.8; its TypeScript rejects `body: opts.payloadBytes` (a `Uint8Array`) in
+`apns.ts:132` as a `fetch` body, where the local 2.7.5 accepts it. A type-check against an
+unpinned Deno, not a test failure — the function runs on Supabase's own pinned runtime. Changing
+`apns.ts` would make the repo differ from the deployed function (S5 is SQL-only by design), so
+CI runs `deno test --no-check`. **For M22:** fix that line (`new Uint8Array(…)` /
+`as BodyInit`) the next time the function is deployed anyway. The same run was the CI cache's
+warm witness: "Cache restored from key spm-macOS-caa3ee30…", `cache-hit=true`, no resolve, both
+builds pointed at the restored directory.
