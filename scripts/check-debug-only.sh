@@ -91,7 +91,15 @@ else
     printf '  build failed; wiping derived data and retrying once…\n'
     rm -rf "$DD"
     local_build_retry_args "$PROJECT_DIR"
-    build_once || { printf '\033[31m✗ Release build failed twice — see build/release-check.log\033[0m\n' >&2; exit 1; }
+    build_once || {
+      # The log is a file, and on CI nobody can open it: print its end, or a failure
+      # there says nothing about why (2026-11-08: red twice on a docs-only commit).
+      printf '  last lines of build/release-check.log:\n' >&2
+      { grep -E "error:|fatal|failed" "$PROJECT_DIR/build/release-check.log" | tail -n 15
+        tail -n 25 "$PROJECT_DIR/build/release-check.log"; } 2>/dev/null | sed 's/^/    /' >&2 || true
+      printf '\033[31m✗ Release build failed twice — see build/release-check.log\033[0m\n' >&2
+      exit 1
+    }
   fi
   APP="$DD/Build/Products/Release-iphonesimulator/Soundpost.app"
 fi
