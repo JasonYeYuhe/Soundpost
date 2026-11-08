@@ -1188,3 +1188,14 @@ through `asc.py submit` — submission `8457f113-a58d-473f-a0cd-5c1b243b3a4d`, v
 S5 device check from a killed app, and the intent through Shortcuts on an iOS 17–25 runtime (a
 `Soundpost-iOS18` iOS 18.5 simulator was created for it; the simulator tool needs his one-time
 permission to drive a new device); D5–D9; the release itself.
+
+**After release (2026-11-08).** 1.10.0 (build 22) is `READY_FOR_SALE`. S0, read-only queries:
+the server half of delivery is **alive** — `cron.job` `m10_send_due_notifications` runs every
+minute, and the one job that has come due (user_key hash `690e6cb9`, America/Los_Angeles,
+created 2026-10-07 18:09 UTC at submission time — most likely App Review's device — due
+2026-11-07 17:00 UTC) was claimed by the poller, which recorded `last_error = 'no_tokens'` and
+re-queued it hourly (`next_attempt_at` +1 h, `attempts` still 0): that user never registered an
+APNs token. So the poller, the due test and the claim are witnessed; **an APNs send to a phone
+with a token is still not**. Two side findings for M21: a job whose user has no token retries
+hourly forever (and the app upserts far jobs for users who never registered a token), and a
+second production token (`cefa75e3`) appeared 2026-10-23.
