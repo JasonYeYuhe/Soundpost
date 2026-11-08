@@ -824,3 +824,62 @@ a network resolve.
 
 **Bars:** 723 tests in 95 suites on a clean Xcode 27.2 build, 0 warnings, i18n 100%; CI floor
 raised to 723.
+
+**S4's CI cache, witnessed (run 42479733781, `048e1c3`):** cold — "Cache not found", one resolve
+into `$RUNNER_TEMP/SourcePackages` in 53 s, both builds used it, 723 tests, "Cache saved". The
+whole job took 6 m 2 s, against 8–10 m before. The warm run is S5's (below).
+
+### S5 — the delivery server stops retrying forever (SQL only)
+
+**What changed**
+
+- `backend/supabase/migrations/0003_m21_hygiene.sql`: `m21_job_fire_instant` (the job's fire
+  instant, `null` for a zone that cannot be read — the same throw-proof guard as `is_job_due`)
+  and `m21_delivery_hygiene(p_now)`, `security definer`, revoked from `public`/`anon`/
+  `authenticated`, scheduled nightly at 03:17 UTC as cron job `m21_delivery_hygiene`
+  (unschedule-then-schedule, as `0002`). It:
+  1. settles as `failed` / `last_error = 'no_tokens_expired'` a `pending` job whose last error
+     is `no_tokens`, whose fire instant is more than 7 days past, whose user has **no** token now
+     (a token registered since means the poller sends it within the hour), and which no poller
+     holds (`locked_at` null or older than 10 minutes);
+  2. deletes `sent` and `failed` rows untouched for 90 days.
+  It touches only `public.notification_jobs` and its own cron job. Nothing to deploy but this
+  file: no Edge Function changed.
+- `backend/supabase/tests/0003_hygiene_test.sql` seeds eleven rows across every boundary (6, 7
+  and 8 days; a token; a lock; a malformed zone; another error; 89/91 days; a far pending job),
+  runs the hygiene at a fixed instant, and asserts each outcome, idempotence, the 90-day cleanup
+  of an expired row, the single cron entry and the revoked grants — all inside a transaction
+  that rolls back.
+- `backend/supabase/tests/run-local.sh` runs it with no Docker or Supabase CLI: a throwaway
+  Postgres cluster (Homebrew `initdb`/`pg_ctl`) in `$TMPDIR` on loopback TCP, the smallest
+  stubs for Supabase's roles, `extensions`/`vault` schemas and pg_cron's `cron.schedule`, then
+  `0001`, `0003` applied **twice**, then every `*_test.sql`. Two macOS traps it handles: the
+  postmaster refuses to start without a locale (`LC_ALL=C`), and a Unix socket under a long
+  `$TMPDIR` can exceed the path limit (it uses TCP).
+- CI gained "Delivery server tests": the Edge Function's 18 Deno tests (`brew install deno`;
+  install or network trouble only warns, a failing test fails) and the SQL test when the runner
+  already has Postgres (otherwise a notice saying it runs locally).
+
+**Not applied to Production.** §8 D3 is Jason's: the file is reviewed and tested locally; he
+applies it to project `gkjwsxotmwrgqsvfijzs` (SQL editor, or `psql` with the project's
+connection string) or says no. The privacy policy (`M10-privacy-policy-delta.md`, "Retention &
+deletion") promises removal at delete, unseal, resurface and "Delete my cloud data"; this only
+removes rows sooner, so nothing it says becomes untrue. A sentence about the 90 days is optional.
+
+**Controls** (`/tmp`-free: each mutation written over the migration, `run-local.sh`, restored
+from a snapshot, compared equal):
+
+| # | Mutation | The test said |
+|---|---|---|
+| Q1 | expires even when the user now has a token | `expired 2 rows, expected 1` |
+| Q2 | expires after 5 days | `expired 3 rows, expected 1` |
+| Q3 | expires at exactly 7 days | `expired 2 rows, expected 1` |
+| Q4 | expires a row a poller holds | `expired 2 rows, expected 1` |
+| Q5 | no exception guard: a malformed zone | `time zone "Not/AZone" not recognized` — the whole batch aborts |
+| Q6 | expires pending jobs whatever their last error | `expired 2 rows, expected 1` |
+| Q7 | deletes after 30 days | `deleted 3 rows, expected 2` |
+| Q8 | deletes pending rows too | `deleted 3 rows, expected 2` |
+| Q9 | the hygiene left executable by `anon` | `anon/authenticated can run the hygiene` |
+
+**Bars:** no app code changed: 723 tests, 0 warnings, i18n 100% as at S4 (no rebuild needed);
+SQL test and Deno tests green locally.
