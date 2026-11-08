@@ -948,3 +948,35 @@ tests. The second lost only `VideoGateTests.playbackStaysFree` — `AddRunningCl
 (status = -66681)`, `.couldNotStart`, the known local-only simulator-audio failure (memory
 `soundpost-test-run-gotchas`; green on every CI run, and in today's earlier clean runs). CI is
 the authority for it.
+
+**Build 23** (commit `f5c8ac2`, tag `v1.11.0-b23`, pushed): CI green on `f5c8ac2` (run
+42485206493 — 723 executed, floor 723; the cache's new key cold-resolved and was saved right
+after the resolve). Archived with Xcode 27.2 on 2026-11-08 ~22:40 JST with the screen locked
+(the login keychain stayed open: `no-timeout`, and the codesign probe passed); dSYMs to Sentry
+(3 files); uploaded through `exportArchive`; the `Sentry.framework` dSYM warning is the known,
+expected one. 1.10.0's archive was copied to `~/Library/Developer/Xcode/Archives/2026-10-08/`
+first — the script replaces `build/Soundpost.xcarchive`.
+
+**The preflight was overridden** (`RELEASE_PREFLIGHT_OVERRIDE=yes`), for two refusals that
+name files no build reads: the empty iCloud conflict folders `metadata/en-US 2`, `ja 2`,
+`zh-Hans 2` (§8 D9, Jason's to delete) and another session's `.claude/scheduled_tasks 2.lock`
+(which also made the tree read as "not clean"). Everything else passed: project 1.11.0 (23),
+codesign, build 23 new on App Store Connect (newest was 22), Sentry token. The override also
+switches off two of the script's own guards, so both were done by hand: HEAD was still
+`f5c8ac2` with no tracked change after the archive (so the tag names what was built), and the
+dSYM upload's own output says `Uploaded 3 missing debug information files`.
+
+App Store Connect: version 1.11.0 created (`d8b6e6d2-6d00-4e94-a7c1-850688e2d2e7`,
+`PREPARE_FOR_SUBMISSION`, `releaseType MANUAL` read back), What's New pushed in three languages;
+description, keywords and screenshots inherited (no claim changed).
+
+Build 23 processed `VALID` (2026-11-08 22:46 JST) and is attached to 1.11.0 (`releaseType MANUAL`
+read back with build 23 on it). **Not yet submitted.** `asc.py submit` created review submission
+`d56ef962-1a35-4092-bb26-dc5e24e3659b` and then App Store Connect refused to add the version to
+it (409 `STATE_ERROR.ENTITY_STATE_INVALID`): the age-rating declaration lacks a value for
+`socialMedia` — a question Apple added after 1.10.0; its follow-up `socialMediaAgeRestricted` is
+also blank, and every other answer is set. That is a declaration to Apple in Jason's name, so it
+waits for his answer. The empty draft submission is harmless: `READY_FOR_REVIEW` is not "in
+Apple's hands", and the next `submit` cancels it and opens a fresh one. Once answered: PATCH
+`ageRatingDeclarations/498a5dc2-553b-4118-b935-27e19061fdd5` (the editable app info), then
+`asc.py submit`, then STOP — `asc.py release` only on Jason's word.
