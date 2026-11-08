@@ -186,7 +186,9 @@ struct LaunchSequenceTests {
     @Test func eachProductionStepCallsItsOwnImplementation() throws {
         let code = try source("Soundpost/Services/LaunchSequence.swift")
         let wiring: [(step: String, calls: [String], never: [String])] = [
-            ("migrateStandingSeed:", ["SoundAnalysisPreferences.migrateStandingSeed()"], []),
+            // Never before the preferences can be read: the seed is one-shot.
+            ("migrateStandingSeed:", ["guard UIApplication.shared.isProtectedDataAvailable else { return }",
+                                      "SoundAnalysisPreferences.migrateStandingSeed()"], []),
             ("startObservers:", ["remoteChanges.start(", "accountChanges.start(", "syncMonitor.start("], []),
             ("reclaimExportScratch:", ["VideoExportWorkspace.scavenge()", "VideoExportWorkspace.scavenge(named:",
                                        "VideoExportWorkspace.scavengeLegacyDataExports()"], []),

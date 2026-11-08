@@ -1,0 +1,2 @@
+• With notifications on, a capsule sealed far ahead now reminds you on its day even if you opened Soundpost the day before. Previously, opening the app in its last 24 hours could leave it with no reminder at all.
+• When notifications are off, setting a reminder while editing a capsule now tells you it won't reach you until you turn them on.

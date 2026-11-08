@@ -893,3 +893,58 @@ CI runs `deno test --no-check`. **For M22:** fix that line (`new Uint8Array(…)
 `as BodyInit`) the next time the function is deployed anyway. The same run was the CI cache's
 warm witness: "Cache restored from key spm-macOS-caa3ee30…", `cache-hit=true`, no resolve, both
 builds pointed at the restored directory.
+
+### S6 — the release: 1.11.0, build 23
+
+**Release notes** (`metadata/*/release_notes-1.11.0.txt`, copied to `release_notes.txt`), only
+what a user can notice: the far seal's reminder on its day even after opening the app the day
+before ("With notifications on…", because without them nothing reminds anyone), and the edit
+sheet's notice. The consent fix (S3) is left out: a user cannot notice it, and the one-line
+version of it is not true in every case (recording on the new phone still earns standing).
+Listing unchanged; promotional text not pushed (§8 D6 undecided).
+
+**Pre-upload review** — three readers over `7b3e1d5..2699069`, each with its own lens (delivery
+and notifications across steps; privacy and the launch path for real upgrading and new users;
+release, CI, SQL and copy), each told to refute its own findings before reporting; every finding
+then checked here against the code. Nothing that would get the build rejected or mislead a user.
+
+| Finding | Verdict | Done |
+|---|---|---|
+| A launch before the first unlock after a restart reads empty preferences; the one-shot standing seed would see "no onboarding", write its marker and be spent for good on an upgraded install | plausible, cheap to close | the production step migrates only when `UIApplication.shared.isProtectedDataAvailable`; otherwise next launch (V1) |
+| `isOffline` matched a network error anywhere in the chain while the report is keyed on the first `CKError` — a real fault with a network error beneath it would go unreported | confirmed, no live case found | judges the first `CKError` only (H5, H10) |
+| A cache that hit is never saved again, and the key ignored the Xcode version: a partial directory, or one another SwiftPM wrote, could stick | confirmed | key includes `EXPECTED_XCODE`; restore and save split, and the save runs only on a miss whose resolve wrote its marker |
+| The SQL test empties both tables: sent as one query by a client that stops at the first error (an SQL editor), it could leave the transaction open holding the poller's locks | confirmed in principle | the file's first statement refuses a database that holds any row (checked: a seeded row → "refusing to run") |
+| `2699069` red on CI (Deno 2.9.8's type-check) | known | `10ce5bc` green; Deno unpinned — recorded |
+
+**Pre-existing, recorded for M22, not changed in 1.11.0:**
+- **Multi-device last day.** A sibling device's sync in a far seal's last 24 hours hands it back
+  (cancels the server job — the push for *every* device) and re-plans only its own local
+  reminder; another device gets one only if it imports the cleared stamp and syncs in the
+  background, which is best-effort. Kept for 1.11.0 because a push to a real phone has still
+  never been witnessed (S0) — the local reminder is the proven path. Option for M22 (Jason):
+  keep the server job through the day and cancel only on unseal, delete or resurface.
+- **Around the due instant** (≈1 minute): a hand-back whose network wait crosses the due time
+  re-plans with the sync's starting `now` (a past trigger never fires), and a sync after the due
+  time but before the poller claims the job deletes it. Low.
+- **Recording on a phone set up as new earns standing** before the account's "no" arrives
+  (M15's design, which §4D keeps) — the library pass can then run on the default mirror; the
+  labels are erased when the row arrives. Option: drains only on `answered || seeded`, with
+  recorded standing governing display only.
+- **New phones without a consent row show no labels until they record** (intended by §4D;
+  most accounts have no row — a row is written only by a deliberate toggle).
+- Lock-screen copy reads `soundprintRaw` regardless of standing; cancels are keyed by capsule id
+  only (a stale device can cancel a sibling's re-sealed job); `apns.ts:132` under newer Deno.
+
+**Controls** (all bit): V1 (the seed runs before the preferences can be read →
+`eachProductionStepCallsItsOwnImplementation`), H4, H5 (outer error only), H10 (anywhere in the
+chain — the first S4 version) → `anOfflinePhoneIsLoggedNotReported`.
+
+**Gate before upload** (clean Xcode 27.2 build, `1.11.0 (23)`): 723 tests in 95 suites; 0 warnings;
+i18n 100%; store-metadata, sound-vocabulary and SQL gates green. Two full runs were taken while
+another session's work held the machine's load average at 40–46 on 10 cores. The first lost
+three tests to it: `theReplanAfterTheServerAnswers…` (its wait for the held upsert ran out at
+30 s — now 120 s, which costs nothing when the hold comes sooner) and the two simulator-video
+tests. The second lost only `VideoGateTests.playbackStaysFree` — `AddRunningClient failed
+(status = -66681)`, `.couldNotStart`, the known local-only simulator-audio failure (memory
+`soundpost-test-run-gotchas`; green on every CI run, and in today's earlier clean runs). CI is
+the authority for it.

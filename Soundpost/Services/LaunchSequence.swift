@@ -1,5 +1,6 @@
 import Foundation
 import SwiftData
+import UIKit
 
 /// The launch's privacy-critical order, in one place a test can read (M21 §4C).
 ///
@@ -66,6 +67,11 @@ struct LaunchSequence {
         let context = container.mainContext
         self.steps = Steps(
             migrateStandingSeed: {
+                // Only once the preferences can really be read. Before the first unlock
+                // after a restart they read empty, so the one-shot seed would see "no
+                // onboarding", write its marker and be spent for good on an install that
+                // had every right to it (review, M21 S6). Deferred, it runs next launch.
+                guard UIApplication.shared.isProtectedDataAvailable else { return }
                 SoundAnalysisPreferences.migrateStandingSeed()
             },
             startObservers: {

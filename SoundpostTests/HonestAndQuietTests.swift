@@ -78,9 +78,14 @@ struct HonestAndQuietTests {
         monitor.apply(error: wrapped(.networkFailure), finished: true)
         monitor.apply(error: wrapped(.networkUnavailable, depth: 2), finished: true)
         monitor.apply(error: wrapped(.zoneBusy), finished: true)
+        // A real fault with a network error somewhere beneath it is still a real fault.
+        let busy = NSError(domain: CKErrorDomain, code: CKError.Code.serverRejectedRequest.rawValue,
+                           userInfo: [NSUnderlyingErrorKey: CKError(.networkFailure)])
+        monitor.apply(error: busy, finished: true)
 
-        #expect(sent.map(\.cloudKitCode) == [CKError.Code.zoneBusy.rawValue],
-                "an offline phone was reported to Sentry as a fault")
+        #expect(sent.map(\.cloudKitCode) == [CKError.Code.zoneBusy.rawValue,
+                                             CKError.Code.serverRejectedRequest.rawValue],
+                "an offline phone was reported to Sentry as a fault, or a real fault was not")
         #expect(logged.count == 3, "the local log line was dropped too")
         #expect(monitor.state == .unknown, "an offline blip changed the calm state")
     }

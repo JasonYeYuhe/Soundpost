@@ -51,15 +51,22 @@ jobs:
       # docs-only commits went red (M21 §4E). Both builds below reach this directory
       # through scripts/lib/build_cache.sh. A cold run (a new key) resolves exactly as
       # before and can still fail that way; re-run it by hand once downloads work.
+      #
+      # Keyed on the Xcode too, so a toolchain bump never builds from a directory another
+      # SwiftPM wrote; and saved only from a run whose resolve finished (its marker file
+      # exists), because a cache that hit is never saved again — a partial one would
+      # otherwise stay until Package.resolved changed.
       - name: Name the Swift package directory
-        run: echo "SOUNDPOST_SPM_DIR=$RUNNER_TEMP/SourcePackages" >> "$GITHUB_ENV"
+        run: |
+          echo "SOUNDPOST_SPM_DIR=$RUNNER_TEMP/SourcePackages" >> "$GITHUB_ENV"
+          echo "SPM_CACHE_XCODE=$(echo "$EXPECTED_XCODE" | tr ' ' '-')" >> "$GITHUB_ENV"
 
       - name: Restore Swift packages
         id: spm-cache
-        uses: actions/cache@v6
+        uses: actions/cache/restore@v6
         with:
           path: ${{ runner.temp }}/SourcePackages
-          key: spm-${{ runner.os }}-${{ hashFiles('Soundpost.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
+          key: spm-${{ runner.os }}-${{ env.SPM_CACHE_XCODE }}-${{ hashFiles('Soundpost.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
 
       - name: Resolve Swift packages (nothing to fetch on a cache hit)
         run: |
@@ -71,6 +78,15 @@ jobs:
           else
             echo "Builds use $LOCAL_SPM_DIR"
           fi
+          if [ -f "$SOUNDPOST_SPM_DIR/.soundpost-resolved" ]; then echo "complete=true" >> "$GITHUB_OUTPUT"; fi
+        id: spm-resolve
+
+      - name: Save Swift packages (a finished resolve only, and only on a miss)
+        if: steps.spm-cache.outputs.cache-hit != 'true' && steps.spm-resolve.outputs.complete == 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: ${{ runner.temp }}/SourcePackages
+          key: ${{ steps.spm-cache.outputs.cache-primary-key }}
 
       - name: Show and assert toolchain
         run: |

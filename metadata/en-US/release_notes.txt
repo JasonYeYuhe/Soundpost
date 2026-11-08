@@ -1,4 +1,2 @@
-• Seal a capsule as you save it. After a recording, "When it comes back" offers a surprise echo, sealing it until a day you choose, or neither.
-• Start a new capsule from Siri, Shortcuts, Spotlight, the Action Button or the Home Screen icon (touch and hold). It opens ready to record; recording starts only when you tap.
-• If saving, sealing, unsealing or deleting a capsule ever fails, Soundpost now says so and leaves the capsule exactly as it was, instead of carrying on as if it had worked.
-• When Soundpost could not finish listening to a recording, it now tries again on a later launch instead of noting that it heard nothing.
+• With notifications on, a capsule sealed far ahead now reminds you on its day even if you opened Soundpost the day before. Previously, opening the app in its last 24 hours could leave it with no reminder at all.
+• When notifications are off, setting a reminder while editing a capsule now tells you it won't reach you until you turn them on.

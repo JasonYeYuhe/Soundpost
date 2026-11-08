@@ -54,9 +54,10 @@ struct DeliveredOnTheDayTests {
     /// Poll until `condition` holds, or give up after `limit` — never a fixed sleep.
     ///
     /// The ceiling is generous on purpose: every `@MainActor` suite shares the main
-    /// actor, so in a full run a sync can take seconds to reach the server call (2 s was
-    /// seen to be too short once). It costs nothing when the condition holds sooner.
-    private func wait(upTo limit: Duration = .seconds(30), until condition: () -> Bool) async throws {
+    /// actor, so in a full run a sync can take seconds to reach the server call — 2 s was
+    /// too short once, and 30 s once on a machine whose other work held its load average
+    /// at 46 on 10 cores (M21 §13 S6). It costs nothing when the condition holds sooner.
+    private func wait(upTo limit: Duration = .seconds(120), until condition: () -> Bool) async throws {
         let clock = ContinuousClock()
         let deadline = clock.now + limit
         while !condition() && clock.now < deadline { try await Task.sleep(for: .milliseconds(5)) }

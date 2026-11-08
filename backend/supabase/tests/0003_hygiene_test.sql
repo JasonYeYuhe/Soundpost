@@ -7,6 +7,17 @@
 -- Every assertion raises on failure, so psql -v ON_ERROR_STOP=1 exits non-zero.
 -- ============================================================
 
+-- Refuse a database that holds real rows, before anything else runs: this file empties
+-- both tables (inside a transaction it rolls back, but a client that sends the file as
+-- one query and stops at the first error would leave that transaction open, holding
+-- locks the poller needs). A fresh local database has none.
+do $$
+begin
+  if exists (select 1 from public.notification_jobs) or exists (select 1 from public.device_tokens) then
+    raise exception 'refusing to run: notification_jobs or device_tokens already has rows — run this only against a fresh local database';
+  end if;
+end $$;
+
 begin;
 
 truncate public.notification_jobs, public.device_tokens;

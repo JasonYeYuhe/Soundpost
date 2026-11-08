@@ -169,16 +169,16 @@ final class CloudSyncMonitor {
         return nil
     }
 
-    /// Whether this error only says the phone is offline (M21 §4E) — `CKError`
-    /// `.networkUnavailable` or `.networkFailure`, outer or anywhere in the underlying
-    /// chain. An offline phone is not a fault: the only events Sentry received from
-    /// 1.10.0 in its first month were two of these (domain 2, code 3, ck 3), and they
-    /// would have buried a real one. Still logged locally, once per kind per launch.
+    /// Whether this error only says the phone is offline (M21 §4E): its first `CKError`
+    /// — the outer error or the first one beneath it, the same one the report is keyed
+    /// on — is `.networkUnavailable` or `.networkFailure`. A real fault that merely has a
+    /// network error somewhere deeper is still reported (review, M21 S6). An offline
+    /// phone is not a fault: the only events Sentry received from 1.10.0 in its first
+    /// month were two of these (domain 2, code 3, ck 3), and they would have buried a
+    /// real one. Still logged locally, once per kind per launch.
     static func isOffline(_ error: Error) -> Bool {
-        errorChain(error).contains { link in
-            guard let ckError = link as? CKError else { return false }
-            return ckError.code == .networkUnavailable || ckError.code == .networkFailure
-        }
+        guard let first = errorChain(error).lazy.compactMap({ $0 as? CKError }).first else { return false }
+        return first.code == .networkUnavailable || first.code == .networkFailure
     }
 
     /// The integers an error is reported as. Pure, so it is tested without Sentry.
