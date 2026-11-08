@@ -19,6 +19,7 @@ struct LaunchSequenceTests {
 
         var steps: LaunchSequence.Steps {
             LaunchSequence.Steps(
+                migrateStandingSeed: { self.ran.append("migrate") },
                 startObservers: { self.ran.append("observers") },
                 reclaimExportScratch: { self.ran.append("scratch") },
                 countOrphanedAudio: { self.ran.append("orphans") },
@@ -44,7 +45,7 @@ struct LaunchSequenceTests {
     @Test func theStepsRunInExactlyThisOrder() async {
         let script = Script()
         await LaunchSequence(steps: script.steps).run()
-        #expect(script.ran == ["observers", "scratch", "orphans", "consent", "resync",
+        #expect(script.ran == ["migrate", "observers", "scratch", "orphans", "consent", "resync",
                                "answered", "standing", "remediate", "backfill"])
     }
 
@@ -95,6 +96,60 @@ struct LaunchSequenceTests {
         #expect(!unreadable.ran.contains("backfill"))
     }
 
+    // MARK: Standing is earned (M21 §4D), through the real rule
+
+    /// The real migration and the real standing rule, with the drains recorded.
+    private func launch(answered: Bool = false, consent: Bool = true) async -> [String] {
+        let script = Script()
+        script.answered = .success(answered)
+        script.consent = .success(consent)
+        var steps = script.steps
+        steps.migrateStandingSeed = { SoundAnalysisPreferences.migrateStandingSeed() }
+        steps.recordStanding = { LaunchSequence.recordStanding(answered: $0) }
+        await LaunchSequence(steps: steps).run()
+        return script.ran.filter { $0 == "remediate" || $0 == "backfill" }
+    }
+
+    private func finishOnboarding() {
+        SoundAnalysisPreferences.defaults.set(true, forKey: SoundAnalysisPreferences.onboardingCompletedKey)
+    }
+
+    /// The sequence M15 §11Q was about, one launch at a time: a phone set up as new and
+    /// signed into iCloud. Launch 1 runs during onboarding; the person finishes it; the
+    /// library imports before their "no" does. Launch 2 must not analyse that library.
+    @Test func aPhoneSetUpAsNewWaitsForItsAnswerBeforeTouchingTheLibrary() async {
+        await TestSupport.withIsolatedListening(true) {
+            #expect(await launch() == [], "launch 1, during onboarding")
+            finishOnboarding()
+            #expect(await launch() == [],
+                    "finishing onboarding gave standing to analyse a library whose owner had not answered yet")
+            #expect(!SoundAnalysisPreferences.hasStanding)
+
+            // Their answer arrives: now the library pass may run.
+            #expect(await launch(answered: true) == ["remediate", "backfill"])
+        }
+    }
+
+    /// Or they record on this phone — the other way standing is earned.
+    @Test func recordingOnANewPhoneGivesItStanding() async {
+        await TestSupport.withIsolatedListening(true) {
+            _ = await launch()
+            finishOnboarding()
+            SoundAnalysisPreferences.hasRecordedHere = true    // what a saved capture writes
+            #expect(await launch() == ["remediate", "backfill"])
+        }
+    }
+
+    /// An install that had finished onboarding before this version keeps the standing
+    /// it had: its preferences survived, so its mirror is whatever the user last chose.
+    @Test func anUpgradedPhoneKeepsItsStanding() async {
+        await TestSupport.withIsolatedListening(true) {
+            finishOnboarding()                                  // before 1.11.0 ever ran
+            #expect(await launch() == ["remediate", "backfill"])
+            #expect(SoundAnalysisPreferences.hasStanding)
+        }
+    }
+
     // MARK: The app runs the sequence and nothing beside it
 
     private func source(_ path: String) throws -> String {
@@ -131,6 +186,7 @@ struct LaunchSequenceTests {
     @Test func eachProductionStepCallsItsOwnImplementation() throws {
         let code = try source("Soundpost/Services/LaunchSequence.swift")
         let wiring: [(step: String, calls: [String], never: [String])] = [
+            ("migrateStandingSeed:", ["SoundAnalysisPreferences.migrateStandingSeed()"], []),
             ("startObservers:", ["remoteChanges.start(", "accountChanges.start(", "syncMonitor.start("], []),
             ("reclaimExportScratch:", ["VideoExportWorkspace.scavenge()", "VideoExportWorkspace.scavenge(named:",
                                        "VideoExportWorkspace.scavengeLegacyDataExports()"], []),
@@ -139,8 +195,9 @@ struct LaunchSequenceTests {
             ("applyAccountConsent:", ["try ListeningConsentStore.applyToDevice(in: context)"], ["try?", "Task {"]),
             ("resyncNotifications:", ["await notifications.sync("], ["Task {"]),
             ("accountHasAnswered:", ["try ListeningConsentStore.hasAnswer(in: context)"], ["try?"]),
-            ("recordStanding:", ["SoundAnalysisPreferences.hasStanding = answered || SoundAnalysisPreferences.hasRecordedHere",
-                                 "return SoundAnalysisPreferences.hasStanding"], []),
+            // The rule itself is `LaunchSequence.recordStanding`, which the standing tests
+            // below run for real.
+            ("recordStanding:", ["LaunchSequence.recordStanding(answered: answered)"], []),
             ("remediateWrittenOff:", ["SoundprintRemediation.drain(in: context)"], ["Task {"]),
             ("backfillLibrary:", ["await SoundprintBackfill(modelContainer: container).drain()"], ["Task {"])
         ]

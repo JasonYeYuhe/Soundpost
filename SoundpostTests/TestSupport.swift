@@ -76,6 +76,18 @@ enum TestSupport {
         }
     }
 
+    /// `withIsolatedListeningPreference` for an async body — the launch sequence awaits.
+    /// A separate name rather than an overload, so no existing synchronous call becomes
+    /// ambiguous inside an async test.
+    static func withIsolatedListening<T>(_ enabled: Bool, _ body: () async throws -> T) async rethrows -> T {
+        let name = "soundpost.test.\(UUID().uuidString)"
+        defer { UserDefaults(suiteName: name)?.removePersistentDomain(forName: name) }
+        return try await SoundAnalysisPreferences.$defaultsSuiteName.withValue(name) {
+            SoundAnalysisPreferences.isEnabled = enabled
+            return try await body()
+        }
+    }
+
     /// Run `body` with `DeliveryPreferences` — the pending-cancel queue and the cloud
     /// opt-out — on storage nobody else shares (M20 §4C).
     ///

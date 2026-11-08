@@ -724,3 +724,50 @@ compared equal afterwards):
 **Bars:** 712 tests in 94 suites on a clean Xcode 27.2 build, 0 warnings, i18n 100%; CI floor
 raised to 712.
 
+
+### S3 — listening standing is earned, not inherited from onboarding
+
+**What changed**
+
+- `SoundAnalysisPreferences.hasRecordedHere` returns only the stored `sound.hasRecordedHere`. It
+  no longer reads `hasCompletedOnboarding` — a read that covered every install, new ones too, so
+  a phone set up as new gained standing from finishing onboarding and the library pass analysed
+  the imported library of someone whose "no" had not arrived yet.
+- `SoundAnalysisPreferences.migrateStandingSeed()` takes the old seed once: if
+  `sound.standingSeedMigrated` is absent, and only if `hasRecordedHere` was never written and
+  onboarding is already complete, it writes `hasRecordedHere = true`; it writes the marker either
+  way and never writes `false`. All three keys go through `SoundAnalysisPreferences.defaults`
+  (production: `.standard`, where `@AppStorage("hasCompletedOnboarding")` lives), so the
+  task-local test suites isolate them.
+- It is `LaunchSequence`'s first step. The standing rule became
+  `LaunchSequence.recordStanding(answered:)`, a static the production step calls and the
+  standing tests run for real (closing S2's review note that the order tests used a stand-in).
+- `ListeningConsentTests.anUpgradedInstallInheritsStandingFromOnboarding` became
+  `anUpgradedInstallKeepsTheStandingOnboardingGaveIt` and
+  `anInstallThatFinishesOnboardingLaterGainsNoStandingFromIt`, plus
+  `theStandingMigrationNeverTakesStandingAway`. `LaunchSequenceTests` runs the plan's
+  phone-set-up-as-new sequence launch by launch (`aPhoneSetUpAsNewWaitsForItsAnswerBeforeTouchingTheLibrary`),
+  the recording path and the upgrade path. `TestSupport.withIsolatedListening` is the async
+  form of `withIsolatedListeningPreference` (a new name, so no synchronous call becomes ambiguous).
+
+**Decision:** §8 D4's default (one-shot migration) — Jason has not chosen otherwise. "Drop the
+seed entirely" is control T4 below: it would cost every upgraded install that never recorded its
+standing until its consent row or first recording.
+
+**Deviation:** none.
+
+**Controls** (`LaunchSequenceTests` + `ListeningConsentTests`, 30 tests per run; restored and
+compared equal):
+
+| # | Mutation | Failed |
+|---|---|---|
+| T1 | the getter reads onboarding live again (pre-M21) | `aPhoneSetUpAsNewWaitsForItsAnswerBeforeTouchingTheLibrary`, `anInstallThatFinishesOnboardingLaterGainsNoStandingFromIt` |
+| T2 | the migration is not one-shot | the same two |
+| T3 | the migration writes onboarding's value over what is there, `false` included | `theStandingMigrationNeverTakesStandingAway` |
+| T4 | the migration never seeds (§8 D4's alternative) | `anUpgradedInstallKeepsTheStandingOnboardingGaveIt`, `anUpgradedPhoneKeepsItsStanding` |
+| T5 | the migration runs after standing is recorded | `anUpgradedPhoneKeepsItsStanding`, `theStepsRunInExactlyThisOrder` |
+| T6 | the production step does not migrate | `eachProductionStepCallsItsOwnImplementation` |
+| T7 | standing ignores the account's answer | `aPhoneSetUpAsNewWaitsForItsAnswer…` |
+
+**Bars:** 717 tests in 94 suites on a clean Xcode 27.2 build, 0 warnings, i18n 100%; CI floor
+raised to 717.

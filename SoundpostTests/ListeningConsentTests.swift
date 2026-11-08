@@ -243,16 +243,42 @@ struct ListeningConsentTests {
         }
     }
 
-    /// An install that predates the key still has standing — its preferences survived,
-    /// so its mirror is whatever the user last chose, including a deliberate "off".
-    @Test func anUpgradedInstallInheritsStandingFromOnboarding() {
+    /// An install that had finished onboarding when this version first ran keeps its
+    /// standing — its preferences survived, so its mirror is whatever the user last
+    /// chose, including a deliberate "off" (M21 §4D: the old live seed, taken once).
+    @Test func anUpgradedInstallKeepsTheStandingOnboardingGaveIt() {
         TestSupport.withIsolatedListeningPreference(false) {
-            #expect(!SoundAnalysisPreferences.hasRecordedHere, "no history and no onboarding")
-            SoundAnalysisPreferences.defaults.set(true, forKey: "hasCompletedOnboarding")
-            #expect(
-                SoundAnalysisPreferences.hasRecordedHere,
-                "the wipe that would make the mirror untrustworthy clears onboarding too"
-            )
+            SoundAnalysisPreferences.defaults.set(true, forKey: SoundAnalysisPreferences.onboardingCompletedKey)
+            SoundAnalysisPreferences.migrateStandingSeed()
+            #expect(SoundAnalysisPreferences.hasRecordedHere,
+                    "the wipe that would make the mirror untrustworthy clears onboarding too")
+        }
+    }
+
+    /// An install that finishes onboarding after this version first ran gains nothing
+    /// from it: the getter no longer reads onboarding, and the seed is spent.
+    @Test func anInstallThatFinishesOnboardingLaterGainsNoStandingFromIt() {
+        TestSupport.withIsolatedListeningPreference(true) {
+            SoundAnalysisPreferences.migrateStandingSeed()      // first launch, during onboarding
+            SoundAnalysisPreferences.defaults.set(true, forKey: SoundAnalysisPreferences.onboardingCompletedKey)
+            #expect(!SoundAnalysisPreferences.hasRecordedHere, "the getter still reads onboarding")
+            SoundAnalysisPreferences.migrateStandingSeed()      // every later launch
+            #expect(!SoundAnalysisPreferences.hasRecordedHere, "the seed ran twice")
+        }
+    }
+
+    /// The migration only ever adds: a recorded `true` survives it whatever onboarding
+    /// says, and it writes no `false` of its own.
+    @Test func theStandingMigrationNeverTakesStandingAway() {
+        TestSupport.withIsolatedListeningPreference(true) {
+            SoundAnalysisPreferences.hasRecordedHere = true
+            SoundAnalysisPreferences.migrateStandingSeed()
+            #expect(SoundAnalysisPreferences.hasRecordedHere)
+        }
+        TestSupport.withIsolatedListeningPreference(true) {
+            SoundAnalysisPreferences.migrateStandingSeed()
+            #expect(SoundAnalysisPreferences.defaults.object(forKey: SoundAnalysisPreferences.localHistoryKey) == nil,
+                    "the migration wrote a value nobody earned")
         }
     }
 

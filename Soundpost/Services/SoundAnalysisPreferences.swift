@@ -138,13 +138,41 @@ enum SoundAnalysisPreferences {
     /// too and there is nothing to protect against; a device set up as new brings the
     /// library without the preferences, which is precisely the dangerous case.
     ///
-    /// Seeded from `hasCompletedOnboarding` for installs that predate the key — the
-    /// same wipe semantics, so it cannot resurrect standing that a wipe removed.
+    /// **Only what was recorded** (M21 §4D). Until 1.11.0 this also read
+    /// `hasCompletedOnboarding` live, for installs that predated the key — and that
+    /// read covered every install, new ones too. A phone set up as new and signed into
+    /// iCloud finished onboarding, gained standing from it on its next launch, and the
+    /// library pass analysed the imported library of someone whose "no" had not arrived
+    /// yet. The seed now happens once, in `migrateStandingSeed`, for installs that had
+    /// already finished onboarding when this version first ran.
     static var hasRecordedHere: Bool {
-        get {
-            if defaults.object(forKey: localHistoryKey) as? Bool == true { return true }
-            return defaults.object(forKey: "hasCompletedOnboarding") as? Bool == true
-        }
+        get { defaults.object(forKey: localHistoryKey) as? Bool == true }
         set { defaults.set(newValue, forKey: localHistoryKey) }
+    }
+
+    static let standingSeedMigratedKey = "sound.standingSeedMigrated"
+    static let onboardingCompletedKey = "hasCompletedOnboarding"
+
+    /// The old onboarding seed, taken once and written down (M21 §4D). The first step
+    /// of `LaunchSequence`, before standing is read.
+    ///
+    /// On the first launch of a version with this: if this install had **already**
+    /// finished onboarding and `hasRecordedHere` was never written, write it — the
+    /// standing it had yesterday, kept. Either way the marker is written, so an install
+    /// that finishes onboarding later gains standing only by recording here or by the
+    /// account's answer. A new install's first launch happens during onboarding, so it
+    /// writes the marker with nothing to seed.
+    ///
+    /// **Never writes `false`.** An existing `true` survives; the safe direction for a
+    /// mistake here is less standing, never revoking an answer. A backup restore brings
+    /// all three keys with it, which is right: it is the same history.
+    static func migrateStandingSeed() {
+        let defaults = self.defaults
+        guard defaults.object(forKey: standingSeedMigratedKey) == nil else { return }
+        if defaults.object(forKey: localHistoryKey) == nil,
+           defaults.object(forKey: onboardingCompletedKey) as? Bool == true {
+            defaults.set(true, forKey: localHistoryKey)
+        }
+        defaults.set(true, forKey: standingSeedMigratedKey)
     }
 }

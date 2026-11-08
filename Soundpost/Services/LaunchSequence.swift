@@ -24,6 +24,8 @@ import SwiftData
 @MainActor
 struct LaunchSequence {
     struct Steps {
+        /// The one-shot onboarding seed (M21 §4D) — first, before standing is read.
+        var migrateStandingSeed: () -> Void
         /// Remote-change, account-change and sync-health observers.
         var startObservers: () -> Void
         /// Reclaim export scratch a previous launch left behind.
@@ -63,6 +65,9 @@ struct LaunchSequence {
         let container = store.container
         let context = container.mainContext
         self.steps = Steps(
+            migrateStandingSeed: {
+                SoundAnalysisPreferences.migrateStandingSeed()
+            },
             startObservers: {
                 // Start app-layer remote-change observation once (idempotent).
                 remoteChanges.start(container: container, notifications: notifications)
@@ -102,12 +107,7 @@ struct LaunchSequence {
                 try ListeningConsentStore.hasAnswer(in: context)
             },
             recordStanding: { answered in
-                // Recorded, not just computed. M15 asked this question only to decide
-                // whether to ANALYSE; M17 gave the app a way to DISPLAY a label, and
-                // the display path had no way to ask it (Codex, M17 review). One
-                // expression now answers both.
-                SoundAnalysisPreferences.hasStanding = answered || SoundAnalysisPreferences.hasRecordedHere
-                return SoundAnalysisPreferences.hasStanding
+                LaunchSequence.recordStanding(answered: answered)
             },
             remediateWrittenOff: {
                 SoundprintRemediation.drain(in: context)
@@ -118,7 +118,21 @@ struct LaunchSequence {
         )
     }
 
+    /// Recorded, not just computed. M15 asked this question only to decide whether to
+    /// ANALYSE; M17 gave the app a way to DISPLAY a label, and the display path had no
+    /// way to ask it (Codex, M17 review). One expression now answers both. Static so the
+    /// tests run the real rule.
+    static func recordStanding(answered: Bool) -> Bool {
+        SoundAnalysisPreferences.hasStanding = answered || SoundAnalysisPreferences.hasRecordedHere
+        return SoundAnalysisPreferences.hasStanding
+    }
+
     func run() async {
+        // Take the old onboarding seed once, before anything below reads standing: an
+        // install that had finished onboarding when this version first ran keeps the
+        // standing it had; one that finishes it later earns standing by recording here
+        // or by the account's answer (M21 §4D).
+        steps.migrateStandingSeed()
         steps.startObservers()
         steps.reclaimExportScratch()
         steps.countOrphanedAudio()
