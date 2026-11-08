@@ -152,101 +152,19 @@ private struct RootView: View {
                 .modelContainer(store.container)
                 .task { await runBackfill(store) }
                 .task {
-                    // Start app-layer remote-change observation once (idempotent).
-                    remoteChanges.start(container: store.container, notifications: notifications)
-                    // React to iCloud account changes for cloud-backed delivery (M10 §S4).
-                    accountChanges.start(container: store.container, notifications: notifications, registrar: registrar)
-                    // Watch CloudKit sync health for honest, calm in-app copy (S5/S6).
-                    syncMonitor.start(rung: store.rung)
-                    // Reclaim video-export temp dirs a previous launch left behind
-                    // (a crash, a kill, or a share sheet that never called back —
-                    // M13 §4G). Nothing is in flight at launch, and it only ever
-                    // removes children of our own export container.
-                    VideoExportWorkspace.scavenge()
-                    VideoExportWorkspace.scavenge(named: VideoExportWorkspace.dataExportContainerName)
-                    VideoExportWorkspace.scavengeLegacyDataExports()
-                    // Count — never delete — audio clips no capsule points at
-                    // (M17 §4E). Until §S0 a capture sheet dismissed mid-take left
-                    // one behind, and nothing in the app could see it: every
-                    // existing check starts from capsule rows, so none of them can
-                    // fail for a file no row names. This starts from the directory.
-                    // Deleting on that rule would take the take the user is
-                    // recording right now, whose row does not exist until save.
-                    AudioOrphanAudit.report(in: store.container.mainContext)
-                    // Adopt the account-wide listening answer before anything reads
-                    // the local mirror (M15 §4I, revised). Ordering matters: the
-                    // backfill below gates on that mirror, so a withdrawal made on
-                    // another device has to land here first — otherwise this launch
-                    // would re-label the very capsules the user cleared elsewhere.
-                    let mayListen: Bool
-                    do {
-                        mayListen = try ListeningConsentStore.applyToDevice(in: store.container.mainContext)
-                    } catch {
-                        // Fail CLOSED, and only for this launch. The old comment said
-                        // "using this device's answer" and then ran both drains anyway
-                        // — but the whole reason this call exists is that the device's
-                        // answer may be a stale default, so proceeding on it is exactly
-                        // the case it was written to prevent. Nothing is written to the
-                        // mirror here: this is a local decision to do no retrospective
-                        // work until we can read the account, not a new answer.
-                        mayListen = false
-                        Diagnostics.notice("Could not read account-wide listening consent at launch; skipping this launch's analysis")
-                    }
-                    // Re-sync after consent is applied, as the merge path already does.
-                    // A withdrawal that landed while the app was closed erases the
-                    // stored labels, but an already-scheduled lock-screen body has its
-                    // text baked in and the scheduler skips identifiers it has already
-                    // scheduled — so without this the phrase Soundpost heard keeps
-                    // firing on the lock screen after the switch was turned off.
-                    // `NotificationPreferences.contentVersion` folds listening in for
-                    // exactly this; it only works if something re-syncs.
-                    await notifications.sync(
-                        capsules: (try? CapsuleStore(context: store.container.mainContext).all()) ?? [],
-                        in: store.container.mainContext)
-                    // Does this device have standing to analyse the EXISTING library?
-                    //
-                    // Distinct from "may we listen", and the distinction is the whole
-                    // point. A phone set up as new and signed into iCloud imports the
-                    // library long before the `ListeningConsent` row — CloudKit returns
-                    // a zone's changes in roughly modification order, so the person who
-                    // opted out most recently has their answer sorted behind every
-                    // capsule they own. With no row yet, the mirror reads its default
-                    // (on), and these two drains would analyse the entire library of
-                    // somebody who had said no.
-                    //
-                    // A row settles it outright. Failing that, `hasRecordedHere` asks
-                    // whether the mirror is an answer or a default — see its doc; the
-                    // wipe that makes the mirror untrustworthy clears it too.
-                    //
-                    // Nothing is lost by waiting. A genuinely new user has no library
-                    // to backfill, and capture-time analysis is deliberately NOT gated,
-                    // so their first capsule is labelled as always. And because
-                    // `soundprintRaw` syncs with the capsule, this pass is per-library
-                    // work rather than per-device: a device that skips it is usually
-                    // skipping work another device has already done.
-                    let answered = (try? ListeningConsentStore.hasAnswer(in: store.container.mainContext)) ?? false
-                    // Recorded, not just computed. M15 asked this question only to decide
-                    // whether to ANALYSE; M17 gave the app a way to DISPLAY a label, and
-                    // the display path had no way to ask it (Codex, M17 review). One
-                    // expression now answers both.
-                    SoundAnalysisPreferences.hasStanding = answered || SoundAnalysisPreferences.hasRecordedHere
-                    let mayScanLibrary = mayListen && SoundAnalysisPreferences.hasStanding
-                    guard mayScanLibrary else {
-                        Diagnostics.info("No standing to analyse the existing library yet — deferring until the account's answer arrives")
-                        return
-                    }
-                    // Hand back the capsules an older generation of gates wrote off,
-                    // before the backfill runs — reopening sets `soundprintRaw` to
-                    // nil, which is exactly what the backfill below looks for, so
-                    // the two compose in one launch instead of two (M15 §11E).
-                    SoundprintRemediation.drain(in: store.container.mainContext)
-                    // Give pre-M15 capsules their soundprints. Batched so peak memory
-                    // stays one clip and capture keeps the device between batches
-                    // (M15 §4H), but drained rather than stopped after one batch: the
-                    // release notes say search finds your rainy mornings, and one
-                    // batch per launch made that true only after about fifteen of them
-                    // (§11H).
-                    await SoundprintBackfill(modelContainer: store.container).drain()
+                    // The launch's privacy-critical order — consent before anything
+                    // trusts the listening mirror, a re-sync after it, standing before
+                    // the library is touched — lives in one tested type (M21 §4C).
+                    // Nothing else runs here: a step added beside the sequence would
+                    // escape its order.
+                    await LaunchSequence(
+                        store: store,
+                        notifications: notifications,
+                        registrar: registrar,
+                        remoteChanges: remoteChanges,
+                        accountChanges: accountChanges,
+                        syncMonitor: syncMonitor
+                    ).run()
                 }
         } else {
             Color.clear // unreachable in practice; never crash if the store is missing

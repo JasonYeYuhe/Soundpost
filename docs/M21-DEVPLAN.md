@@ -665,3 +665,62 @@ controls are M11/M12 and M1–M3), and the tests of seams M21 adds (`aReplanThat
 0 warnings, i18n 100% across 3 catalogs; the almanac's 64-slot baseline unchanged
 (`AlmanacTests` green, planner untouched); CI floor raised to 705.
 
+### S2 — `LaunchSequence`: the launch's privacy-critical order in one tested type
+
+**What changed** — a move, nothing else. The root view's launch `.task` body became
+`LaunchSequence` (`Soundpost/Services/LaunchSequence.swift`): its production
+`init(store:notifications:registrar:remoteChanges:accountChanges:syncMonitor:)` builds one
+closure per step from the very calls the `.task` made, and `run()` makes them in the same order
+with the same failure handling — every comment, `try`/`try?`/`?? false`, the fail-closed catch
+and the early return moved verbatim. `SoundpostApp.swift` now only runs
+`await LaunchSequence(…).run()`. Tests build `Steps` from closures that record what ran. The
+sibling tasks (`runBackfill` → `AudioMigrator`, the gallery's `refreshAndSync`) stay where they
+were, unordered with the sequence; the type's doc says why that is safe (neither reads the
+listening mirror or standing; a gallery sync that beats consent is corrected by the re-sync).
+
+**Deviation:** none.
+
+**Review** (one reader, frozen copies, asked to list *any* difference between the old body and
+the new code). No behavioural difference: the nine step calls became `steps.x()`, everything
+else is verbatim; `store.container`/`mainContext` and the observers are read once at the top of
+the task instead of at each use — the same objects, because the old body had no suspension
+before its last read. It found two test gaps, both fixed before commit:
+- **The run guard passed vacuously.** `contains(".run()")` matched `AudioSelfTest.run()` in the
+  same file, so removing `.run()` from the sequence's call — which compiles — passed every test
+  (control L13 survived on the first run). It now matches the sequence's own call,
+  `await LaunchSequence(…).run()`.
+- **The wiring guard was thin**: one call per step, so a fail-open `try?` around the consent
+  read, a fire-and-forget `Task {}` around the re-sync, or a dropped observer passed. It now
+  requires every call a step makes and forbids `try?` / `Task {` where they would change the
+  meaning (L14–L17).
+Not acted on, recorded: the guard reads only `SoundpostApp.swift`, so a step re-added in another
+view's `.task` would not be caught (the merge path and Settings legitimately call some of the
+same functions, so a repo-wide ban would be wrong); the stand-in `recordStanding` in the order
+tests never ran the real rule — S3 makes the real rule a static the standing tests run.
+
+**Controls** (`-only-testing:SoundpostTests/LaunchSequenceTests`, 7 tests per run; restored and
+compared equal afterwards):
+
+| # | Mutation | Failed |
+|---|---|---|
+| L1 | observers and export scratch swapped | `theStepsRunInExactlyThisOrder` |
+| L2 | orphan count after consent | same |
+| L3 | re-sync before consent is applied | same |
+| L4 | standing read before the re-sync | same |
+| L5 | backfill before remediation | same, `theAccountsAnswerGivesStanding…` |
+| L6 | an unreadable consent fails open | `anUnreadableConsentMeansNoAnalysisButStillAResync` |
+| L7 | the drains ignore standing | `noStandingMeansNoDrains`, `theAccountsAnswerGivesStanding…` |
+| L8 | the drains ignore the consent answer | `anUnreadableConsent…`, `listeningOffMeansNoAnalysis` |
+| L9 | an unreadable account answer counts as answered | `theAccountsAnswerGivesStandingAndAnUnreadableOneDoesNot` |
+| L10 | a step re-added beside the sequence in `SoundpostApp.swift` | `theAppRunsTheSequenceAndNoStepBesideIt` |
+| L11 | the remediation step wired to nothing | `eachProductionStepCallsItsOwnImplementation` |
+| L12 | the consent and answered steps cross-wired | same |
+| L13 | the app constructs the sequence but never runs it | `theAppRunsTheSequence…` (**survived** the first guard; see review) |
+| L14 | the consent step swallows its throw (fails open) | `eachProductionStep…` |
+| L15 | the re-sync fired and forgotten in a `Task {}` | same |
+| L16 | the account-change observer not started | same |
+| L17 | standing not read back | same |
+
+**Bars:** 712 tests in 94 suites on a clean Xcode 27.2 build, 0 warnings, i18n 100%; CI floor
+raised to 712.
+
