@@ -1,0 +1,517 @@
+# M21 — "Delivered on the day"
+
+> Status: **PLAN, approved** (2026-11-08) — three review rounds by Gemini 3.8 Flash via `agy`,
+> every finding checked against the code (§12); Jason decided §8 D2. Grounded at `7b3e1d5` from three sources: the
+> M20 pre-upload review's open findings (`M20-DEVPLAN.md` §11, §13 S6), a read-only pass over
+> Sentry, App Store Connect and the delivery database after 1.10.0 went live, and a line-level
+> code pass over every M21 candidate. Every claim below names its file and line; re-verify
+> before you change anything. 1.10.0 (build 22) **live since 2026-10-08 05:44 UTC**.
+
+---
+
+## 0. Goal & success statement
+
+**What the data says (facts, 2026-11-08).** Since 1.10.0 went live: 7 sessions from 5 installs
+(Sentry), 0 crashes, 0 hangs, 0 ratings, 0 reviews; 19 lifetime first-time downloads, 10 of them
+in October (App Store Sales and Trends). Not one of the M20 failure notices ("Seal failed…",
+"Delete save failed…") has fired — at this volume that is weak evidence, not proof. The delivery
+server is alive: its per-minute poller claimed the one job that has come due and recorded
+`no_tokens` (that user never registered an APNs token). **No push has yet been sent to a phone
+that has a token.**
+
+**What the code says.** The far-seal promise — "Soundpost will hide this capsule and notify you
+on <day>" — breaks at its last edge. A sync plans local notifications *first* and reconciles
+server jobs *second* (`NotificationCoordinator.swift:152`, then `:198`). When a far seal enters
+its last 24 hours (`SealDeliveryRouter.localHorizon`, `SealDeliveryService.swift:15`), the plan still excludes it because
+the server owns it (`NotificationPlanner.swift:59`, `serverJobSyncedAt != nil`), and then the
+reconcile cancels the server job and clears the stamp to hand the seal back to the device
+(`SealDeliveryService.swift:103–116`). Nothing re-plans in that sync, and `sealSignature`
+(`UpcomingResurfaces.swift:46–55`) does not hash the stamp, so nothing triggers one. **If the app
+is opened once in the seal's last day and not again before it is due, neither the push nor the
+local reminder fires.** For someone who opens the app about once a day, the last open before the
+due time usually *is* in that last day. M20's S0 instructions told Jason not to open the app in
+that window — a workaround for this defect, not a property of the design.
+
+Three more promise-level defects sit next to it: the "synced" stamp is persisted (and mirrored
+to every device) before the server has confirmed the job; a phone set up as new can analyse the
+library of someone who said no to listening before their answer arrives from iCloud; and the
+edit sheet's "Remind me of this later" never says when notifications are off.
+
+**M21 makes the seal deliver on its day, holds consent at the launch edge, and closes the honesty
+gaps M20's review left — then hands Jason a decision on growth.** Usage, not stability, is the
+real constraint; the levers that would most change it (a Home Screen widget, a Control Center
+control) need a new target, which M20 §1 forbade and which only Jason can allow (§8 D2). M21
+does not wait for that decision.
+
+**Success** — all of these hold for the 1.11.0 build:
+
+- A far seal whose last day is entered with the app open, and which is not opened again, still
+  fires: a test drives the exact sequence (stamp set → sync inside the horizon → no later sync)
+  and asserts a pending local request for it after that one sync; the same test fails on today's
+  code.
+- `serverJobSyncedAt` is written only after the server has answered, and only for a capsule a
+  fresh fetch still holds with the same `sealUntil` and zone; a backend that never returns leaves
+  the field `nil` and the local reminder scheduled.
+- A read-only query shows `status = 'sent'` for a job whose user has a token, and Jason saw the
+  push (S0).
+- The launch order (consent → re-sync → standing → remediation → backfill) lives in one tested
+  type; a throwing consent read means no remediation and no backfill, and the test fails if any
+  two steps are swapped.
+- A phone that completes onboarding *after* this version is installed gains listening standing
+  only by recording or by its consent answer — never from `hasCompletedOnboarding` alone.
+- Every place that promises a reminder uses one of the two documented rules, and the edit sheet
+  says so when notifications are off.
+- Standing bars at every commit (§1.7).
+
+**Not success:** a green `SealDeliveryTests` that never runs a sync inside the 24-hour horizon
+(none does today); a delivery "confirmed" by a notification on the lock screen (the local
+reminder and the push look identical — only `status = 'sent'` proves the server sent it); a
+"LaunchSequence" whose test only checks that each step was called, not the order.
+
+---
+
+## 1. Non-negotiables (carried from M20 §1, unchanged unless noted)
+
+1. **Calm, honest, literal copy** in EN · JA · ZH-Hans. Every sentence is literally true of the
+   build for every state it can be shown in.
+2. **No counters, streaks, nags or engagement prompts. No new notification kind.**
+3. **Free stays free; Pro stays hidden.** `ProOffer.isOnSaleInThisBuild` stays `false`
+   (`ProGate.swift:136`); no Pro door, string or StoreKit purchase is reachable by anyone.
+4. **No new CloudKit field or entity; no Console deploy.**
+5. **No new target, App Group, entitlement or deployment-target raise** (iOS 17.0) — *in M21*.
+   §8 D2 asks Jason whether M22 may lift this for a widget/control target.
+6. **Delete no audio** except the user's own explicit delete.
+7. **Standing bars at every commit:** warning-free on CI's Xcode (26.6) and on a clean local
+   Xcode 27 build (`xcodebuild clean test` in place — `soundpost-clean-gate-in-place` memory;
+   `check-warnings.sh` passes vacuously on an incremental build); all tests green with the
+   executed **count** confirmed (CI floor `MIN_TESTS`, now 689 — raise it with every step); i18n
+   100%; zero new dependencies; CI green on the pushed commit. Every new test is seen to fail
+   against a deliberately broken implementation (`cp` snapshot, never `git checkout`;
+   `-collect-test-diagnostics never`); record mutation → failing test in §13.
+8. **Builds go through the shared package checkout** (`CLAUDE.md`, `scripts/lib/build_cache.sh`):
+   one derived-data root for this checkout, reused across steps; never under `~/Documents`.
+9. **Production data is read-only for the agent.** The Supabase project `gkjwsxotmwrgqsvfijzs`
+   is shared with other apps; a migration or function deploy there is Jason's word (§8 D3).
+
+---
+
+## 2. Scope
+
+| Step | What | Size | Human step |
+|---|---|---|---|
+| **S0** | Witness one APNs send to a phone with a token (`status = 'sent'`) | S | **Jason, day 1, in parallel** |
+| **S1** | The seal delivers on its day: re-plan after a delivery change; stamp only after the server answers | M | none |
+| **S2** | `LaunchSequence`: the privacy-critical launch order in one tested type (order-only refactor) | M | none |
+| **S3** | Listening standing is earned, not inherited from onboarding | S | §8 D4 (default assumed) |
+| **S4** | Honesty and noise: edit-sheet reminder notice, expected network errors not reported, dormant store retry | S | none |
+| **S5** | Delivery server hygiene: `no_tokens` jobs end; old rows expire (SQL only) | S | **Jason applies the migration** (§8 D3) |
+| **S6** | 1.11.0 release: notes, listing where literally true, gates, submission | S | Jason says release |
+
+**Drop order if tight:** S5's CI step → S4's store retry → S5 → S4. Never drop S1 (the headline
+defect) or S2/S3 (privacy).
+
+---
+
+## 3. Current state (grounded 2026-11-08 at `7b3e1d5` — re-verify)
+
+- **Release:** 1.10.0 build 22 live; `MARKETING_VERSION 1.10.0`, `CURRENT_PROJECT_VERSION 22`.
+  689 tests in 92 suites, CI floor 689, 0 warnings, i18n 100% (Localizable, InfoPlist,
+  AppShortcuts catalogs).
+- **Sync order** (`NotificationCoordinator.sync`, `:148–199`): number the call → plan locally →
+  build copy → `scheduler.reconcile(…, generation:)` → `sealDelivery?.reconcile(…)`. The
+  turnstile (`ReconcileTurnstile`, M20 S3) serialises scheduler reconciles and skips a superseded
+  generation.
+- **`serverJobSyncedAt` lifecycle:** set `now` *before* `await backend.upsertJob`
+  (`SealDeliveryService.swift:90`), cleared on a thrown error (`:95`); cleared *before*
+  `await backend.cancelJob` (`:108`), restored on error (`:113`); saved through
+  `byID.values.first?.modelContext` (`:118`), not the `context` parameter. Cleared by
+  `CapsuleStore.seal` (`:131`) and `normalizeSealHours` (`:375`); restored by `Capsule.restore`
+  (`Capsule.swift:175–196`); cleared en masse by Settings › Delete my cloud data
+  (`SettingsView.swift:418–419`). Read by the planner (`NotificationPlanner.swift:59`) and the
+  upsert guard (`SealDeliveryService.swift:88`). Mirrored by CloudKit (in Production since
+  2026-09-05), so a stamp written on one device drops the local reminder on all of them. Any
+  main-context save during the request (`ContentView.refreshAndSync` at `:610`, every user write,
+  autosave) persists the in-flight claim; `URLSession.shared` can hold the request ~60 s.
+- **Unseal:** `CapsuleStore.unseal` leaves the stamp alone on purpose so the cancel path runs.
+- **Tokens:** registered only when permission is authorised/provisional/ephemeral
+  (`SoundpostAppDelegate.swift:31–40`, `NotificationCoordinator.requestAuthorization:120–134`);
+  the delegate hands the token to `Self.registrar`, a weak static set in a `.task`
+  (`SoundpostApp.swift:79`). The token arrives after an async settings read and a main-actor hop
+  (`SoundpostAppDelegate.swift:24–64`), so the `.task` has almost always run; if it has not, that
+  launch's token is dropped and the next launch re-registers. Low severity.
+  The app upserts far jobs without regard to tokens (`SealDeliveryService.reconcile:64–67`); that
+  is correct for a multi-device user (a job is per `user_key`, tokens are per device), but it
+  leaves orphan jobs for a user with no token anywhere.
+- **Server** (`backend/supabase/functions/send-due-notifications/index.ts`, `state.ts`,
+  `apns.ts`; migrations `0001`, `0002`): a due job with no token → `mark_job_deferred('no_tokens')`,
+  `next_attempt_at += 1 h`, `attempts` unchanged, **forever** (`index.ts:151–159`,
+  `0001…sql:305–318`, `state.ts:35–47`). APNs 410 / `BadDeviceToken` / `Unregistered` prunes the
+  token (`apns.ts:154–157`, `index.ts:191–195`); other errors back off and dead-letter after 6.
+  No row is ever deleted; no token sweep exists (a comment in `DeliveryRegistrar` refers to one).
+  The Deno tests (`state_test.ts`, `apns_test.ts`, …) are not run by CI. Live rows (2026-11-08):
+  3 pending jobs (2 without a token), 2 production tokens.
+- **Launch order** (`SoundpostApp.swift:152–248`, the RootView `.task`, which also runs while
+  onboarding is on screen): remote-change / account / sync monitors start → export scavenges →
+  `AudioOrphanAudit.report` → `ListeningConsentStore.applyToDevice` (throw ⇒ `mayListen = false`
+  for this launch) → `await notifications.sync` → `hasAnswer`, `hasStanding = answered ||
+  hasRecordedHere` → `guard mayListen && hasStanding` → `SoundprintRemediation.drain` →
+  `await SoundprintBackfill.drain()`. No test reads this file. Sibling tasks
+  (`runBackfill` → `AudioMigrator`, `ContentView.refreshAndSync`) are unordered with it.
+- **Standing seed:** `SoundAnalysisPreferences.hasRecordedHere` (`:143–149`) returns true if the
+  key is set **or** `hasCompletedOnboarding` is true; `hasStanding` is persisted and only ever set
+  to true. On a phone set up as new and signed into iCloud, launch 1 runs during onboarding
+  (standing false — protected); after onboarding completes, launch 2 seeds standing from
+  onboarding even if the consent row has not imported yet, and with the default `mayListen` the
+  remediation and backfill analyse the imported library of someone who had said no (the labels
+  are erased again when the row arrives — `ListeningConsentStore.swift:237+`). The test
+  `ListeningConsentTests.anUpgradedInstallInheritsStandingFromOnboarding` (`:248`) pins today's
+  behaviour.
+- **Reminder promises:** `SealSheet.promise` and capture's seal row use `canPromiseAReminder`;
+  capture's echo row uses `remindersWouldBeDelivered`; the detail seal uses the `granted` result;
+  **the edit sheet's "Remind me of this later" (`CapsuleEditSheet.swift:118–135`) uses nothing**.
+- **Sentry:** the only events since 1.10.0 are two `CloudKit sync error, not surfaced (domain 2,
+  code 3, ck 3)` — `networkUnavailable`, i.e. an offline device. The project stores city-level
+  geo on every event (IPs are scrubbed at org level); the privacy label declares no location.
+- **Store:** `StoreService.loadProducts`'s retry calls itself while `isLoading` is still true
+  (`StoreService.swift:125–148`), so it returns at once and never retries. Dormant (Pro is off
+  sale, `loadProducts` returns at `:124`).
+
+---
+
+## 4. Design decisions
+
+### 4A. S0 — witness the send, not just the schedule
+
+The server half is witnessed (the poller claimed a due job). What remains is APNs reaching a
+phone. Procedure (Jason, with read-only queries prepared by the agent in §13):
+1. **First**, read-only: that phone's `user_key` already has a row in `device_tokens` (the agent
+   matches it by the job the phone created before, `367e950d…`, or by a fresh job). No token ⇒ a
+   two-day wait ends in `no_tokens` (review R2-7); fix registration first (open the app once with
+   notifications allowed, re-check).
+2. On a phone running the **App Store** 1.10.0 with notifications **allowed** for Soundpost, seal
+   a capsule in the calendar to **two days from now** (not a Quick pick, not tomorrow — the
+   09:00 normalisation can land it inside the 24-hour horizon, where no server job is written),
+   then read the new job row under the same `user_key`.
+3. **Do not open Soundpost on any device on that iCloud account from 24 hours before the due time
+   until the push arrives.** (Until S1 ships, opening it in that window is exactly the defect
+   M21 fixes — and if the app is opened, the local reminder and the push are indistinguishable.)
+4. After the push: re-read the row — `status = 'sent'` is the witness. Then, from a killed app,
+   tap the notification (cold-launch deep link).
+
+If the row reads `failed` or the token was pruned, S0 becomes the investigation; it does not
+gate S1–S4, but S6 records the outcome either way.
+
+### 4B. S1 — re-plan after delivery changes; stamp only after the server answers
+
+**Re-plan from fresh data.** `SealDeliveryService.reconcile` returns whether it changed any stamp.
+When it did, `NotificationCoordinator.sync` **fetches the capsules again from `context`** (never
+the pre-await `capsules` argument — a sync that ran during the network wait may have changed
+them), rebuilds the copy digests and rejection index from that same fresh array, plans, and
+reconciles the scheduler under a **new generation taken on the main actor at that moment**. **If
+the fresh fetch throws, the re-plan is abandoned** and the schedule left as it is (a notice is
+logged): an empty array would plan nothing and the scheduler would remove every pending request
+(review R2-1). Extract the plan-and-reconcile half of `sync` into one private function so the
+first pass and the re-plan cannot drift apart. Because the data is fresh, it is right for this plan to win over any sync that
+started during the wait (review R1-2: a new generation over the *stale* array would have
+overwritten a newer sync's plan). Do not move the delivery reconcile ahead of the local plan: the
+local plan must not wait on the network (offline-first). Do not rely on adding the stamp to
+`sealSignature` alone: it re-syncs only when the gallery's `@Query` observes the change, which a
+background or remote-change sync does not guarantee.
+
+**Stamp after the answer; one in-flight set for both directions.** Replace both claim-before-await
+writes with a main-actor `inFlight: Set<UUID>` on `SealDeliveryService`: a capsule in it is
+skipped by **both** the upsert loop and the cancel loop (review R1-3), inserted synchronously
+before the await, removed in a `defer`. After `upsertJob` returns, a fresh fetch decides:
+
+| After the upsert, the store holds… | Do |
+|---|---|
+| the capsule, still a far seal, same `sealUntil` and `sealTimeZoneID` | stamp `serverJobSyncedAt = now`, save through `context` |
+| the capsule, still a far seal, but a different instant or zone | leave unstamped — the next reconcile upserts again and the server re-arms the row (`unique (user_key, capsule_id)`, re-arm on a changed `wall_clock`/`time_zone`, `0001_m10_delivery.sql:152–205`) |
+| the capsule, no longer a far seal (unsealed, resurfaced, inside the horizon) | enqueue a pending cancel, then `cancelJob` now (in-flight guarded; resolves on success). The next reconcile cannot see it (no stamp), so the drain's rule changes from "still stored ⇒ resolve without cancelling" to "still stored **and still a far seal** ⇒ resolve; otherwise cancel" (review R1-1) |
+| no capsule (deleted during the await) | the same: enqueue, then `cancelJob` now (review R2-4) — the delete's own cancel may have reached the server *before* this upsert re-created the row |
+
+"Still a far seal" is one predicate shared with `SealDeliveryRouter.desiredJobs`
+(`state == .sealed`, `sealUntil` more than `localHorizon` after `now`), evaluated by a fresh fetch
+that returns `nil` when the store cannot answer (then: keep the entry, decide nothing). It takes
+the `now` the reconcile was called with — `drainPendingCancels` gains `now:` and `horizon:`
+parameters passed down from `reconcile(capsules:in:now:)`, never `Date.now`, or tests with a fixed
+clock misclassify (review R2-2). The M20 delete path is unchanged and still safe: a kill between
+`enqueuePendingCancel` and the save leaves a stored far seal, which the drain resolves without
+cancelling.
+
+The cancel loop keeps the stamp until `cancelJob` succeeds, then clears it and saves. Save through
+`context`, not `byID.values.first?.modelContext` (`:118`).
+
+**Test seam.** `NotificationCoordinator` builds its scheduler on `UNUserNotificationCenter.current()`
+inside `override init()` (`NotificationCoordinator.swift:113`), so no test can see what `sync`
+schedules. Add an internal `init(center: UserNotificationScheduling, delivery: SealDeliveryService?)`
+used by tests (the default `init()` keeps today's wiring), so the S1 tests drive the real `sync`
+against the `HoldingCenter` fake and the spy backend (review R2-3). `HoldingCenter` is `private` to
+`ReconcileOverlapTests.swift:12` today; move it to `SoundpostTests/DeliveryTestSupport.swift` as an
+internal type rather than copying it (review R3-1).
+
+**Token handoff at launch (cheap hardening, low severity).** Set `SoundpostAppDelegate.registrar`
+in `SoundpostApp.init`, where `CaptureRequests.coordinator` is already set, rather than in a
+`.task`, so no ordering assumption is left.
+
+**Tests (all must fail on today's code):**
+- *The last day:* a far seal stamped as server-owned; sync at `due − 23 h` with the spy backend →
+  assert the scheduler holds a request for that capsule after that one sync. (Today: none.)
+- *Seal and never reopen:* the sync that upserts a far seal → after it, no local request for that
+  capsule remains (today the local one stays until the next sync — a duplicate on the day).
+- *Never answers:* a backend whose `upsertJob` suspends forever (a held continuation —
+  `SpyDeliveryBackend` has no such mode yet); save the context mid-flight; a fresh
+  `SealDeliveryService` on the same store must call `upsertJob` again and the planner must still
+  schedule the local reminder.
+- *Changed during the await:* one case per row of the table above.
+- *Overlap:* a second reconcile while a cancel is in flight sends no second `cancelJob`.
+- *Fresh re-plan wins correctly:* sync A suspends in the delivery reconcile; sync B (an echo edit)
+  applies; A's re-plan must include B's change.
+- The M19 64-slot baseline (`AlmanacTests.theAlmanacCannotEvictASealFromTheBudget`) stays equal;
+  every existing `SealDeliveryTests` case stays green (all of them assert after `reconcile`
+  returns — review R1-8).
+
+### 4C. S2 — `LaunchSequence`, order-only
+
+Extract the RootView `.task` body's ordered steps into `LaunchSequence`, which **owns the
+production step implementations** given its dependencies (store, coordinator, monitors), so
+`SoundpostApp.swift` calls only `LaunchSequence(…).run()`; tests construct it with a `Steps`
+value of closures instead (review R1-6). Behaviour change: **none** — the commit must be
+reviewable as a move. Tests record call order with fakes and assert: the exact
+order; a throwing consent read ⇒ no remediation, no backfill, sync still runs; no standing ⇒ no
+drains; the post-consent sync comes after consent. A source guard asserts `SoundpostApp.swift`
+calls `LaunchSequence.run` and contains none of the step calls directly (so a step cannot be
+re-added beside it). The sibling tasks stay where they are; document that their order relative to
+the sequence is not guaranteed and why that is safe (§3).
+
+### 4D. S3 — standing is earned
+
+Replace the getter's live seed with a **one-shot, non-destructive migration**, run as the first
+step of `LaunchSequence` before standing is read: if the marker key
+(`sound.standingSeedMigrated`) is absent, then **only if** `sound.hasRecordedHere` is unset and
+`hasCompletedOnboarding` is true *at that moment*, set `hasRecordedHere = true`; write the marker
+either way. Never write `false` (review R1-5: an existing `true` must survive). All three keys are
+read and written through `SoundAnalysisPreferences.defaults`, never `UserDefaults.standard`, so the
+task-local test suite (`TestSupport.withIsolatedListeningPreference`) isolates them (review R2-5).
+The getter then returns only the stored key. Effect: an install that finished onboarding before
+1.11.0 keeps its standing (as today); an install that finishes onboarding after 1.11.0 is
+installed gains standing only by recording here or by an answered consent row. An iCloud/Finder
+backup restore carries the keys with it, which is correct (it is the same history). Rewrite
+`anUpgradedInstallInheritsStandingFromOnboarding` into two tests (upgrade keeps it; new install
+does not) and add the phone-set-up-as-new sequence from §3 as a test. The safe direction for a
+mistake here is *less* standing. Default assumed; §8 D4 lets Jason choose "drop the seed
+entirely" instead.
+
+### 4E. S4 — honesty and noise
+
+- **Edit sheet:** when the echo is on, show the same notice capture's echo row shows, by the same
+  rule (`remindersWouldBeDelivered`; the sheet gains `@Environment(NotificationCoordinator.self)`,
+  which it does not read today — review R2-6) — reuse the existing string; no new copy unless the existing
+  sentence is not literally true in the edit context (then add one, translated).
+- **Settings › Delete my cloud data:** its sentence "…fall back to this device's local schedule"
+  (`SettingsView.swift:105`) is true only with permission; reword or qualify, translated.
+- **Expected network errors:** `CloudSyncMonitor` stops reporting `CKError.networkUnavailable`
+  and `.networkFailure` (outer or underlying) — an offline phone is not a fault; keep the local
+  log line. Test by the existing report seam.
+- **Store retry:** make the retry a loop inside one `isLoading` window (or reset the flag before
+  re-entering) behind an injectable product loader; dormant while Pro is off sale, so this is
+  test-only behaviour. Keep `ProOfferTests` green.
+
+### 4F. S5 — the delivery server stops retrying forever
+
+**SQL only — no Edge Function change, so nothing to deploy but the migration** (review R1-4: a
+change in `index.ts`/`state.ts` would also need `supabase functions deploy`, and the poller's
+`JobRow` does not even select `wall_clock`/`time_zone`). Migration `0003_m21_hygiene.sql` (in the
+repo; **applied to Production only on Jason's word**) adds one `security definer` function and one
+nightly `pg_cron` job, `m21_delivery_hygiene` (idempotent unschedule-then-schedule, as `0002`):
+- a `pending` job whose `last_error = 'no_tokens'` and whose fire instant is more than 7 days past
+  settles as `failed` with `last_error = 'no_tokens_expired'`. The fire instant is computed with
+  the same throw-proof guard `is_job_due` uses (a malformed `time_zone` must not abort the batch);
+  the user still gets the local reveal when they next open the app;
+- `sent` and `failed` rows older than 90 days (`updated_at`) are deleted;
+- touches only `public.notification_jobs`; no other app's tables or cron jobs.
+A SQL test script (`backend/supabase/tests/0003_hygiene_test.sql`, runnable against a local
+`supabase start` database) seeds rows across the boundaries and asserts the outcome; the agent
+runs it locally if the Supabase CLI and Docker are available, otherwise records that it could not.
+CI: optionally run the existing Deno tests (`deno test backend/supabase/functions`) via
+`brew install deno` on the macOS runner — no third-party action; drop it if it costs more than a
+few minutes of CI.
+
+### 4G. S6 — the release
+
+`MARKETING_VERSION 1.11.0`, build 23. Release notes in three languages describe only what a user
+can notice (the seal reminder on its day; the edit-sheet notice; the consent fix only if it can be
+said calmly and truly). Listing unchanged unless a claim changes. Promotional text: push
+`metadata/*/promotional_text.txt` (empty on App Store Connect since 1.9.0) only if §8 D6 says
+yes. Clean Xcode 27 gate, CI green, `build-upload-asc.sh`, `asc.py` attach/submit,
+`releaseType MANUAL`; the release on Jason's word.
+
+---
+
+## 5. Work breakdown
+
+1. **S0** starts day 1 (Jason) and runs in parallel.
+2. **S1** → **S2** → **S3** → **S4** → **S5** → **S6**. S3 depends on S2 (the migration is a
+   `LaunchSequence` step).
+3. S6 does not wait for S0 or for S5's Production apply; it records both outcomes.
+
+---
+
+## 6. Privacy / legal delta
+
+- S1 sends nothing new; it sends the same job later and cancels orphans sooner.
+- S3 *reduces* analysis on a phone set up as new before its consent row arrives.
+- S5 deletes server rows (sent/failed jobs older than 90 days) — less retained data; the privacy
+  policy's delivery section already describes these rows; no wording change expected (check).
+- Sentry geo (§8 D7) is a settings decision with a possible privacy-label consequence.
+
+---
+
+## 7. Risks & mitigations
+
+| Risk | Mitigation |
+|---|---|
+| A re-plan inside `sync` races a newer sync | new generation taken on the main actor at re-plan time; turnstile skips the older |
+| The re-plan's fresh fetch fails and plans nothing | abandon the re-plan on a throw; never plan from `[]` (R2-1) |
+| In-memory in-flight set lost on a kill | that is the point: nothing persisted, so the next launch upserts again; the local reminder stays scheduled meanwhile |
+| Duplicate push + local on the day during the transition | the post-upsert re-plan removes the local request; receipt-time dedup remains |
+| `LaunchSequence` refactor changes behaviour | order-only commit, call-order tests, a source guard, privacy reviewers' lens in §12 |
+| Standing migration revokes standing an upgraded user had | migration copies today's effective value before switching the getter; tests for upgrade and new install |
+| Server migration on a shared Production project | SQL only, tested against a local database; applied only by Jason; idempotent; touches only `notification_jobs` and its own cron job |
+| Expected-error filter hides a real outage | only `networkUnavailable` / `networkFailure`; everything else still reported once per kind per launch |
+
+---
+
+## 8. Human-in-the-loop (needs Jason)
+
+**Steps**
+- **S0** delivery witness (§4A) — day 1.
+- **S5** apply `0003_m21_hygiene.sql` to Supabase Production (or say no).
+- **S6** "release" — the only public, irreversible action.
+
+**Decisions** (M21 assumes the default in **bold**)
+- **D1 Pro:** **A keep hidden** (unchanged from M20).
+- **D2 Growth lever for M22 — DECIDED 2026-11-08: yes.** Jason: "D2 同意，M22 做小组件". M22
+  builds a launcher widget + an iOS 18 Control Center control in one widget-extension target (a
+  launcher shows no data, so it needs **no** App Group). M21 still adds no target (rule 1.5).
+- **D3 Server hygiene migration:** **apply `0003_m21_hygiene.sql` after review** (SQL only; no
+  function deploy) / leave as is.
+- **D4 Standing seed:** **one-shot migration** (§4D) / drop the seed entirely (upgraded installs
+  that never recorded lose standing until their consent row or first recording).
+- **D5 App Store Connect analytics report request** (one POST, aggregated, opted-in): recommended
+  **yes** — Sales and Trends gives downloads only; sessions come from Sentry and include review
+  devices.
+- **D6 Promotional text** (no review needed): recommended **yes**, from the repo's file.
+- **D7 Sentry:** turn off city-level geo for the project (and decide whether the privacy label
+  needs a change).
+- **D8 TestFlight internal group** (carried from M20 D6): recommended **yes** — future witnesses
+  without touching the App Store build.
+- **D9 Repo hygiene** (deletions are yours): `build/` holds 250 MB in iCloud-synced `~/Documents`
+  (376 logs, `Soundpost 2…9.xcarchive` conflict copies, five copies of js's store); `.git/index 2`
+  and empty `metadata/* 2` folders; branches `release/1.6.1`, `release/1.6.2` (the §11L
+  carve-out record — you wanted to revisit it in person) and the merged
+  `chore/build-roots-2026-10-15`; worktree `.claude/worktrees/dazzling-satoshi-fb69f2` (one WIP
+  commit, likely superseded by M20 S1's dSYM gate).
+
+---
+
+## 9. Reuse map
+
+| Need | Already exists |
+|---|---|
+| Serialised scheduler reconcile with generations | `ReconcileTurnstile`, `NotificationCoordinator.syncGeneration` (M20 S3) |
+| Fresh existence check before a delivery decision | `SealDeliveryService.isStored`, `drainPendingCancels` (M20 S2) |
+| Durable cancel of an orphan job | `DeliveryPreferences.enqueuePendingCancel` / drain (M10 §S4) |
+| Spy backend for delivery tests | `SpyDeliveryBackend` (`DeliveryTestSupport.swift`) — add a suspend mode |
+| A notification centre whose `add` can be held | `HoldingCenter` (`ReconcileOverlapTests.swift:12`, private today — move it beside the spy backend) |
+| Isolated preferences in async tests | `TestSupport.withIsolatedDeliveryPreferences`, `withIsolatedListeningPreference` |
+| Source-shape guard pattern | `CaptureLaunchTests`, `WriteFailureViewGuardTests`, `ProOfferTests` |
+| Mutation harness | M20 §13 (`mutate.py` pattern: cp snapshot, apply, `-only-testing`, restore, `cmp`) |
+| Shared build packages | `scripts/lib/build_cache.sh` (`CLAUDE.md`) |
+| Release tooling with guards | `scripts/release-preflight.sh`, `build-upload-asc.sh`, `asc.py` (M20 S1) |
+
+---
+
+## 10. Acceptance criteria
+
+- §0 success list holds; S0's outcome and S5's apply decision recorded in §13.
+- Every new test has a recorded control mutation that made it fail.
+- CI green on the final commit; `MIN_TESTS` ≥ the final count.
+- 1.11.0 submitted through the guarded tools; release on Jason's word.
+
+---
+
+## 11. Out of scope / M22
+
+- **M22's headline (D2, approved):** a Home Screen / Lock Screen launcher widget and an iOS 18
+  Control Center control in one new widget-extension target, opening capture idle through the
+  existing `CaptureRequests` → `CaptureLaunchRoute` path (M20 S5). A content widget (Coming up /
+  On this day) needs an App Group and a privacy decision — scope it inside M22.
+- Live Activities (conflicts with foreground-only recording), capture-prompt notifications
+  (rule 1.2).
+- Pro, whichever way D1 goes; the theme-undo gap (M19 §11).
+- `sealedAt`; the orphan sweep; rejection identifier migration; Swift 6 strict-concurrency
+  re-measure (`docs/SWIFT6-TRIAL.md` dates from M12); the `CLGeocoder` → MapKit branch; Xcode 27
+  on CI when runner images ship it.
+- Sibling devices after "Delete my cloud data" send one failing upsert per far seal per sync
+  (documented as intended in `0001`; load only).
+
+---
+
+## 12. Review record
+
+### Round 1 — Gemini 3.8 Flash (high), via `agy`, 2026-11-08
+
+Confirmed the headline defect by its own trace (sync plans at `:152`, the delivery reconcile cancels
+and clears at `:103–118`, `sealSignature` ignores the stamp). Eight findings, each checked against
+the code before acting:
+
+| ID | Finding | Verdict | Change |
+|---|---|---|---|
+| R1-1 | Queuing a cancel for a *changed* capsule does nothing: the drain resolves without cancelling when the capsule is still stored | **partly right.** A changed instant re-arms the same server row on the next upsert (`unique (user_key, capsule_id)`, `0001:152–205`), so no orphan. But a capsule unsealed or brought inside the horizon during the await would keep its job | §4B table: cancel now, and the drain cancels a stored capsule that is no longer a far seal |
+| R1-2 | A new generation over the stale `capsules` would overwrite a newer sync | right | §4B: re-plan from a fresh fetch |
+| R1-3 | The in-flight set must guard the cancel loop too | right | §4B |
+| R1-4 | Server change needs an Edge Function deploy; `JobRow` lacks the instant | right | §4F: SQL-only nightly job, nothing to deploy |
+| R1-5 | The standing migration could overwrite an existing `true` | right | §4D: non-destructive |
+| R1-6 | Closure injection contradicts the source guard | right | §4C: `LaunchSequence` owns production steps |
+| R1-7 | `localHorizon` is on `SealDeliveryRouter` | right | §0 |
+| R1-8 | No existing test asserts mid-await | right | §4B wording |
+
+Verdict: CHANGES REQUESTED → revised.
+
+### Round 2 — Gemini 3.8 Flash (high), via `agy`, 2026-11-08
+
+Checked every round-1 change against the code: the delete path stays safe under the new drain
+rule, the fresh re-plan keeps the turnstile's newest-wins contract, local scheduling still runs
+before the network, the standing migration closes the gap, the SQL-only job needs no deploy. Seven
+findings, all confirmed against the code:
+
+| ID | Sev. | Finding | Change |
+|---|---|---|---|
+| R2-1 | major | A failed fresh fetch would plan `[]` and remove every pending request | §4B: abandon the re-plan on a throw; digests from the fresh array; §7 |
+| R2-2 | major | "Still a far seal" needs the reconcile's `now`, not `Date.now` | §4B: `drainPendingCancels(now:horizon:)`, one shared predicate |
+| R2-3 | major | `NotificationCoordinator.init()` hard-wires the system centre (`:113`); the S1 tests cannot see what `sync` schedules | §4B: an internal injecting init |
+| R2-4 | minor | A capsule deleted during the await should be cancelled now, not only queued | §4B table |
+| R2-5 | minor | The migration must use `SoundAnalysisPreferences.defaults` | §4D |
+| R2-6 | minor | The edit sheet has no `NotificationCoordinator` in its environment | §4E |
+| R2-7 | minor | S0 should confirm a token before the two-day wait | §4A step 1 |
+
+Verdict: CHANGES REQUESTED → revised. Also recorded: Jason approved §8 D2 (M22 builds the widget).
+
+### Round 3 — confirmation, Gemini 3.8 Flash (high), via `agy`, 2026-11-08
+
+Checked each round-2 change against the files it touches and found every one correct, sufficient
+and implementable, with no new problem; it confirmed the edit-sheet notice can reuse capture's
+existing echo string, so no new translation. One minor finding, confirmed and applied:
+
+| ID | Sev. | Finding | Change |
+|---|---|---|---|
+| R3-1 | minor | `HoldingCenter` is `private` to `ReconcileOverlapTests.swift:12`; the S1 tests need it | §4B, §9: move it to `DeliveryTestSupport.swift` |
+
+**Verdict: APPROVE.** No blockers remain.
+
+---
+
+## 13. Build record
+
+*(to be filled per step)*
