@@ -103,11 +103,11 @@ reminder and the push look identical — only `status = 'sent'` proves the serve
 | **S1** | The seal delivers on its day: re-plan after a delivery change; stamp only after the server answers | M | none |
 | **S2** | `LaunchSequence`: the privacy-critical launch order in one tested type (order-only refactor) | M | none |
 | **S3** | Listening standing is earned, not inherited from onboarding | S | §8 D4 (default assumed) |
-| **S4** | Honesty and noise: edit-sheet reminder notice, expected network errors not reported, dormant store retry | S | none |
+| **S4** | Honesty and noise: edit-sheet reminder notice, expected network errors not reported, dormant store retry; CI package cache | S | none |
 | **S5** | Delivery server hygiene: `no_tokens` jobs end; old rows expire (SQL only) | S | **Jason applies the migration** (§8 D3) |
 | **S6** | 1.11.0 release: notes, listing where literally true, gates, submission | S | Jason says release |
 
-**Drop order if tight:** S5's CI step → S4's store retry → S5 → S4. Never drop S1 (the headline
+**Drop order if tight:** S5's CI step → S4's CI package cache → S4's store retry → S5 → S4. Never drop S1 (the headline
 defect) or S2/S3 (privacy).
 
 ---
@@ -313,6 +313,15 @@ entirely" instead.
 - **Expected network errors:** `CloudSyncMonitor` stops reporting `CKError.networkUnavailable`
   and `.networkFailure` (outer or underlying) — an offline phone is not a fault; keep the local
   log line. Test by the existing report seam.
+- **CI survives a GitHub release-asset outage.** On 2026-11-08 CI went red four times on
+  docs-only commits because `github.com/getsentry/sentry-cocoa/releases/download/8.58.3/*.xcframework.zip`
+  answered 504 (GitHub's status page said all systems operational). Cache the resolved Swift
+  packages between CI runs with the first-party `actions/cache`, keyed on `Package.resolved`, so a
+  warm run downloads nothing; a cold run (key change) can still fail and is retried by hand. Verify
+  the cache is actually hit (log line) and that a key change still resolves. Drop-able.
+  (Already done on 2026-11-08, `db408a5`: `check-debug-only.sh` prints the build log's error lines
+  and tail when the Release build fails twice — before that, CI said only "see
+  build/release-check.log".)
 - **Store retry:** make the retry a loop inside one `isLoading` window (or reset the flag before
   re-entering) behind an injectable product loader; dormant while Pro is off sale, so this is
   test-only behaviour. Keep `ProOfferTests` green.
@@ -509,6 +518,17 @@ existing echo string, so no new translation. One minor finding, confirmed and ap
 | R3-1 | minor | `HoldingCenter` is `private` to `ReconcileOverlapTests.swift:12`; the S1 tests need it | §4B, §9: move it to `DeliveryTestSupport.swift` |
 
 **Verdict: APPROVE.** No blockers remain.
+
+### After approval (2026-11-08)
+
+CI went red on the plan commit itself (`271095b`, docs only) at the debug-only gate, twice on
+re-run, on the same runner image (`macos-26-arm64`, `20261102.0473.1`) that had passed hours
+earlier. The gate only said "see build/release-check.log". `db408a5` makes it print the log, which
+showed the cause: GitHub answering **504** for Sentry 8.58.3 release assets. Reproduced from this
+Mac with `curl`; by 19:26 JST every `github.com/<owner>/<repo>/releases/download/…` URL answered 504,
+other projects' too (`cli/cli`), on the first hop, while githubstatus.com still said "All Systems
+Operational". The last green run is `7b3e1d5`; `271095b` and `db408a5` are red only for this. Not a
+code defect. Added to S4 as a drop-able tooling item: cache the resolved packages in CI.
 
 ---
 
