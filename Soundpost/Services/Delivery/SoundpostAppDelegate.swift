@@ -10,8 +10,8 @@ import os
 /// (the `UNUserNotificationCenterDelegate`); this class is deliberately *not*
 /// that delegate, so the two never fight over the same callbacks.
 final class SoundpostAppDelegate: NSObject, UIApplicationDelegate {
-    /// Set by `SoundpostApp` on launch so the token callbacks can reach the
-    /// registrar. Weak: the App owns the registrar's lifetime.
+    /// Set by `SoundpostApp.init` so the token callbacks can reach the registrar —
+    /// before any token can arrive (M21 §4B). Weak: the App owns its lifetime.
     @MainActor static weak var registrar: DeliveryRegistrar?
 
     private let log = Logger(subsystem: "com.soundpost.Soundpost", category: "delivery")

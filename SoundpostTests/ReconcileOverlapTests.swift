@@ -3,56 +3,6 @@ import Testing
 import UserNotifications
 @testable import Soundpost
 
-/// A notification centre whose next `add` can be held mid-flight, so two reconciles
-/// can be made to overlap at exactly the suspension where they used to interfere.
-///
-/// Thread-safe on purpose: `NotificationScheduler.reconcile` is a nonisolated `async`
-/// function, so two calls run on the global executor and — when nothing serialises
-/// them, which is what the controls for this suite reintroduce — at the same time.
-private final class HoldingCenter: UserNotificationScheduling, @unchecked Sendable {
-    private let lock = NSLock()
-    private var _pending: [String] = []
-    private var _everAdded: [String] = []
-    private var holdNext = false
-    private var held: CheckedContinuation<Void, Never>?
-
-    var pending: [String] { lock.withLock { _pending } }
-    var everAdded: [String] { lock.withLock { _everAdded } }
-    var isHoldingAnAdd: Bool { lock.withLock { held != nil } }
-
-    func holdNextAdd() { lock.withLock { holdNext = true } }
-
-    func releaseHeldAdd() {
-        let continuation = lock.withLock { () -> CheckedContinuation<Void, Never>? in
-            defer { held = nil }
-            return held
-        }
-        continuation?.resume()
-    }
-
-    func pendingRequestIdentifiers() async -> [String] { pending }
-
-    func removePendingRequests(withIdentifiers ids: [String]) {
-        lock.withLock { _pending.removeAll { ids.contains($0) } }
-    }
-
-    func add(_ request: UNNotificationRequest) async throws {
-        let shouldHold = lock.withLock { () -> Bool in
-            defer { holdNext = false }
-            return holdNext
-        }
-        if shouldHold {
-            await withCheckedContinuation { continuation in
-                lock.withLock { held = continuation }
-            }
-        }
-        lock.withLock {
-            _pending.append(request.identifier)
-            _everAdded.append(request.identifier)
-        }
-    }
-}
-
 /// Overlapping reconciles converge on the newest plan (M20 §4D).
 ///
 /// Eleven call sites can start a notification sync, and nothing used to serialise the

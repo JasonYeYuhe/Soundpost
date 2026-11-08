@@ -15,7 +15,11 @@ enum CapsuleActions {
     ///    check (`SealDeliveryService.drainPendingCancels`) finds the capsule still
     ///    there and drops the entry instead of cancelling a live seal's push.
     /// 2. Delete and save as one write (`CapsuleStore.commitDelete`). On failure the
-    ///    pending deletes are undone and the queue entry resolved here.
+    ///    pending deletes are undone and the queue entry resolved here — **only if this
+    ///    delete added it**. An entry already queued belongs to someone else: since M21
+    ///    the delivery reconcile queues one to take back a job it upserted for a capsule
+    ///    that changed under the request, and resolving that here would leave the job on
+    ///    the server for good if its own cancel had failed.
     /// 3. Only then remove the audio file and ask the server. The file used to go
     ///    first, so a failed save left a capsule with no sound; the cancel used to fire
     ///    regardless, so a failed delete took a surviving seal's push with it.
@@ -29,11 +33,12 @@ enum CapsuleActions {
     ) -> Bool {
         let capsuleID = capsule.id
         let audioFile = capsule.audioFileName
+        let alreadyQueued = DeliveryPreferences.pendingCancelCapsuleIDs.contains(capsuleID)
         DeliveryPreferences.enqueuePendingCancel(capsuleID)
         do {
             try store.commitDelete(capsule, commit: commit)
         } catch {
-            DeliveryPreferences.resolvePendingCancel(capsuleID)
+            if !alreadyQueued { DeliveryPreferences.resolvePendingCancel(capsuleID) }
             Diagnostics.notice("Delete save failed at user action")
             return false
         }

@@ -116,6 +116,18 @@ final class NotificationCoordinator: NSObject, UNUserNotificationCenterDelegate 
         center.delegate = self
     }
 
+    #if DEBUG
+    /// Test seam (M21 §4B): drive the real `sync` against a stand-in centre, so a test
+    /// can see what it schedules — `UNUserNotificationCenter` cannot be constructed or
+    /// stubbed. Does not become the system centre's delegate: the test host's app
+    /// already holds that role.
+    init(center scheduling: UserNotificationScheduling, delivery: SealDeliveryService?) {
+        scheduler = NotificationScheduler(center: scheduling)
+        super.init()
+        sealDelivery = delivery
+    }
+    #endif
+
     @discardableResult
     func requestAuthorization() async -> Bool {
         let granted = (try? await center.requestAuthorization(options: [.alert, .sound, .badge])) ?? false
@@ -149,6 +161,52 @@ final class NotificationCoordinator: NSObject, UNUserNotificationCenterDelegate 
         // First, before anything can suspend: this call's place among all syncs.
         syncGeneration += 1
         let generation = syncGeneration
+        // The local plan first, and without waiting on the network (offline-first).
+        await planAndReconcile(capsules: capsules, in: context, now: now, generation: generation)
+
+        // Reconcile the far-seal job set with the server in lockstep with the
+        // local plan (no-op when signed out / backend unconfigured).
+        guard let sealDelivery,
+              await sealDelivery.reconcile(capsules: capsules, in: context, now: now) else { return }
+
+        // **A delivery change re-plans, from fresh data** (M21 §4B). The plan above
+        // read `serverJobSyncedAt` before the server was asked, so whatever the
+        // reconcile just changed is not in it — and the case that matters most is a far
+        // seal entering its last day: the plan left it out (the server owned it), then
+        // the reconcile cancelled its job and handed it back. Nothing re-planned, so if
+        // the app was not opened again before the day, neither the push nor the local
+        // reminder fired.
+        //
+        // Never from `capsules`: that array was taken before the network wait, and a
+        // sync that ran meanwhile may have changed the library (a capture saved, a
+        // capsule deleted). This plan gets a new, higher number — it is the newest
+        // look at the store, so it is right for it to win over any sync that started
+        // during the wait; over the stale array it would have overwritten a newer plan.
+        let fresh: [Capsule]
+        do {
+            fresh = try fetchCapsulesForReplan(context)
+        } catch {
+            // Abandon, never plan from `[]`: an empty plan would remove every pending
+            // request. The schedule stays as the plan above left it, and the next sync
+            // re-plans.
+            Diagnostics.notice("Could not re-read capsules after a delivery change; keeping the current schedule",
+                               code: (error as NSError).code)
+            return
+        }
+        syncGeneration += 1
+        await planAndReconcile(capsules: fresh, in: context, now: now, generation: syncGeneration)
+    }
+
+    /// Where the re-plan reads the library from. A seam only so a test can make the
+    /// fetch fail (SwiftData offers no supported way to); production reads the store.
+    @ObservationIgnored
+    var fetchCapsulesForReplan: (ModelContext) throws -> [Capsule] = { try CapsuleStore(context: $0).all() }
+
+    /// Plan the local notifications for `capsules` and reconcile the scheduler to the
+    /// plan under `generation`. One function for the first pass and the re-plan, so the
+    /// two cannot drift apart.
+    private func planAndReconcile(capsules: [Capsule], in context: ModelContext,
+                                  now: Date, generation: Int) async {
         let plan = NotificationPlanner.plan(capsules: capsules, now: now)
         let personalized = NotificationPreferences.personalized
         let listening = SoundAnalysisPreferences.isEnabled
@@ -192,10 +250,6 @@ final class NotificationCoordinator: NSObject, UNUserNotificationCenterDelegate 
         ) { item in
             NotificationCopy.make(for: item, digest: digests[item.capsuleID], personalized: personalized)
         }
-
-        // Reconcile the far-seal job set with the server in lockstep with the
-        // local plan (no-op when signed out / backend unconfigured).
-        await sealDelivery?.reconcile(capsules: capsules, in: context, now: now)
     }
 
     // MARK: Delivery-time dedup

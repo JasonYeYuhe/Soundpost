@@ -60,7 +60,13 @@ struct SoundpostApp: App {
         // the coordinator through this one hook, set before any scene connects (M20 §4F).
         CaptureRequests.coordinator = coordinator
         _notifications = State(initialValue: coordinator)
-        _registrar = State(initialValue: DeliveryRegistrar(backend: backend, identity: identity))
+        // The APNs token callbacks reach the registrar through this hook, set here —
+        // before any scene connects and before the delegate's launch-time settings read
+        // can return — rather than in a view's `.task`, so no launch can deliver its
+        // token to a registrar that is not there yet (M21 §4B).
+        let tokenRegistrar = DeliveryRegistrar(backend: backend, identity: identity)
+        SoundpostAppDelegate.registrar = tokenRegistrar
+        _registrar = State(initialValue: tokenRegistrar)
         _sealDelivery = State(initialValue: delivery)
         _storeService = State(initialValue: StoreService(autoStart: !AppEnvironment.isRunningUnderTests))
     }
@@ -73,10 +79,6 @@ struct SoundpostApp: App {
                 .environment(playback)
                 .environment(registrar)
                 .environment(storeService)
-                // Hand the registrar to the AppDelegate so APNs token callbacks
-                // can reach it. The register-on-launch reconciliation in the
-                // delegate covers the brief race before this runs.
-                .task { SoundpostAppDelegate.registrar = registrar }
         }
     }
 }

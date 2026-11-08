@@ -534,4 +534,134 @@ code defect. Added to S4 as a drop-able tooling item: cache the resolved package
 
 ## 13. Build record
 
-*(to be filled per step)*
+### S0 — the APNs witness (Jason; runs in parallel)
+
+**Before the witness, 2026-11-08 20:10 JST** (read-only; key hashes are 8-character md5 prefixes):
+
+| table | rows |
+|---|---|
+| `device_tokens` | `367e950d` production, created and last updated **2026-10-07 07:54 UTC**; `cefa75e3` production, 2026-10-23 |
+| `notification_jobs` | `525b7989` 2027-09-15 LA `pending`; `367e950d` 2028-06-09 Shanghai `pending`; `690e6cb9` 2026-11-07 LA `pending`, `no_tokens` |
+| `delivery_optouts` | `b423c1b2`, `7f251443` (unchanged since M20) |
+
+`367e950d` is the phone M20 S0 used (Asia/Shanghai), and it has a production token — but
+`register_device_token` sets `updated_at = now()` on every launch's re-registration
+(`DeliveryRegistrar.registeredToken` is memory-only), so a row last touched on 2026-10-07 says
+that phone has not opened Soundpost with notifications allowed since. Steps sent to Jason in
+Chinese: open the App Store build once with notifications allowed (the token row's
+`updated_at` must move to today — that is the step-1 check), seal a capsule to **2026-11-10**
+in the calendar, do not open Soundpost on any device of that account from 2026-11-09 09:00
+Shanghai until the push arrives, tell the agent before tapping it (opening the app deletes the
+row — `cancel_notification_job` is a `delete`), then tap it from a killed app.
+
+### S1 — the seal delivers on its day
+
+**What changed**
+
+- `SealDeliveryService.reconcile` returns whether any `serverJobSyncedAt` changed, and
+  `NotificationCoordinator.sync` re-plans when it did: a **fresh fetch** from `context`
+  (`fetchCapsulesForReplan`, a seam only so a test can make it throw), digests and the
+  rejection index rebuilt from that array, under a **new generation** taken on the main actor.
+  A throwing fetch abandons the re-plan with a logged notice. The plan-and-reconcile half of
+  `sync` is one private function (`planAndReconcile`) used by both passes.
+- The claim-before-await is gone from both loops. A main-actor `inFlight: Set<UUID>` skips a
+  capsule in **both** the upsert and the cancel loop (and the drain). The upsert is
+  `upsertUntilSettled`: the job is built from a fresh fetch at the moment it is sent; after the
+  server answers, a second fresh fetch decides, per the §4B table — same far seal → stamp `now`;
+  still far but another instant or zone → **send that at once**, still in flight (at most three
+  sends per reconcile); no longer a far seal, or gone → `cancelOrphan` (enqueue the durable
+  cancel, then cancel now, resolve on success); the store cannot answer → queue the cancel (the
+  drain lets it be if it is still the same far seal). Nothing is stamped once "Delete my cloud
+  data" has opted the device out. The cancel loop keeps the stamp until `cancelJob` succeeds,
+  then clears it on the freshly fetched object. Everything saves through `context`.
+- `SealDeliveryRouter.desiredJob(for:now:horizon:)` is the one "still a far seal" rule;
+  `desiredJobs` maps it, and the post-upsert check and the drain ask it with the reconcile's
+  `now` (`drainPendingCancels(userKey:in:now:horizon:)`, never `Date.now`). The drain now
+  resolves without cancelling only a stored capsule that is **still a far seal**; a stored
+  capsule that is not is cancelled. The M20 delete path is unchanged: a kill between its
+  enqueue and its save leaves a stored far seal, which the drain still resolves untouched.
+- `NotificationCoordinator.init(center:delivery:)` (DEBUG) drives the real `sync` against a
+  stand-in centre; it does not take the system centre's delegate. `HoldingCenter` moved from
+  `ReconcileOverlapTests.swift` (private) to `DeliveryTestSupport.swift`. `SpyDeliveryBackend`
+  can hold the next upsert or cancel on a continuation (released, released by throwing, or
+  never), and is lock-protected for it.
+- `SoundpostAppDelegate.registrar` is set in `SoundpostApp.init`, not in a view's `.task`.
+- `CapsuleActions.delete`: a failed delete resolves the queue entry only if it added it.
+
+**Deviations** (each from the review below, or implied by the plan):
+- The §4B table's "different instant or zone → leave unstamped, the next reconcile upserts
+  again" is replaced by "send the new job at once". The plan assumed a next reconcile would come;
+  the review showed the one the re-seal starts is exactly the one that skips the capsule (it is
+  in flight), so the server could push on the old day.
+- The drain also skips an id that is in flight, and clears a stamp on a stored capsule whose job
+  it cancels (otherwise the cancel loop would send a second cancel in the same reconcile).
+- `CapsuleActions.delete` changed (M20 code): see the review's finding 4.
+
+
+**Review** (one adversarial reviewer on a frozen copy of the diff, told to refute its own
+findings before reporting; every finding then checked against the code here). Four confirmed,
+all fixed with a test:
+
+| # | Finding | Fix |
+|---|---|---|
+| 1 | "Delete my cloud data" landing while an upsert is out: Settings purges, opts out and clears every stamp; the late answer stamped the seal again — no device then schedules a local reminder, and an opted-out device never reconciles it. A regression: the old claim was cleared by Settings and never re-written | no stamp once opted out (R1: `aCloudDeleteDuringAnUpsertLeavesNoStampBehind`) |
+| 2 | A seal re-sealed while its upsert is out was left unstamped for "the next reconcile" — but the sync the re-seal starts skips it (in flight), so the server could push on the old day, and that push's dedup removes the new local reminder. Also: later iterations sent the snapshot's job, built before earlier iterations awaited | send the new job at once, still in flight (R2: the table's `resealedToAnotherDay` case); the job is built from a fresh fetch when sent (R3: `everyUpsertCarriesWhatTheStoreHoldsWhenItIsSent`) |
+| 3 | (minor) The server accepted the job but the store could not be read: nothing recorded the job | queue its cancel; the drain resolves it if it is still the same far seal (R4: `aJobTheStoreCannotConfirmIsQueuedForItsCancel`) |
+| 4 | (minor) A failed delete resolved the queue entry unconditionally, erasing a take-back queued before it | resolve only an entry the delete added (R6: `aFailedDeleteLeavesACancelSomeoneElseQueued`) |
+
+Also covered on the reviewer's note that nothing tested it: the drain's in-flight guard (R5:
+`aQueuedCancelInFlightIsNotSentTwice`). Its other note — a hold that is never reached let the
+next `await` hang — was already fixed: the waits `#require` the hold. Rejected after checking:
+"the re-plan can lose to a newer sync" (the generation is taken right after the fresh fetch, with
+no await between, so generation order is data order), "the weak static registrar can be dropped"
+(`@State` holds it). Left as is and recorded: the delete path's own `cancelJob` resolves its queue
+entry on success even if an upsert already in flight re-creates the row afterwards — that upsert's
+answer finds the capsule gone and takes the job back itself; only a second, simultaneous failure
+of that take-back loses it.
+
+**One flake, found and fixed before commit.** The first clean full run failed
+`theReplanAfterTheServerAnswers…` once: its 2-second wait for the held upsert expired, because in
+a full run every `@MainActor` suite shares the main actor. The waits now allow 30 s (they return
+as soon as the condition holds) and `#require` the hold. `DeliveredOnTheDayTests` and
+`ReconcileOverlapTests` then ran 20 times back to back, green.
+
+**Controls**, all run against the final code (`scratchpad/mutate.py`: `cp` snapshot, apply,
+`-only-testing` on `DeliveredOnTheDayTests` + `SealDeliveryTests` + `WriteFailureTests`,
+`-collect-test-diagnostics never`, restore from the snapshot, `cmp` — all four files compared
+equal afterwards). Every run executed 43 tests in 3 suites.
+
+| # | Mutation | Failed |
+|---|---|---|
+| M0 | **today's behaviour** — no re-plan, claim before the await, no take-back, the M20 drain rule | `aSealOpenedOnItsLastDayStillHasAReminderAfterThatOneSync`, `aSealTheServerTookIsNotAlsoScheduledHere`, `aRequestThatNeverAnswersClaimsNothing`, `whatTheStoreHoldsWhenTheServerAnswersDecides`, `aFailedTakeBackIsRetriedByTheNextReconcile`, `aJobTheStoreCannotConfirmIsQueuedForItsCancel`, `theDrainJudgesAtTheReconcilesOwnMoment`, `upsertFailureRevertsSoLocalBackstopStays` |
+| M1 | no re-plan after a delivery change | `aSealOpenedOnItsLastDay…`, `aSealTheServerTook…`, `theReplanAfterTheServerAnswersSeesWhatChangedMeanwhile` |
+| M2 | re-plan from the pre-await `capsules` array | `theReplanAfterTheServerAnswers…` |
+| M3 | re-plan under the old generation | `aSealOpenedOnItsLastDay…`, `aSealTheServerTook…`, `theReplanAfterTheServerAnswers…` |
+| M4 | a failed re-read plans from `[]` | `aReplanThatCannotReadTheStoreChangesNothing` |
+| M5 | the stamp claimed before the await (pre-M21) | `aRequestThatNeverAnswersClaimsNothing`, `whatTheStoreHolds…`, `aJobTheStoreCannotConfirm…`, `upsertFailureRevertsSoLocalBackstopStays` |
+| M6 | stamped after the answer without the fresh check | `whatTheStoreHolds…` |
+| M7 | no take-back for a capsule no longer a far seal | `whatTheStoreHolds…`, `aFailedTakeBack…` |
+| M8 | no take-back for a capsule deleted mid-upsert | `whatTheStoreHolds…` |
+| M9 | the drain resolves any stored capsule (the M20 rule) | `aFailedTakeBack…`, `aJobTheStoreCannotConfirm…`, `theDrainJudgesAtTheReconcilesOwnMoment` |
+| M10 | the drain judges at `Date.now` | `theDrainJudgesAtTheReconcilesOwnMoment` |
+| M11 | the cancel loop ignores the in-flight set | `aSecondReconcileDuringACancelSendsNoSecondCancel` |
+| M12 | the upsert loop ignores the in-flight set | `aSecondReconcileDuringAnUpsertSendsNoSecondUpsert`, `whatTheStoreHolds…` |
+| M13 | the take-back not queued before it is sent | `aFailedTakeBack…` |
+| M14 | the registrar handed over in a view `.task` again | `theTokenHandoffIsSetBeforeAnySceneConnects` |
+| R1 | no opt-out check after the answer | `aCloudDeleteDuringAnUpsertLeavesNoStampBehind` |
+| R2 | a far seal moved mid-request left for "the next reconcile" (the plan's original row) | `whatTheStoreHolds…` |
+| R3 | the job sent is the snapshot's, not the store's at send time | `everyUpsertCarriesWhatTheStoreHoldsWhenItIsSent` |
+| R4 | an accepted job the store cannot confirm is not queued | `aJobTheStoreCannotConfirm…` |
+| R5 | the drain ignores the in-flight set | `aQueuedCancelInFlightIsNotSentTwice` |
+| R6 | a failed delete resolves an entry it did not queue | `aFailedDeleteLeavesACancelSomeoneElseQueued` |
+
+Some tests pass on today's code by construction, and are listed here rather than in the plan's
+"fails on today's code" set: the two overlap tests and `theReplanAfterTheServerAnswers…`
+(today's claim-before-await kept the second request out and the seal out of B's plan; their
+controls are M11/M12 and M1–M3), and the tests of seams M21 adds (`aReplanThatCannotRead…`,
+`aCloudDeleteDuring…`, `everyUpsertCarries…`, `aQueuedCancelInFlight…`, `aFailedDeleteLeaves…`,
+`theTokenHandoff…`), each with its own control above.
+
+**Bars:** 705 tests in 93 suites on a clean Xcode 27.2 build (`xcodebuild clean test` in place),
+0 warnings, i18n 100% across 3 catalogs; the almanac's 64-slot baseline unchanged
+(`AlmanacTests` green, planner untouched); CI floor raised to 705.
+
