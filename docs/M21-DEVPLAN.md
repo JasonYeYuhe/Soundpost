@@ -771,3 +771,56 @@ compared equal):
 
 **Bars:** 717 tests in 94 suites on a clean Xcode 27.2 build, 0 warnings, i18n 100%; CI floor
 raised to 717.
+
+### S4 — honesty and noise
+
+**What changed**
+
+- **Edit sheet:** with the echo on and `remindersWouldBeDelivered` false, it shows capture's own
+  sentence, "Notifications are off, so this won't reach you until you turn them on."
+  (`CapsuleEditSheet.echoNotice`; the sheet reads `NotificationCoordinator` from the
+  environment). Capture's other sentence — "A surprise reminder of what today sounded like." — is
+  not true of a capsule edited on another day, so the sheet says nothing when the reminder will
+  arrive. No new string.
+- **Settings › Delete my cloud data:** "…fall back to this device's local schedule." now ends
+  "…local schedule, which can alert you only while notifications are on for Soundpost." —
+  true in every permission state (JA/ZH-Hans translated; the old key replaced in the catalog).
+- **An offline phone is not a fault:** `CloudSyncMonitor` sends nothing to Sentry for `CKError`
+  `.networkUnavailable` / `.networkFailure`, outer or anywhere in the underlying chain; it logs
+  them locally (`Diagnostics.info` with the same three integers), once per kind per launch. The
+  existing retry-storm test used `.networkFailure` as its example of a reportable error; it now
+  uses `.zoneBusy` / `.serverRejectedRequest`.
+- **Store retry:** `loadProducts()` keeps its off-sale guard and hands off to
+  `loadProducts(using:pause:)`, which retries in a loop inside one `isLoading` window (at most 5
+  attempts, exponential backoff, stops on cancellation). The recursive retry it replaces
+  re-entered while `isLoading` was true and returned at once. Still unreachable while Pro is off
+  sale; `ProOfferTests` unchanged and green.
+- **CI package cache:** the job names `$RUNNER_TEMP/SourcePackages`, restores it with
+  `actions/cache@v6` keyed on `Package.resolved`, and resolves into it once
+  (`scripts/lib/build_cache.sh`, which on CI still adds nothing unless the job names a
+  directory). Both CI builds — the debug-only gate's Release build and the test run — build from
+  it. Whether a warm run really downloads nothing is read from the next run's log (below).
+
+**Deviation:** none.
+
+**Controls** (`HonestAndQuietTests` + `CloudSyncMonitorTests`, 16 tests per run; restored and
+compared equal):
+
+| # | Mutation | Failed |
+|---|---|---|
+| H1 | the edit sheet decides by `canPromiseAReminder` | `theEditSheetDecidesByWhetherTheReminderWouldBeDelivered` |
+| H2 | the edit sheet never shows the notice | `theEditSheetSaysWhenAnEchoWillNotArrive` |
+| H3 | the edit sheet promises "today" when the reminder will arrive | same |
+| H4 | an offline phone is reported to Sentry again | `anOfflinePhoneIsLoggedNotReported` |
+| H5 | only the outer error is checked for "offline" | same |
+| H6 | the store retry re-enters inside the `isLoading` window (pre-M21) | `aFailedProductLoadIsRetriedUntilItSucceeds`, `aProductLoadThatKeepsFailingStopsAfterFiveTries` |
+| H7 | the store retry has no cap | `aProductLoadThatKeepsFailingStopsAfterFiveTries` |
+| H8 | the unqualified cloud-delete sentence is back | `theCloudDeleteSentenceHoldsWithNotificationsOff` |
+| H9 | the edit sheet computes the notice but never shows it | `theEditSheetDecidesByWhetherTheReminderWouldBeDelivered` |
+
+The CI cache's own check is CI: `build_cache.sh`'s CI branch was exercised locally against the
+existing package directory (named → the three package flags; unnamed or `off` → nothing), without
+a network resolve.
+
+**Bars:** 723 tests in 95 suites on a clean Xcode 27.2 build, 0 warnings, i18n 100%; CI floor
+raised to 723.

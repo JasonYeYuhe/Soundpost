@@ -122,34 +122,53 @@ final class StoreService {
         // device, for the very products the 1.9.0 rejection said were never submitted.
         // Owners are unaffected: `isPro` comes from `refreshPurchasedProducts`.
         guard ProOffer.isOnSaleInThisBuild else { return }
+        await loadProducts(using: { try await Product.products(for: $0) })
+    }
+
+    /// The load, with its retries **inside one `isLoading` window** (M21 §4E).
+    ///
+    /// The retry used to call `loadProducts()` again from inside the failed attempt,
+    /// while `isLoading` was still true — so the second call met `guard !isLoading`,
+    /// returned at once, and no load was ever retried. Dormant while Pro is off sale
+    /// (the public entry returns before this), which is why it went unseen; now a loop.
+    /// Internal so a test can drive it: StoreKit's `Product` cannot be stood in for.
+    /// - Parameters:
+    ///   - loader: fetches the products for the ids.
+    ///   - pause: waits before retry number `attempt` (exponential backoff in the app).
+    func loadProducts(
+        using loader: ([String]) async throws -> [Product],
+        pause: (_ attempt: Int) async -> Void = { attempt in
+            try? await Task.sleep(for: .seconds(pow(2.0, Double(attempt))))
+        }
+    ) async {
         guard !isLoading else { return }
         isLoading = true
+        defer { isLoading = false }
         loadError = nil
+        loadAttempts = 0
 
-        do {
-            let ids = ProProduct.allCases.map(\.rawValue)
-            // Annual first, lifetime second (ascending price), so the paywall can
-            // show the lower-entry on-ramp before the "keep forever" anchor.
-            products = try await Product.products(for: ids).sorted { $0.price < $1.price }
-            loadError = nil
-            loadAttempts = 0
-            logger.info("Loaded \(self.products.count) products")
-        } catch is CancellationError {
-            // Don't retry on cancellation.
-        } catch {
-            loadAttempts += 1
-            loadError = error.localizedDescription
-            logger.error("Failed to load products (attempt \(self.loadAttempts)): \(error)")
-
-            // Exponential backoff retry (max 5 attempts).
-            if loadAttempts < 5 {
-                let delay = pow(2.0, Double(loadAttempts))
-                try? await Task.sleep(for: .seconds(delay))
-                await loadProducts()
+        let ids = ProProduct.allCases.map(\.rawValue)
+        while true {
+            do {
+                // Annual first, lifetime second (ascending price), so the paywall can
+                // show the lower-entry on-ramp before the "keep forever" anchor.
+                products = try await loader(ids).sorted { $0.price < $1.price }
+                loadError = nil
+                loadAttempts = 0
+                logger.info("Loaded \(self.products.count) products")
+                return
+            } catch is CancellationError {
+                return                         // don't retry on cancellation
+            } catch {
+                loadAttempts += 1
+                loadError = error.localizedDescription
+                logger.error("Failed to load products (attempt \(self.loadAttempts)): \(error)")
+                // Exponential backoff, at most 5 attempts in all.
+                guard loadAttempts < 5 else { return }
+                await pause(loadAttempts)
+                if Task.isCancelled { return }
             }
         }
-
-        isLoading = false
     }
 
     // MARK: - Purchase

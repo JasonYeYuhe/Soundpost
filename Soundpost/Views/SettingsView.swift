@@ -102,7 +102,7 @@ struct SettingsView: View {
             .confirmationDialog("Delete my cloud data?", isPresented: $confirmingCloudDelete, titleVisibility: .visible) {
                 Button("Delete my cloud data", role: .destructive, action: deleteCloudData)
             } message: {
-                Text("This removes the reminder schedule and device tokens Soundpost keeps on its server. Your capsules stay on this device and in iCloud. Far-future reminders fall back to this device's local schedule.")
+                Text("This removes the reminder schedule and device tokens Soundpost keeps on its server. Your capsules stay on this device and in iCloud. Far-future reminders fall back to this device's local schedule, which can alert you only while notifications are on for Soundpost.")
             }
             .alert("Couldn't erase what it heard", isPresented: $eraseFailed) {
                 Button("OK", role: .cancel) { }

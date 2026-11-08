@@ -15,7 +15,10 @@
 #       -clonedSourcePackagesDirPath <dir> -disableAutomaticPackageResolution
 #     after making sure <dir> holds a finished resolve for <project dir>, and sets
 #     LOCAL_SPM_DIR to <dir> (empty when the package flags are left out). With CI set,
-#     LOCAL_BUILD_ARGS is empty, so ci.yml's builds run exactly as before. The package flags
+#     LOCAL_BUILD_ARGS is empty, so ci.yml's builds run exactly as before — unless the job
+#     names a directory in SOUNDPOST_SPM_DIR: ci.yml restores one with actions/cache, keyed on
+#     Package.resolved, so a warm run downloads nothing from github.com (M21 §4E; on
+#     2026-11-08 every release download there answered 504 for hours). The package flags
 #     alone are left out (xcodebuild resolves into the derived data, as before) when:
 #       - SOUNDPOST_SPM_DIR=off;
 #       - the caller's args already name -clonedSourcePackagesDirPath;
@@ -184,7 +187,10 @@ local_build_args() {
   shift
   LOCAL_BUILD_ARGS=()
   LOCAL_SPM_DIR=""
-  [[ -n "${CI:-}" ]] && return 0
+  if [[ -n "${CI:-}" ]]; then
+    # CI adds nothing unless the job names a package directory (header).
+    [[ -n "${SOUNDPOST_SPM_DIR:-}" && "${SOUNDPOST_SPM_DIR}" != "off" ]] || return 0
+  fi
   LOCAL_BUILD_ARGS=(COMPILER_INDEX_STORE_ENABLE=NO)
   [[ "${SOUNDPOST_SPM_DIR:-}" == "off" ]] && return 0
   for a in "$@"; do
@@ -194,8 +200,9 @@ local_build_args() {
   done
   # SwiftPM's locks on the shared directory live in $TMPDIR (header): under any other one, this
   # build would not be serialized against the builds that use the default.
+  # (Not on CI: a job's builds run one after another, so there is nothing to serialize.)
   deftmp="$(getconf DARWIN_USER_TEMP_DIR 2>/dev/null || true)"
-  if [[ -n "${TMPDIR:-}" && -n "$deftmp" ]] &&
+  if [[ -z "${CI:-}" && -n "${TMPDIR:-}" && -n "$deftmp" ]] &&
      [[ "$(cd "$TMPDIR" 2>/dev/null && pwd -P)" != "$(cd "$deftmp" 2>/dev/null && pwd -P)" ]]; then
     printf '  TMPDIR is not the default %s, so the shared Swift packages are not used: they resolve into the derived data\n' "$deftmp" >&2
     return 0

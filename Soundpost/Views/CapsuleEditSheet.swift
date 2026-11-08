@@ -19,6 +19,8 @@ struct CapsuleEditSheet: View {
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
+    /// Read for one thing: whether an echo set here would reach anyone (M21 §4E).
+    @Environment(NotificationCoordinator.self) private var notifications
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var note: String
@@ -125,6 +127,11 @@ struct CapsuleEditSheet: View {
                 displayedComponents: [.date]
             )
             Button("Remove", role: .destructive) { echoEnabled = false }
+            if let notice = Self.echoNotice(remindersWouldBeDelivered: notifications.remindersWouldBeDelivered) {
+                Text(notice)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
         } else {
             Button {
                 echoAt = max(echoAt, Self.defaultEchoDate())
@@ -133,6 +140,20 @@ struct CapsuleEditSheet: View {
                 Label("Remind me of this later", systemImage: "bell")
             }
         }
+    }
+
+    /// What the sheet says under an echo it is about to set (M21 §4E).
+    ///
+    /// Until M21 "Remind me of this later" here said nothing when notifications were
+    /// off, while capture's echo row has said so since M17: the reminder is scheduled
+    /// into a permission the app does not hold and the system drops it without a word.
+    /// Same rule as capture — `remindersWouldBeDelivered`, because editing an echo never
+    /// asks for permission either, so `.notDetermined` here is not a question about to
+    /// be asked — and capture's own sentence. Its other sentence ("…what today sounded
+    /// like") is not true of a capsule edited on another day, so nothing is shown when
+    /// the reminder will arrive.
+    static func echoNotice(remindersWouldBeDelivered: Bool) -> LocalizedStringKey? {
+        remindersWouldBeDelivered ? nil : "Notifications are off, so this won't reach you until you turn them on."
     }
 
     private func moodChip(_ mood: Mood) -> some View {

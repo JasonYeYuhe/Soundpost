@@ -40,10 +40,37 @@ jobs:
       # The executed-test floor (M20 §4B). `** TEST SUCCEEDED **` is printed by a
       # run that executed nothing, so the marker alone proves nothing. Raise it
       # deliberately when tests are added; never lower it to make a run pass.
-      MIN_TESTS: "717"
+      MIN_TESTS: "723"
 
     steps:
       - uses: actions/checkout@v7
+
+      # Swift packages — Sentry's binary xcframeworks — from the last green run with the
+      # same Package.resolved, so a warm run downloads nothing from github.com: on
+      # 2026-11-08 every `releases/download` URL there answered 504 for hours and four
+      # docs-only commits went red (M21 §4E). Both builds below reach this directory
+      # through scripts/lib/build_cache.sh. A cold run (a new key) resolves exactly as
+      # before and can still fail that way; re-run it by hand once downloads work.
+      - name: Name the Swift package directory
+        run: echo "SOUNDPOST_SPM_DIR=$RUNNER_TEMP/SourcePackages" >> "$GITHUB_ENV"
+
+      - name: Restore Swift packages
+        id: spm-cache
+        uses: actions/cache@v6
+        with:
+          path: ${{ runner.temp }}/SourcePackages
+          key: spm-${{ runner.os }}-${{ hashFiles('Soundpost.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
+
+      - name: Resolve Swift packages (nothing to fetch on a cache hit)
+        run: |
+          echo "cache-hit=${{ steps.spm-cache.outputs.cache-hit }}"
+          source scripts/lib/build_cache.sh
+          local_build_args "$PWD"
+          if [ -z "$LOCAL_SPM_DIR" ]; then
+            echo "::warning::The shared Swift package directory is not in use; each build resolves its own." >&2
+          else
+            echo "Builds use $LOCAL_SPM_DIR"
+          fi
 
       - name: Show and assert toolchain
         run: |
@@ -116,6 +143,9 @@ jobs:
           # CODE_SIGNING_ALLOWED=NO would leave it unsigned and the host app would
           # SIGTRAP before the test bundle can attach.
           mkdir -p build   # tee + -resultBundlePath need the dir (gitignored, absent on a fresh checkout)
+          # The cached package directory (above), when it is in use.
+          source scripts/lib/build_cache.sh
+          local_build_args "$PWD"
           set +e
           xcodebuild test \
             -project Soundpost.xcodeproj \
@@ -124,6 +154,7 @@ jobs:
             -resultBundlePath build/ci.xcresult \
             CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY="-" \
             PROVISIONING_PROFILE_SPECIFIER="" DEVELOPMENT_TEAM="" \
+            ${LOCAL_BUILD_ARGS[@]+"${LOCAL_BUILD_ARGS[@]}"} \
             | tee build/xcodebuild.log
           set -e
           # xcodebuild can exit non-zero even after "** TEST SUCCEEDED **" (a known

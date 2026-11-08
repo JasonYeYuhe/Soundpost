@@ -24,6 +24,12 @@ enum Diagnostics {
         logger.info("\(message, privacy: .public)")
     }
 
+    /// `info` with the three integers a sync error is read by — local log only. For
+    /// conditions worth a console line and not a Sentry event (an offline phone).
+    static func info(_ message: StaticString, domain: Int, code: Int, cloudKitCode: Int) {
+        logger.info("\(message, privacy: .public) (domain \(domain, privacy: .public), code \(code, privacy: .public), ck \(cloudKitCode, privacy: .public))")
+    }
+
     /// A notable, non-fatal condition. Logged locally and surfaced to Sentry
     /// (Release only) so we can see how the durability path behaves in the wild.
     static func notice(_ message: StaticString) {

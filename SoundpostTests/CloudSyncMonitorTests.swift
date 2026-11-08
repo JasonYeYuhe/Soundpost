@@ -107,9 +107,11 @@ struct CloudSyncErrorReportTests {
         var sent: [CloudSyncMonitor.ErrorReport] = []
         monitor.sendReport = { sent.append($0) }
 
-        for _ in 0..<98 { monitor.apply(error: wrapped(.networkFailure), finished: true) }
-        monitor.apply(error: wrapped(.zoneBusy), finished: true)
-        monitor.apply(error: CKError(.networkFailure), finished: true)
+        // Not network errors: since M21 an offline phone is logged, not reported
+        // (`HonestAndQuietTests.anOfflinePhoneIsLoggedNotReported`).
+        for _ in 0..<98 { monitor.apply(error: wrapped(.zoneBusy), finished: true) }
+        monitor.apply(error: wrapped(.serverRejectedRequest), finished: true)
+        monitor.apply(error: CKError(.zoneBusy), finished: true)
 
         #expect(sent.count == 3, "one per (domain, code, CloudKit code), not one per event")
     }

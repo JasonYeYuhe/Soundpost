@@ -70,6 +70,13 @@ final class CloudSyncMonitor {
         Diagnostics.notice("CloudKit sync error, not surfaced", domain: report.domain,
                            code: report.code, cloudKitCode: report.cloudKitCode)
     }
+
+    /// Where an offline phone's sync error goes: the local log, never Sentry. A test
+    /// swaps it.
+    @ObservationIgnored var logOffline: (ErrorReport) -> Void = { report in
+        Diagnostics.info("CloudKit sync paused: this device is offline", domain: report.domain,
+                         code: report.code, cloudKitCode: report.cloudKitCode)
+    }
     private var token: NSObjectProtocol?
     private var center: NotificationCenter?
 
@@ -124,7 +131,8 @@ final class CloudSyncMonitor {
                 // prior state so a blip doesn't flip honest copy back and forth. Once
                 // per kind per launch.
                 let report = Self.report(for: error)
-                if reportedThisLaunch.insert(report).inserted { sendReport(report) }
+                guard reportedThisLaunch.insert(report).inserted else { return }
+                if Self.isOffline(error) { logOffline(report) } else { sendReport(report) }
             }
         } else if finished {
             state = .ok
@@ -159,6 +167,18 @@ final class CloudSyncMonitor {
             }
         }
         return nil
+    }
+
+    /// Whether this error only says the phone is offline (M21 §4E) — `CKError`
+    /// `.networkUnavailable` or `.networkFailure`, outer or anywhere in the underlying
+    /// chain. An offline phone is not a fault: the only events Sentry received from
+    /// 1.10.0 in its first month were two of these (domain 2, code 3, ck 3), and they
+    /// would have buried a real one. Still logged locally, once per kind per launch.
+    static func isOffline(_ error: Error) -> Bool {
+        errorChain(error).contains { link in
+            guard let ckError = link as? CKError else { return false }
+            return ckError.code == .networkUnavailable || ckError.code == .networkFailure
+        }
     }
 
     /// The integers an error is reported as. Pure, so it is tested without Sentry.
