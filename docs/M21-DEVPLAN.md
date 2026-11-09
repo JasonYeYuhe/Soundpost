@@ -976,7 +976,24 @@ read back with build 23 on it). **Not yet submitted.** `asc.py submit` created r
 it (409 `STATE_ERROR.ENTITY_STATE_INVALID`): the age-rating declaration lacks a value for
 `socialMedia` — a question Apple added after 1.10.0; its follow-up `socialMediaAgeRestricted` is
 also blank, and every other answer is set. That is a declaration to Apple in Jason's name, so it
-waits for his answer. The empty draft submission is harmless: `READY_FOR_REVIEW` is not "in
-Apple's hands", and the next `submit` cancels it and opens a fresh one. Once answered: PATCH
-`ageRatingDeclarations/498a5dc2-553b-4118-b935-27e19061fdd5` (the editable app info), then
-`asc.py submit`, then STOP — `asc.py release` only on Jason's word.
+waits for his answer.
+
+**Submitted 2026-11-09 16:35 JST** (`submittedDate 2026-11-09T07:35:58.951Z`), on Jason's answer
+that day ("社交媒体：否，提交审核吧"):
+
+1. `PATCH ageRatingDeclarations/498a5dc2-553b-4118-b935-27e19061fdd5` with `socialMedia: false`
+   and nothing else; read back `false` (through `appInfos/{id}/ageRatingDeclaration` — the
+   declaration itself allows only UPDATE, a GET answers 403). Every other answer was already set
+   and matches the live 1.10.0 declaration. `socialMediaAgeRestricted` stays blank: it follows a
+   "yes", and the submission went through without it.
+2. `asc.py submit` **failed**: its first step cancels open drafts, and Apple refuses to cancel a
+   draft that was never submitted (409 `Resource is not in cancellable state`). The note above
+   ("the next `submit` cancels it") was wrong. So the draft was used rather than replaced — the
+   same two calls `submit` makes on a fresh one: add version `d8b6e6d2…` (asserted 1.11.0,
+   build 23, `releaseType MANUAL` first) as an item of `d56ef962…`, which had none, then PATCH it
+   `submitted: true`.
+3. Read back: submission `d56ef962…` `WAITING_FOR_REVIEW`; version 1.11.0 `WAITING_FOR_REVIEW`,
+   build 23, `releaseType MANUAL`.
+
+Stopped there. `asc.py release` only on Jason's word, after approval. The `submit` trap is carried
+to M22 (docs/M22-START.md item 9).

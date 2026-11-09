@@ -40,10 +40,16 @@ again in the code and in fresh Sentry / App Store Connect / delivery-database re
    CI runs those tests with `--no-check`. Fix it on the next function deploy.
 8. Still owed by Jason from M21: S0's witness (a push to a phone with a token, `status =
    'sent'`); D3 (apply `0003_m21_hygiene.sql`); D5–D9.
+9. `asc.py submit` cannot recover from its own half-finished run. A `submit` that fails after
+   creating its review submission (M21: the age-rating 409) leaves an empty, never-submitted
+   `READY_FOR_REVIEW` draft; the next `submit` tries to cancel it first and Apple answers 409
+   `Resource is not in cancellable state`. M21 finished by hand (add the version to that draft,
+   then `submitted: true` — §13 S6). Fix: reuse an unsubmitted draft (no `submittedDate`)
+   instead of cancelling it, as an `asc_policy` decision with a test.
 
 ## Bars at the close of M21
 
-1.11.0 (23) uploaded and attached (submission waiting on Jason's answer to Apple's new
-`socialMedia` age-rating question — M21 §13 S6); 723 tests in 95 suites; CI floor 723; 0 warnings on Xcode 26.6
+1.11.0 (23) submitted 2026-11-09, `WAITING_FOR_REVIEW`, `releaseType MANUAL` (Apple's new
+`socialMedia` age-rating question answered "no" by Jason — M21 §13 S6); 723 tests in 95 suites; CI floor 723; 0 warnings on Xcode 26.6
 (CI) and 27.2 (local clean); i18n 100% across 3 catalogs; CI caches Swift packages
 (`actions/cache`, keyed on Xcode and `Package.resolved`).
