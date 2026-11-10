@@ -33,6 +33,9 @@ CLAIMS = {
         # M20: claimed only because both shipped (plan §4G).
         "seal-at-capture": ["as you save it"],
         "capture-doors":   ["Siri, Shortcuts"],
+        # M22: claimed only because both ship in 1.12.0 (plan §4F).
+        "widget":          ["widget"],
+        "control-center":  ["Control Center"],
     },
     "ja": {
         "listening":  ["聞き取って", "聞き取り"],
@@ -41,6 +44,8 @@ CLAIMS = {
         "search":     ["音から思い出を探せる", "どんな音だったか"],
         "seal-at-capture": ["保存するときにも"],
         "capture-doors":   ["Siri、ショートカット"],
+        "widget":          ["ウィジェット"],
+        "control-center":  ["コントロールセンター"],
     },
     "zh-Hans": {
         # Distinct phrases per claim. `只在设备上聆听` used to satisfy both, so one
@@ -52,6 +57,8 @@ CLAIMS = {
         "search":     ["凭声音找回", "那时听起来是什么"],
         "seal-at-capture": ["保存时即可封存"],
         "capture-doors":   ["Siri、快捷指令"],
+        "widget":          ["小组件"],
+        "control-center":  ["控制中心"],
     },
 }
 

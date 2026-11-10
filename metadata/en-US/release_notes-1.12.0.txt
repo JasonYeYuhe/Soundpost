@@ -1,0 +1,2 @@
+• Start a new capsule from a widget on your Home Screen or Lock Screen. Tapping it opens Soundpost ready to record; nothing records until you tap the record button.
+• On iOS 18 and later, you can also add a "New capsule" control to Control Center. It opens Soundpost the same way.
