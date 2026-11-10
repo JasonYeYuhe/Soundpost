@@ -820,3 +820,83 @@ the only one. 736 tests (CI floor 723 → 736).
 | D13 | `coordinator!` (a request with no hook crashes) | the test host crashed (0 tests ran) — `withNoHookARequestDoesNothing` is the test that reaches it |
 | D14 | the shortcut intent stops setting the request | `theShortcutsIntentStillSetsTheRequest`, `theShortcutsIntentIsUnchanged` |
 
+### S3 — the widget extension
+
+**What changed.** `SoundpostWidget/` (new: `SoundpostWidgets.swift`, `LauncherWidget.swift`,
+`NewCapsuleControl.swift`, `Localizable.xcstrings`), `SoundpostWidget-Info.plist` (repo root;
+`NSExtension` → WidgetKit, `CFBundleDisplayName` Soundpost, no version keys), and the project file,
+hand-edited in its own zero-padded style: appex file reference `D3`, root group `B3`, exception set
+`B4` (`Services/CaptureDoor.swift` → the extension), native target `C3` with phases `F7`–`F9`,
+configurations `E9`/`EA`/`EB`, the app's "Embed Foundation Extensions" phase `FA` with build file `AD`
+(`RemoveHeadersOnCopy`), container proxy `AE`, target dependency `AF`. `plutil -lint` OK;
+`objectVersion` 77, `compatibilityVersion` "Xcode 16.0", `preferredProjectObjectVersion` 77 unchanged;
+a read-only xcodeproj-gem open lists the three targets, the app's dependency on the extension, the
+embed phase (spec 13, the appex, `RemoveHeadersOnCopy`) and the exception set; `xcodebuild
+-showBuildSettings` resolves 1.11.0 (23), iOS 17.0, `APPLICATION_EXTENSION_API_ONLY`, `SKIP_INSTALL`
+for the extension. The extension's sources type-check together with the shared file at iOS 17.0,
+`-application-extension`, Swift 5 and 6 modes: no error, no warning.
+
+**R1-1 settled by the build.** The membership exception adds `CaptureDoor.swift` to the extension:
+its debug dylib exports `CaptureDoor.opensCapture`, `newCapsuleURL`; it holds no
+`OpenCaptureIntent`, `NotificationCoordinator` or `CaptureView` symbol; the extension's
+`Metadata.appintents` lists only `NewCapsuleControlIntent`; the app's lists both
+`OpenCaptureIntent` and `NewCapsuleControlIntent`. The `Shared/` fallback was not needed.
+
+**Guards** — `WidgetExtensionTests` (12): the folder's exact files; imports only SwiftUI / WidgetKit /
+AppIntents; forbidden names in the extension (capture code, Pro, store, `UserDefaults`, `@AppStorage`,
+`URLSession`, `FileManager`, boot time, `OpenCaptureIntent`) and required-reason names in the shared
+file; one `widgetURL(CaptureDoor.newCapsuleURL)`, no `Button(intent:)`, no `Link(`; the control
+behind `if #available(iOS 18.0, *)` and acting through `NewCapsuleControlIntent()`; both kinds pinned
+(and the debug-only gate's anchor equal to the widget kind); the three families, `.never`, a container
+background; the extension catalog's keys and that every shared key is translated exactly as the app
+translates it; the project builds the extension with one owned folder, exactly one added file, no
+package, no entitlement, no version of its own, iOS 17.0, extension-API-only, `SKIP_INSTALL`, its bundle
+id and plist, Swift 5, no template concurrency setting; the app embeds it (spec 13) and depends on it;
+no `.entitlements` but the app's, and no App Group; the extension's plist is WidgetKit with no version
+and no background mode. `SoundprintNeverLeavesTheAppTests` now also reads the extension's three files
+and the shared file. The door censuses (S2) read the extension's folder too, via the project. 748 tests
+(CI floor 736 → 748). Localization: "2 target(s), 4 catalog(s), 358 strings".
+
+**Controls** (`mutate.py`, `-only-testing` the two suites; `restored: True` on every run):
+
+| ID | Mutation | Killed by |
+|---|---|---|
+| W1 | the launcher imports UIKit | `itImportsOnlyTheWidgetFrameworks` |
+| W2b | the provider reads `UserDefaults` (W2's first version dropped an implicit return and did not compile) | `itNamesNothingItMustNot` |
+| W3 | a `Link` instead of the door's `widgetURL` | `theWholeWidgetOpensTheAppThroughTheDoor` |
+| W4 | the control offered only from iOS 26 | `theControlIsBehindIOS18AndOpensThroughTheControlIntent` |
+| W5 | the widget kind renamed | `theKindsNeverChange` |
+| W6 | a family dropped | `theLauncherOffersTheThreeFamiliesAndNoContent` |
+| W7 | the extension translates "New capsule" differently | `theExtensionsStringsAreTheApps` |
+| W8 | the extension sets `MARKETING_VERSION` | `theProjectBuildsTheExtensionWithNothingExtra` |
+| W9 | the extension copied outside `PlugIns` (spec 7) | `theAppEmbedsTheExtension` |
+| W10 | "application-groups" appears in the entitlements | `noTargetHasAnAppGroup` |
+| W11 | the extension point is not WidgetKit | **the simulator refused to install the app** (`MIPluginKitBundle _validateNSExtension…`) before any test ran — the platform enforces it first |
+| W11b | the extension's plist hard-codes `CFBundleVersion` | `theExtensionsInfoPlistIsAWidgetWithNoVersionOfItsOwn` |
+| W12 | the launcher's source mentions a soundprint | `noExportSurfaceReadsWhatSoundpostHeard` |
+| W13 | a stray file in the extension's folder (by hand; removed after) | `theExtensionHoldsExactlyItsFiles` |
+
+**Seen working — iOS 27 simulator** (`iPhone 17 Pro`, C53F6992-…, under `/tmp/lock-iphone-17-pro`,
+Debug build, fresh install, 2026-11-10 15:36–15:40 JST):
+
+1. The widget gallery lists **Soundpost → "New capsule"** with "Opens Soundpost ready to record.
+   Nothing records until you tap the record button." and the small preview; added to the Home Screen.
+2. **Cold launch, onboarding unfinished:** tap → onboarding (no capture over it) → Skip → capture opens,
+   **idle** ("Up to 60 seconds. Tap to start."). The widget's URL reached `.onOpenURL` **with no URL
+   scheme registered** — §4C's first option; no fallback needed.
+3. **Control case:** a plain launch from SpringBoard (`simctl launch`) shows the gallery, no capture.
+4. **Warm launch:** app in the background, tap → capture idle.
+5. The control gallery lists **Soundpost → "New capsule"**; added to Control Center. **Cold launch**
+   (app terminated) tap → capture idle — the `OpenIntent` ran in the app.
+6. **During a take:** recording at 0:02, Control Center pulled down, the control tapped → the take went
+   on (0:11, "Recording…"), and stopped at 0:18 into review; discarded. `.alreadyOpen` as designed.
+   The microphone prompt appeared only at the first tap of the record button.
+7. **The shipped door, with the extension installed:** Spotlight's top hit for "New capsule" is
+   Soundpost's App Shortcut, **listed once**; cold launch → capture idle.
+
+**Not seen:** a Lock Screen widget — the simulator did not open Lock Screen customization from an
+injected long press, so the accessory families are covered by the shared view code, the gallery and
+the guards only; and a widget tap during a take (expected: leaving the app ends the take into review).
+**iOS 18.5: not yet** — the Mac had 14 GB free; the global rule forbids booting `Soundpost-iOS18` under
+30 GB (§8 H2). S5 waits for it.
+

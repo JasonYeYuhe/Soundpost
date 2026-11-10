@@ -195,6 +195,12 @@ struct SoundprintNeverLeavesTheAppTests {
             "Soundpost/Views/ShareCardView.swift",
             "Soundpost/Services/CapsuleExporter.swift",
             "Soundpost/Services/VideoExporter.swift",
+            // The widget extension (M22): what it shows sits on the Home Screen and a locked
+            // phone, outside the app's own consent rules. The shared door file too.
+            "SoundpostWidget/SoundpostWidgets.swift",
+            "SoundpostWidget/LauncherWidget.swift",
+            "SoundpostWidget/NewCapsuleControl.swift",
+            "Soundpost/Services/CaptureDoor.swift",
         ]
         for relative in guarded {
             let url = root.appending(path: relative)
@@ -214,7 +220,11 @@ struct SoundprintNeverLeavesTheAppTests {
         let root = try projectRoot()
         for relative in ["Soundpost/Views/ShareCardView.swift",
                          "Soundpost/Services/CapsuleExporter.swift",
-                         "Soundpost/Services/VideoExporter.swift"] {
+                         "Soundpost/Services/VideoExporter.swift",
+                         "SoundpostWidget/SoundpostWidgets.swift",
+                         "SoundpostWidget/LauncherWidget.swift",
+                         "SoundpostWidget/NewCapsuleControl.swift",
+                         "Soundpost/Services/CaptureDoor.swift"] {
             #expect(FileManager.default.fileExists(atPath: root.appending(path: relative).path),
                     "\(relative) has moved; this guard is now checking nothing")
         }

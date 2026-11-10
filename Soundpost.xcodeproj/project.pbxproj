@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		0000000000000000000000AC /* Sentry in Frameworks */ = {isa = PBXBuildFile; productRef = 0000000000000000000000AB /* Sentry */; };
+		0000000000000000000000AD /* SoundpostWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 0000000000000000000000D3 /* SoundpostWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -18,22 +19,62 @@
 			remoteGlobalIDString = 0000000000000000000000C1;
 			remoteInfo = Soundpost;
 		};
+		0000000000000000000000AE /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 0000000000000000000000A1 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 0000000000000000000000C3;
+			remoteInfo = SoundpostWidgetExtension;
+		};
 /* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		0000000000000000000000FA /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				0000000000000000000000AD /* SoundpostWidgetExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		0000000000000000000000D1 /* Soundpost.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Soundpost.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		0000000000000000000000D2 /* SoundpostTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SoundpostTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		0000000000000000000000D3 /* SoundpostWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SoundpostWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		0000000000000000000000B4 /* Exceptions for "Soundpost" folder in "SoundpostWidgetExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Services/CaptureDoor.swift,
+			);
+			target = 0000000000000000000000C3 /* SoundpostWidgetExtension */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		0000000000000000000000B1 /* Soundpost */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				0000000000000000000000B4 /* Exceptions for "Soundpost" folder in "SoundpostWidgetExtension" target */,
+			);
 			path = Soundpost;
 			sourceTree = "<group>";
 		};
 		0000000000000000000000B2 /* SoundpostTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = SoundpostTests;
+			sourceTree = "<group>";
+		};
+		0000000000000000000000B3 /* SoundpostWidget */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = SoundpostWidget;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -54,6 +95,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		0000000000000000000000F8 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -62,6 +110,7 @@
 			children = (
 				0000000000000000000000B1 /* Soundpost */,
 				0000000000000000000000B2 /* SoundpostTests */,
+				0000000000000000000000B3 /* SoundpostWidget */,
 				0000000000000000000000A3 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -71,6 +120,7 @@
 			children = (
 				0000000000000000000000D1 /* Soundpost.app */,
 				0000000000000000000000D2 /* SoundpostTests.xctest */,
+				0000000000000000000000D3 /* SoundpostWidgetExtension.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -85,10 +135,12 @@
 				0000000000000000000000F1 /* Sources */,
 				0000000000000000000000F2 /* Frameworks */,
 				0000000000000000000000F3 /* Resources */,
+				0000000000000000000000FA /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				0000000000000000000000AF /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				0000000000000000000000B1 /* Soundpost */,
@@ -124,6 +176,28 @@
 			productReference = 0000000000000000000000D2 /* SoundpostTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
+		0000000000000000000000C3 /* SoundpostWidgetExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 0000000000000000000000E9 /* Build configuration list for PBXNativeTarget "SoundpostWidgetExtension" */;
+			buildPhases = (
+				0000000000000000000000F7 /* Sources */,
+				0000000000000000000000F8 /* Frameworks */,
+				0000000000000000000000F9 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				0000000000000000000000B3 /* SoundpostWidget */,
+			);
+			name = SoundpostWidgetExtension;
+			packageProductDependencies = (
+			);
+			productName = SoundpostWidgetExtension;
+			productReference = 0000000000000000000000D3 /* SoundpostWidgetExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -140,6 +214,9 @@
 					0000000000000000000000C2 = {
 						CreatedOnToolsVersion = 26.5;
 						TestTargetID = 0000000000000000000000C1;
+					};
+					0000000000000000000000C3 = {
+						CreatedOnToolsVersion = 27.2;
 					};
 				};
 			};
@@ -165,6 +242,7 @@
 			targets = (
 				0000000000000000000000C1 /* Soundpost */,
 				0000000000000000000000C2 /* SoundpostTests */,
+				0000000000000000000000C3 /* SoundpostWidgetExtension */,
 			);
 		};
 /* End PBXProject section */
@@ -178,6 +256,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		0000000000000000000000F6 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		0000000000000000000000F9 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -201,6 +286,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		0000000000000000000000F7 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -208,6 +300,11 @@
 			isa = PBXTargetDependency;
 			target = 0000000000000000000000C1 /* Soundpost */;
 			targetProxy = 0000000000000000000000B0 /* PBXContainerItemProxy */;
+		};
+		0000000000000000000000AF /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 0000000000000000000000C3 /* SoundpostWidgetExtension */;
+			targetProxy = 0000000000000000000000AE /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -376,6 +473,52 @@
 			};
 			name = Release;
 		};
+		0000000000000000000000EA /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = KHMK6Q3L3K;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "SoundpostWidget-Info.plist";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.soundpost.Soundpost.Widgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1";
+			};
+			name = Debug;
+		};
+		0000000000000000000000EB /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = KHMK6Q3L3K;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "SoundpostWidget-Info.plist";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.soundpost.Soundpost.Widgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -402,6 +545,15 @@
 			buildConfigurations = (
 				0000000000000000000000E7 /* Debug */,
 				0000000000000000000000E8 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		0000000000000000000000E9 /* Build configuration list for PBXNativeTarget "SoundpostWidgetExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				0000000000000000000000EA /* Debug */,
+				0000000000000000000000EB /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

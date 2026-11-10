@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<!--
+  The widget extension's partial Info.plist (M22 §4D). Here at the repo root, not inside
+  SoundpostWidget/, for the same reason as Soundpost-Info.plist: inside a synchronized folder
+  it would also be copied into the bundle as a resource. No version keys: both come from the
+  project, so the extension always ships the app's version and build (check-store-metadata.py).
+-->
+<dict>
+	<key>CFBundleDisplayName</key>
+	<string>Soundpost</string>
+	<key>NSExtension</key>
+	<dict>
+		<key>NSExtensionPointIdentifier</key>
+		<string>com.apple.widgetkit-extension</string>
+	</dict>
+</dict>
+</plist>
