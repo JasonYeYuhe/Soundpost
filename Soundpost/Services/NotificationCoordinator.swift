@@ -209,7 +209,12 @@ final class NotificationCoordinator: NSObject, UNUserNotificationCenterDelegate 
                                   now: Date, generation: Int) async {
         let plan = NotificationPlanner.plan(capsules: capsules, now: now)
         let personalized = NotificationPreferences.personalized
-        let listening = SoundAnalysisPreferences.isEnabled
+        // The rule every card uses (M22 §4E): a heard phrase is shown only while
+        // listening is on AND this device has standing. It used to read `isEnabled`
+        // alone, and only for the content version — the digest carried the stored label
+        // whatever either said, so a phone with no standing could put on its lock screen
+        // a label its own cards hid.
+        let reveal = Self.notificationsMayRevealHeardSounds
 
         // **A failed read suppresses every heard phrase rather than showing them
         // all.** If the corrections cannot be read we do not know which labels were
@@ -228,7 +233,28 @@ final class NotificationCoordinator: NSObject, UNUserNotificationCenterDelegate 
                                code: (error as NSError).code)
         }
 
-        let digests = Dictionary(
+        let digests = Self.digests(for: capsules, rejections: rejections, reveal: reveal)
+        await scheduler.reconcile(
+            plan: plan,
+            // `reveal` here too, so a body scheduled while labels could be shown is
+            // re-issued when they no longer can (and back): `p1` ↔ `p1n`.
+            contentVersion: NotificationPreferences.contentVersion(personalized: personalized, listening: reveal),
+            generation: generation
+        ) { item in
+            NotificationCopy.make(for: item, digest: digests[item.capsuleID], personalized: personalized)
+        }
+    }
+
+    /// Whether a notification body may lead with what Soundpost heard: the cards' rule,
+    /// `SoundAnalysisPreferences.mayReveal` (listening on and standing).
+    static var notificationsMayRevealHeardSounds: Bool { SoundAnalysisPreferences.mayReveal }
+
+    /// The copy inputs for each capsule. A soundprint is included only when `reveal` is
+    /// true and the corrections could be read — never otherwise, because a body is baked
+    /// in when it is scheduled and shown on a lock screen.
+    static func digests(for capsules: [Capsule], rejections: RejectionIndex?,
+                        reveal: Bool) -> [UUID: NotificationCopy.Digest] {
+        Dictionary(
             capsules.map {
                 ($0.id, NotificationCopy.Digest(
                     createdAt: $0.createdAt,
@@ -237,19 +263,12 @@ final class NotificationCoordinator: NSObject, UNUserNotificationCenterDelegate 
                     mood: $0.mood,
                     // Only ever a *fallback* for the lead phrase, and only consulted
                     // when `personalized` is on (M15 §S5).
-                    soundprint: rejections == nil ? nil : Soundprint(stored: $0.soundprintRaw),
+                    soundprint: (rejections == nil || !reveal) ? nil : Soundprint(stored: $0.soundprintRaw),
                     rejected: rejections?.sounds(for: $0.id) ?? .none
                 ))
             },
             uniquingKeysWith: { first, _ in first }
         )
-        await scheduler.reconcile(
-            plan: plan,
-            contentVersion: NotificationPreferences.contentVersion(personalized: personalized, listening: listening),
-            generation: generation
-        ) { item in
-            NotificationCopy.make(for: item, digest: digests[item.capsuleID], personalized: personalized)
-        }
     }
 
     // MARK: Delivery-time dedup

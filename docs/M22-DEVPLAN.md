@@ -900,3 +900,39 @@ the guards only; and a widget tap during a take (expected: leaving the app ends 
 **iOS 18.5: not yet** — the Mac had 14 GB free; the global rule forbids booting `Soundpost-iOS18` under
 30 GB (§8 H2). S5 waits for it.
 
+**Dry signed archive** (2026-11-10, after `528e931`): screen unlocked, login keychain `no-timeout`;
+`ARCHIVE_PATH`/`EXPORT_PATH` in `~/Library/Caches/Soundpost-build/dry-archive/`, `SENTRY_AUTH_TOKEN`
+unset, `RELEASE_PREFLIGHT_OVERRIDE=yes` for the preflight only (the empty `metadata/* 2` folders, D9).
+`** ARCHIVE SUCCEEDED **`; `verify-archive.sh` on the real binaries: "Soundpost.app 1.11.0 (23), 1
+extension(s), each the same version, WidgetKit, no Sentry, no networking or required-reason imports,
+later-than-iOS-17 symbols weak; app dSYM present"; dSYM upload skipped; `** EXPORT SUCCEEDED **`
+(`app-store-connect`, automatic). The export signed the extension with **"iOS Team Store Provisioning
+Profile: com.soundpost.Soundpost.Widgets"** — automatic signing with the ASC API key registered the
+extension's identifier and its App Store profile itself (H3: nothing for Jason to do in the portal);
+its only entitlement is the team identifier. `build/Soundpost.xcarchive` untouched (still 1.11.0 (23)).
+
+### S4 — the lock-screen copy obeys standing and the listening setting
+
+**What changed.** `NotificationCoordinator.planAndReconcile` takes `reveal` from
+`notificationsMayRevealHeardSounds` (= `SoundAnalysisPreferences.mayReveal`) instead of
+`isEnabled`, and uses it for the content version and for the digests, now built by the extracted
+`static func digests(for:rejections:reveal:)`, which carries a soundprint only when `reveal` is true
+and the corrections were readable. The M21 launch order is unchanged.
+
+**Tests:** `LockScreenRevealTests` (4): the digest carries the label only when it may be revealed
+(and never on a failed corrections read); the body when hidden equals an unanalysed capsule's, and
+differs from the revealed one (so the fixture's label really reaches a body); the rule across all four
+listening × standing cases with the content version (`p1` only for on + standing; `p1n` otherwise, so
+1.11's bodies are re-issued); a source guard that the coordinator asks the rule in both places and
+never reads `isEnabled`. With `NotificationCopyTests` and `LaunchSequenceTests`: 26 green. 752 tests
+(CI floor 748 → 752).
+
+**Controls** (`restored: True`):
+
+| ID | Mutation | Killed by |
+|---|---|---|
+| L1 | the rule reads listening alone | `theRuleIsListeningAndStanding`, `theCoordinatorAsksTheRevealRule` |
+| L2 | the digest carries the label whatever `reveal` says | `aHeardSoundReachesTheDigestOnlyWhenItMayBeRevealed`, `theBodyIsTheSameAsAnUnanalysedCapsulesWhenHidden` |
+| L3 | the content version ignores `reveal` | `theCoordinatorAsksTheRevealRule` |
+| L4 | the sync reads `isEnabled` for `reveal` | `theCoordinatorAsksTheRevealRule` |
+
