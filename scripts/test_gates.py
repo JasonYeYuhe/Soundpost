@@ -255,7 +255,9 @@ class LocalizationGateTests(unittest.TestCase):
                        '.displayName("Control name")', 'IntentDescription("Intent words")',
                        'static let title: LocalizedStringResource = "Intent title"',
                        'static var caseDisplayRepresentations: [Dest: DisplayRepresentation] = [.a: "Case"]',
-                       'static var typeDisplayRepresentation: TypeDisplayRepresentation = "Type"'):
+                       'static var typeDisplayRepresentation: TypeDisplayRepresentation = "Type"',
+                       '@Parameter(title: "Parameter name") var target: Dest',
+                       'static let typeDisplayRepresentation = TypeDisplayRepresentation(name: "Type name")'):
             with self.subTest(source=source):
                 tree = Tree(self)
                 two_targets(tree, widget_catalog=catalog(["New capsule"]), widget_source=source)

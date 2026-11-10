@@ -149,6 +149,10 @@ private struct RootView: View {
     private var production: some View {
         if let store {
             mainOrOnboarding
+                // The widget's door (M22 §4C): its fixed URL sets the capture request and
+                // nothing else. Outside the onboarding switch, so a tap during onboarding
+                // is kept and the route makes it wait.
+                .onOpenURL { CaptureDoor.open($0) }
                 .modelContainer(store.container)
                 .task { await runBackfill(store) }
                 .task {

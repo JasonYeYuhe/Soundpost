@@ -53,19 +53,10 @@ enum CaptureLaunchRoute: Equatable {
     }
 }
 
-/// The one hook the doors outside the view tree use to ask for capture: the App Intent
-/// and the scene delegate's quick action. Installed once at app init, so it exists
-/// before any scene connects or any intent runs, and it only ever *sets* the request
-/// on the owner of `pendingDeepLinkCapsuleID` — which is what lets "the newest request
-/// wins" need no clock.
-@MainActor
-enum CaptureRequests {
-    static weak var coordinator: NotificationCoordinator?
-
-    static func request() {
-        coordinator?.requestCapture()
-    }
-}
+// `CaptureRequests`, the hook every outside door uses, lives in `CaptureDoor.swift` — the
+// one file the widget extension also compiles (M22 §4C). The coordinator answers it here,
+// app-only.
+extension NotificationCoordinator: CaptureRequestHandling {}
 
 /// The Home Screen quick action. The type is also declared in `Soundpost-Info.plist`;
 /// `CaptureLaunchTests` holds the two equal.

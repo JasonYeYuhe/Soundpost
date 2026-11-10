@@ -142,7 +142,8 @@ LOCALIZING = re.compile(
     # Widget, control and App Intents copy (M22): the gallery's name and description,
     # a control's name, an intent's description, a display representation's title.
     r'|\.configurationDisplayName|\.description|\.displayName|\bIntentDescription'
-    r'|\bDisplayRepresentation\(title:\s*|\bLocalizedStringResource'
+    r'|\bDisplayRepresentation\(title:\s*|\bTypeDisplayRepresentation\(name:\s*'
+    r'|@Parameter\(title:\s*|\bLocalizedStringResource'
     r'|String\(localized:\s*)'
     r'\(?\s*"((?:[^"\\]|\\.)*)"'
 )

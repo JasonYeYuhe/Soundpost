@@ -316,7 +316,8 @@ edited to name it (a gate that needs a hand-added path forgets the next one).
    reopened rejection) is routed to `Refusal(THREAD_KEEPING_PATH)` — never cancelled, never
    `submitted: true`; the rejection refusal stays ahead of any reuse. `draft_items_plan(items,
    version_id)` → `add` / `submit` / refuse when the draft holds another version or an item whose
-   version id cannot be read (the items fetch asks for `fields[reviewSubmissionItems]=appStoreVersion`).
+   version id cannot be read (the items fetch asks for `include=appStoreVersion`, which returns each
+   item's version linkage).
    `cmd_submit` reuses the draft instead of cancel + create; `cmd_cancel` stops waiting on it. Tests:
    the prototype's cases plus the submitted-date case, rewritten `test_drafts_may_be_cancelled` and
    `test_a_clean_slate_proceeds`, and an AST guard that the POST to `/v1/reviewSubmissions` sits only in
@@ -350,9 +351,11 @@ compile. It imports only `AppIntents` and `Foundation`, has no `#if`, and holds:
 - `CaptureDoor.newCapsuleURL` and the pure matcher `CaptureDoor.opensCapture(_ url: URL) -> Bool`
   (exact scheme, host and empty path; any query, fragment, user, port or extra path matches nothing);
 - `NewCapsuleControlIntent: OpenIntent` — `static let isDiscoverable = false`; `title` "New capsule";
-  a `target` of a one-case `AppEnum` (`CaptureDestination.newCapsule`, displayed "New capsule");
-  `perform()` = `CaptureRequests.request()`; the iOS 26 `supportedModes` declaration alongside the
-  defaulted `openAppWhenRun`, with no `#if`, mirroring `OpenCaptureIntent`.
+  `@Parameter(title: "Capsule") var target: CaptureDestination` (a one-case `AppEnum`, displayed "New
+  capsule"), set by an explicit `init()` — `@Parameter` synthesizes no `init(target:)` (R2-3);
+  `perform()` = `CaptureRequests.request()`; `openAppWhenRun = true` and the iOS 26 `supportedModes`
+  declared explicitly, with no `#if`, mirroring `OpenCaptureIntent`. Every string reuses an existing
+  translated key ("New capsule", "Capsule", the intent description).
 
 `OpenCaptureIntent.swift` and `SoundpostShortcuts` are **not touched** (§1.11). `extension
 NotificationCoordinator: CaptureRequestHandling {}` lives app-only. In the extension the hook is always
@@ -369,8 +372,8 @@ and tell Jason before it ships (§1.10). Whichever path works is the one the gua
 deviation if S3 changes it).
 
 **Tests (S2).**
-- *Behaviour:* a fresh coordinator in the hook; `try await NewCapsuleControlIntent(target:
-  .newCapsule).perform()` sets only `pendingCaptureRequest` and clears a waiting link; the route still
+- *Behaviour:* a fresh coordinator in the hook; `try await NewCapsuleControlIntent().perform()` sets
+  only `pendingCaptureRequest` and clears a waiting link; the route still
   answers `.wait` during onboarding and `.present` when ready; `OpenCaptureIntent().perform()` behaves
   exactly as before.
 - *Matcher table:* only the exact URL matches; prefixes, `?record=1`, fragments, other schemes and hosts,
@@ -423,7 +426,7 @@ people's placed widgets) — pinned by a test.
 
 **The control.** `@available(iOS 18.0, *) StaticControlConfiguration(kind:
 "com.soundpost.Soundpost.control.newCapsule") { ControlWidgetButton(action:
-NewCapsuleControlIntent(target: .newCapsule)) { Label("New capsule", systemImage: "waveform") } }`,
+NewCapsuleControlIntent()) { Label("New capsule", systemImage: "waveform") } }`,
 display name "New capsule", the same description.
 
 **The bundle.** `@main struct SoundpostWidgets: WidgetBundle { LauncherWidget(); if #available(iOS
@@ -677,7 +680,29 @@ findings. Merged where they overlap:
 | L-P9 | minor | "Label unchanged" must not read as "label correct" (D7 open) | right | §6 |
 | L-D7 | minor | wrong citation for unseal | right | §3 |
 
-Verdict: CHANGES REQUESTED → revised (this revision).
+Verdict: CHANGES REQUESTED → revised (revision 2, committed `7c86868`).
+
+### Round 2 — Gemini 4 Argon (high), via `agy --mode plan`, 2026-11-10
+
+Two attempts produced nothing (headless mode auto-denied a shell command, then a file read); the
+third ran with file reading allowed and shell commands still refused. It confirmed the `OpenIntent`
+design against the SDK (`OpenIntent: SystemIntent`, `target: Value` where `AppEnum` refines
+`AppValue`, the `ControlWidgetButton` `OpenIntent` overload), that keeping `OpenCaptureIntent`
+app-only removes L-F2's risk, the `.onOpenURL` placement, the per-target localization, the draft
+policy, and **withdrew its own R1-1** (a membership exception adds a file to a target that does not
+own the folder). Verdict CHANGES REQUESTED, with four findings — checked against the files, most of
+which **do not describe this repository**:
+
+| ID | Finding | Check | Change |
+|---|---|---|---|
+| R2-1 | `check-debug-only.sh:111-127` (`SHIPPING_ROOTS`, `glob`, `on_disk != app_files`) rejects the shared file | **wrong**: none of that code exists; the gate reads executables from the project reader (S1, `b4ea025`) | none |
+| R2-2 | §4E's `migrateDefaultEnabledIfNeeded` / `notificationsUserChose` migration overwrites opt-outs | **wrong**: no such migration is in the plan or the code; §4E is the lock-screen fix | none |
+| R2-3 | `@Parameter` synthesizes no `init(target:)`; the gate does not scan `@Parameter(title:` or `TypeDisplayRepresentation(name:` | **right** | §4C/§4D use `NewCapsuleControlIntent()` with an explicit `init()` (as written in S2); the gate scans both, with a `test_gates.py` case and a control (removing the pattern fails it) |
+| R2-4 | preflight reads versions with `grep -m1`; items fetch lacks `fields`; `test_gates.py` missing | (1) **wrong** (it reads `grep … \| sort -u`, which still sees one value; the plan never said it uses the reader); (2) **right** that the plan said `fields` while the code uses `include` (`include` returns the linkage); (3) **wrong** (committed in S1) | §4B.8 text |
+
+Its summary also credited `verify-archive.sh` with checks it does not have (`MinimumOSVersion`, dSYM
+UUIDs, `CaptureDoor` symbols). Read with care: a reviewer citing code that is not there is not
+evidence. Verdict after checking: the plan stands with R2-3 and the R2-4 wording applied.
 
 ---
 
@@ -743,3 +768,55 @@ the old gate passed.
 | the create branch's `cmd_cancel` removed | same test |
 | items read without `include` | `test_the_draft_items_are_read_with_their_versions` |
 | `draft_items_plan` replaced by `if not held` | `test_submit_finishes_a_draft_and_creates_only_when_there_is_none` |
+
+**Round 2 follow-up (in S2's commit):** the localization gate also scans `@Parameter(title:` and
+`TypeDisplayRepresentation(name:` (R2-3), with two `test_gates.py` cases; control: the pattern
+removed → `test_widget_and_intent_copy_is_scanned` fails.
+
+### S2 — the shared door
+
+**What changed.** `Soundpost/Services/CaptureDoor.swift` (new; imports only AppIntents and
+Foundation; no `#if`): `CaptureRequestHandling`, `CaptureRequests` (moved from `CaptureLaunch.swift`,
+now `static weak var coordinator: (any CaptureRequestHandling)?`), `CaptureDoor` (the widget URL
+`soundpost://new-capsule`, the exact matcher, `open(_:)`), `CaptureDestination` (one-case `AppEnum`)
+and `NewCapsuleControlIntent: OpenIntent` (`isDiscoverable = false`, explicit `openAppWhenRun` and
+iOS 26 `supportedModes`, `@Parameter(title: "Capsule")` set by `init()`). Every string reuses an
+existing translated key. Type-checked alone as the extension will compile it
+(`swiftc -typecheck -application-extension`, iOS 17.0, Swift 5 and 6 modes): no error, no warning.
+`CaptureLaunch.swift` keeps the route and the quick action and adds `extension
+NotificationCoordinator: CaptureRequestHandling {}`. `SoundpostApp.swift`: `.onOpenURL {
+CaptureDoor.open($0) }` on `mainOrOnboarding` inside `production`. `OpenCaptureIntent.swift`: **not
+touched** (byte-identical to `HEAD`; its SHA-256 is pinned).
+
+**Tests:** `CaptureDoorTests` (13): the control's intent and the shortcut's intent each set only the
+request (the newest-wins rule holds; the route waits during onboarding); the control's intent opens
+the app and is hidden from Shortcuts; a request with no hook (the extension's case) is harmless; the
+URL table (12 near-misses: trailing slash, path, query, fragment, user, port, other hosts and schemes,
+no `//`); `open` sets the request only for the exact URL; censuses over the project's shipping roots
+read from the project file with `PropertyListSerialization` (each requires the app's root and >50
+files, so an empty scan fails): one `startRecording(` call (the record button), four `showingCapture =
+true` sites (all in `ContentView.swift`), one `requestCapture()` call (the hook), no background mode
+beyond `remote-notification` in any `*-Info.plist` or build setting; the shared file's imports and
+forbidden names; `OpenCaptureIntent.swift`'s hash; the URL handler outside the onboarding switch and
+the only one. 736 tests (CI floor 723 → 736).
+
+**Controls** (`scratchpad/mutate.py`, `-only-testing:SoundpostTests/CaptureDoorTests`,
+`-collect-test-diagnostics never`; restored and `cmp`-checked: `restored: True` both runs):
+
+| ID | Mutation | Killed by |
+|---|---|---|
+| D1 | the control's intent does not set the request | `theControlsIntentSetsTheRequestAndNothingElse` |
+| D2 | `isDiscoverable = true` | `theControlsIntentOpensTheAppAndStaysOutOfShortcuts` |
+| D3 | the matcher accepts a query | `onlyTheWidgetsExactURLOpensCapture`, `openingAURLSetsTheRequestOnlyWhenItIsTheWidgets` |
+| D4 | the matcher accepts a path | `onlyTheWidgetsExactURLOpensCapture` |
+| D5 | `open` requests capture before matching | `openingAURLSetsTheRequestOnlyWhenItIsTheWidgets` |
+| D6 | a second `startRecording(` call site (the scene delegate) | `onlyTheRecordButtonStartsARecording` |
+| D7 | a door sets `showingCapture = true` | `captureIsShownOnlyAtItsFourKnownPlaces` |
+| D8 | a door calls `requestCapture()` directly | `onlyTheHookAsksForCapture` |
+| D9 | `audio` added to `UIBackgroundModes` | `noBundleRunsInTheBackgroundBeyondPushes` |
+| D10 | the shared file imports UIKit | `theSharedFileNamesNothingAppOnly` |
+| D11 | `OpenCaptureIntent.swift` edited (one space) | `theShortcutsIntentIsUnchanged` |
+| D12 | the URL handler moved inside the onboarding switch | `theWidgetsURLReachesTheDoorOutsideOnboarding` |
+| D13 | `coordinator!` (a request with no hook crashes) | the test host crashed (0 tests ran) — `withNoHookARequestDoesNothing` is the test that reaches it |
+| D14 | the shortcut intent stops setting the request | `theShortcutsIntentStillSetsTheRequest`, `theShortcutsIntentIsUnchanged` |
+
