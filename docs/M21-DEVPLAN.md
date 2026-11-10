@@ -995,5 +995,10 @@ that day ("社交媒体：否，提交审核吧"):
 3. Read back: submission `d56ef962…` `WAITING_FOR_REVIEW`; version 1.11.0 `WAITING_FOR_REVIEW`,
    build 23, `releaseType MANUAL`.
 
-Stopped there. `asc.py release` only on Jason's word, after approval. The `submit` trap is carried
+Stopped there. `asc.py release` only on Jason's word, after approval.
+
+**Approved** by App Review on 2026-11-09 (`PENDING_DEVELOPER_RELEASE`). **Released 2026-11-10** on
+Jason's word ("1.11.0 发布吧"): `asc.py release` → read back `READY_FOR_SALE`. The archive was copied
+to `~/Library/Developer/Xcode/Archives/2026-11-08/Soundpost 1.11.0 (23).xcarchive` (identical by
+`diff -rq`) before 1.12.0's build can overwrite `build/Soundpost.xcarchive`. The `submit` trap is carried
 to M22 (docs/M22-START.md item 9).
