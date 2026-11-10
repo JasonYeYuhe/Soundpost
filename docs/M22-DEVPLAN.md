@@ -936,3 +936,59 @@ never reads `isEnabled`. With `NotificationCopyTests` and `LaunchSequenceTests`:
 | L3 | the content version ignores `reveal` | `theCoordinatorAsksTheRevealRule` |
 | L4 | the sync reads `isEnabled` for `reveal` | `theCoordinatorAsksTheRevealRule` |
 
+### S5 — the release: 1.12.0, build 24
+
+**Copy and version** (`645c8a9`, CI green: 752 tests, 0 warnings, 2 Release binaries): `MARKETING_VERSION
+1.12.0`, `CURRENT_PROJECT_VERSION 24` (the two project-level lines each); each locale's capture-doors
+line names the widget and Control Center (iOS 18 and later); keywords + widget / ウィジェット / 小组件
+(96 / 52 / 45 of 100); `release_notes-1.12.0.txt` = `release_notes.txt` in three languages (the plan's
+drafts); the store gate's `CLAIMS` gain `widget` and `control-center` per locale. Controls: the listing
+line removed (en, zh) → the gate names both missing claims; a Pro word written only into
+`ja/release_notes-1.12.0.txt` → the gate names the versioned file (it read only `release_notes.txt`
+before S1).
+
+**Disk exception (§8 H2).** Emptying the Trash freed almost nothing (it held ~136 KB by then); the Mac
+had 13.6 GB free, then 27 GB. Jason chose (2026-11-10) to boot `Soundpost-iOS18` once below the 30 GB
+rule; it was shut down right after, no orphaned simulator processes.
+
+**Seen working — iOS 18.5 simulator** (`Soundpost-iOS18`, DAF29479-…, under
+`/tmp/lock-soundpost-ios18`, Debug build of `645c8a9`, fresh install, 18:18–18:22 JST):
+
+1. **iOS 18 offers an app's widgets only after the app has run once.** Before the first launch, the
+   widget gallery found nothing for "Soundpost": `chronod` logged "Requested to add extension, but
+   purging instead because we shouldn't cache it … isInternal? false", then "query failed … unable to
+   obtain widget extension". After one launch of the app, `chronod` reloaded the descriptors and the
+   extension rendered all three families ("Request ended … accessoryCircular / accessoryRectangular /
+   systemSmall — success"). A real user meets this the first time they open the app after installing
+   or updating; no copy claims otherwise.
+2. The gallery lists **Soundpost → "New capsule"** with the description; the small widget draws the
+   glyph and "New capsule" on the Home Screen (the gallery's preview was blank until rendered).
+3. **Widget, cold launch, onboarding unfinished:** onboarding → Skip → capture **idle**.
+4. **Widget, warm launch:** capture idle.
+5. The control gallery lists **Soundpost → "New capsule"**; added to Control Center (iOS 18's gesture:
+   a swipe from the top edge at the right; a swipe from the right edge opened Spotlight).
+6. **Control, cold launch (app terminated):** capture **idle** — the iOS 18–25 `openAppWhenRun` path
+   works, which the iOS 27 witness could not show.
+
+With S3's iOS 27 witness, the listing's "iOS 18 and later" is now seen, not assumed.
+
+**Upload** (2026-11-10 18:2x JST, from `645c8a9`): the preflight refused only on the empty
+`metadata/* 2` folders (D9) and another session's `.claude/scheduled_tasks 2.lock`; everything else
+passed (1.12.0 (24), codesign, build 24 new on App Store Connect, Sentry token). Uploaded with
+`RELEASE_PREFLIGHT_OVERRIDE=yes`, and the two guards it switches off done by hand: HEAD `645c8a9` before
+and after the archive, no tracked change; the dSYM upload's own output "Uploaded 5 missing debug
+information files", the app's and the extension's among them. `verify-archive.sh` (not overridable)
+passed on the release binaries: "Soundpost.app 1.12.0 (24), 1 extension(s), each the same version,
+WidgetKit, no Sentry, no networking or required-reason imports, later-than-iOS-17 symbols weak; app dSYM
+present". `** EXPORT SUCCEEDED **`, "Upload succeeded"; the Sentry.framework dSYM warning is the known
+static-link one. Tag `v1.12.0-b24` pushed.
+
+App Store Connect: version 1.12.0 created (`44ff4913-dd87-45cf-a661-889e6c170362`,
+`PREPARE_FOR_SUBMISSION`); What's New, description and keywords pushed in three languages; the new
+app info (`7a6b2bb1-…`) carries `socialMedia = false` over from 1.11.0.
+Build 24 processed `VALID` (18:28 JST) and was attached to 1.12.0 (read back: build 24, `releaseType
+MANUAL`). `asc.py submit` — S1's version, with no draft to finish — created review submission
+`3b403d1a-9dd8-4051-b44b-92937928d27c` and **submitted it 2026-11-10 18:29 JST**
+(`submittedDate 2026-11-10T09:29:33.915Z`); read back: version 1.12.0 `WAITING_FOR_REVIEW`. Stopped
+there. `asc.py release` only on Jason's word, after approval.
+
