@@ -22,33 +22,68 @@ set -euo pipefail
 # the catalog, so an untranslated string is now impossible to ship quietly rather
 # than merely discouraged.
 #
+# **Per target** (M22 §4B.2). The sources and catalogs come from the project file
+# (`scripts/lib/project_model.py`), not from a folder name, and each target — the app,
+# and since M22 its widget extension — is checked against ITS OWN catalogs: a string the
+# extension shows is looked up in the extension's bundle, so the app's catalog holding
+# the key proves nothing for it. Before M22 every catalog's keys were pooled, and a
+# second target's untranslated string would have passed on the first target's catalog.
+#
 # Used by CI and runnable locally: ./scripts/check-localization.sh
+# `GATE_PROJECT_DIR` points it at another tree (its own tests use fixtures).
 
 PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
-python3 - "$PROJECT_DIR" <<'PY'
+python3 - "${GATE_PROJECT_DIR:-$PROJECT_DIR}" "$PROJECT_DIR/scripts/lib" <<'PY'
 import json, sys, glob, os
 
 project_dir = sys.argv[1]
-catalogs = sorted(glob.glob(os.path.join(project_dir, "Soundpost", "**", "*.xcstrings"), recursive=True))
+sys.path.insert(0, sys.argv[2])
+import project_model
+
+try:
+    model = project_model.load(project_dir)
+except project_model.ProjectError as e:
+    print(f"check-localization: {e}", file=sys.stderr)
+    sys.exit(1)
+
+
+def members(target, suffix):
+    """The files of `suffix` a target builds: its roots minus exclusions, plus additions."""
+    excluded = {os.path.join(project_dir, x) for x in target["excluded"]}
+    out = []
+    for root in target["roots"]:
+        for path in glob.glob(os.path.join(project_dir, root, "**", "*" + suffix), recursive=True):
+            if path not in excluded:
+                out.append(path)
+    out += [os.path.join(project_dir, x) for x in target["added"] if x.endswith(suffix)]
+    return sorted(set(out))
+
+
+targets = project_model.shipping(model)
+target_catalogs = {t["name"]: members(t, ".xcstrings") for t in targets}
+catalogs = sorted({c for cs in target_catalogs.values() for c in cs})
 if not catalogs:
     print("check-localization: no .xcstrings catalogs found", file=sys.stderr)
     sys.exit(1)
 
 problems = []
 
+# Required languages = every non-source language that appears in ANY catalog. It used
+# to be worked out per catalog, from that catalog's own entries, so a new catalog with
+# no translations at all required nothing and printed "100% translated" (M22 §4B.2).
+everywhere = set()
+for path in catalogs:
+    data = json.load(open(path, encoding="utf-8"))
+    for entry in data.get("strings", {}).values():
+        everywhere.update(entry.get("localizations", {}))
+
 for path in catalogs:
     with open(path, encoding="utf-8") as f:
         data = json.load(f)
     source = data.get("sourceLanguage", "en")
     strings = data.get("strings", {})
-
-    # Required languages = every non-source language that appears anywhere here.
-    required = set()
-    for entry in strings.values():
-        for lang in entry.get("localizations", {}):
-            if lang != source:
-                required.add(lang)
+    required = everywhere - {source}
 
     rel = os.path.relpath(path, project_dir)
     for key, entry in strings.items():
@@ -104,14 +139,15 @@ LOCALIZING = re.compile(
     # sighted one — it is simply harder for us to notice, which is the argument for
     # gating it rather than against.
     r'|\.accessibilityLabel|\.accessibilityHint|\.accessibilityValue'
+    # Widget, control and App Intents copy (M22): the gallery's name and description,
+    # a control's name, an intent's description, a display representation's title.
+    r'|\.configurationDisplayName|\.description|\.displayName|\bIntentDescription'
+    r'|\bDisplayRepresentation\(title:\s*|\bLocalizedStringResource'
     r'|String\(localized:\s*)'
     r'\(?\s*"((?:[^"\\]|\\.)*)"'
 )
 HAS_CONTENT = re.compile(r'[0-9A-Za-z぀-ヿ一-鿿]')
 
-known = set()
-for path in catalogs:
-    known |= set(json.load(open(path, encoding="utf-8")).get("strings", {}))
 
 # --- Shape matching for interpolated literals ---------------------------------
 #
@@ -154,7 +190,6 @@ def source_shape(key):
     return "".join(out)
 
 
-known_shapes = {catalog_shape(k) for k in known if "%" in k}
 
 STRING_LITERAL = re.compile(r'"((?:[^"\\\n]|\\.)*)"')
 
@@ -169,7 +204,31 @@ def localized_string_key_bodies(src):
     failing correctly on an alert three lines away, which is the same partial
     blindness the whole check exists to remove.
     """
-    for m in re.finditer(r"(?::|->)\s*LocalizedStringKey\b", src):
+    # M22: also `LocalizedStringResource` (an intent's title, a control's name) and the
+    # App Intents display types, stored (`= "…"`, or a dictionary literal of them) or
+    # computed (`{ … }`).
+    typed = (r"(?::|->)\s*(?:LocalizedStringKey|LocalizedStringResource|TypeDisplayRepresentation"
+             r"|DisplayRepresentation|\[[\w.]+:\s*DisplayRepresentation\])(?![\w])")
+    for m in re.finditer(typed, src):
+        rest = m.end()
+        while rest < len(src) and src[rest] in " \t":
+            rest += 1
+        if src.startswith("=", rest):
+            # A stored value: up to the end of the statement (a newline outside brackets).
+            depth, i = 0, rest + 1
+            while i < len(src):
+                c = src[i]
+                if c in "([{":
+                    depth += 1
+                elif c in ")]}":
+                    depth -= 1
+                    if depth < 0:
+                        break
+                elif c == "\n" and depth == 0:
+                    break
+                i += 1
+            yield rest, i
+            continue
         brace = src.find("{", m.end())
         if brace < 0:
             continue
@@ -185,7 +244,18 @@ def localized_string_key_bodies(src):
 
 
 uncatalogued = []
-for path in sorted(glob.glob(os.path.join(project_dir, "Soundpost", "**", "*.swift"), recursive=True)):
+sources = []
+for t in targets:
+    own = target_catalogs[t["name"]]
+    known = set()
+    for path in own:
+        known |= set(json.load(open(path, encoding="utf-8")).get("strings", {}))
+    known_shapes = {catalog_shape(k) for k in known if "%" in k}
+    has_localizable = any(os.path.basename(c) == "Localizable.xcstrings" for c in own)
+    for path in members(t, ".swift"):
+        sources.append((t, path, known, known_shapes, has_localizable))
+
+for t, path, known, known_shapes, has_localizable in sources:
     src = open(path, encoding="utf-8").read()
     # **No skip for `#if DEBUG` files.** There used to be one, on the reasoning that
     # "DEBUG-only developer tools never ship a UI to a user, and say so by using
@@ -218,7 +288,8 @@ for path in sorted(glob.glob(os.path.join(project_dir, "Soundpost", "**", "*.swi
             continue
         line = src.count("\n", 0, offset) + 1
         shown = key if len(key) <= 60 else key[:57] + "..."
-        entry = f"{os.path.relpath(path, project_dir)}:{line}: \"{shown}\""
+        where = "" if has_localizable else " (the target has no Localizable.xcstrings)"
+        entry = f"{os.path.relpath(path, project_dir)}:{line}: [{t['name']}] \"{shown}\"{where}"
         if entry not in uncatalogued:
             uncatalogued.append(entry)
 
@@ -228,7 +299,7 @@ if uncatalogued:
         print("  " + u, file=sys.stderr)
     print(
         f"\n{len(uncatalogued)} string(s) would render in English to every non-English reader."
-        "\nAdd them to Soundpost/Localizable.xcstrings with ja + zh-Hans translations,"
+        "\nAdd them to the named target's Localizable.xcstrings with ja + zh-Hans translations,"
         "\nor use Text(verbatim:) if the string genuinely must not be translated.",
         file=sys.stderr,
     )
@@ -264,7 +335,8 @@ if half:
     sys.exit(1)
 
 count = sum(1 for path in catalogs for _ in json.load(open(path, encoding="utf-8")).get("strings", {}))
-print(f"✓ Localization gate passed — {len(catalogs)} catalog(s), {count} strings 100% translated,")
+print(f"✓ Localization gate passed — {len(targets)} target(s), {len(catalogs)} catalog(s), "
+      f"{count} strings 100% translated,")
 print("  every source literal catalogued (interpolated ones by shape),")
 print("  Chinese metadata punctuation clean.")
 PY

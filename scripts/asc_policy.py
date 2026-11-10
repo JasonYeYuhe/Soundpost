@@ -23,9 +23,19 @@ IN_APPLES_HANDS = ('WAITING_FOR_REVIEW', 'IN_REVIEW')
 # explanation (M19 §8-iii). Never cancelled without `--force-cancel`.
 REJECTED = 'UNRESOLVED_ISSUES'
 
+# A review submission that has been created but not (or no longer) submitted.
+DRAFT = 'READY_FOR_REVIEW'
+
 # Submissions the script may cancel to free the app's single active-submission slot:
-# a draft that was never sent, and one stuck on export compliance. Nothing else.
-CANCELABLE = ('READY_FOR_REVIEW', 'WAITING_FOR_EXPORT_COMPLIANCE')
+# one stuck on export compliance. Nothing else.
+#
+# A draft is NOT here (M22 §4B.8). A draft that was never submitted cannot be cancelled —
+# Apple answers 409 "Resource is not in cancellable state" (M21 §13 S6, where `submit`
+# had created one, failed at the age-rating question, and could then never get past
+# it). `submit` finishes such a draft instead (`reusable_draft`). A draft that WAS
+# submitted before is a rejection reopened with "Update Review": it carries the review
+# thread, and is never touched from here (`reusable_draft` refuses it).
+CANCELABLE = ('WAITING_FOR_EXPORT_COMPLIANCE',)
 
 # A screenshot set holds at most this many images (App Store Connect's limit).
 SCREENSHOT_SET_CAPACITY = 10
@@ -172,3 +182,38 @@ def screenshot_swap(existing_ids, new_count, capacity=SCREENSHOT_SET_CAPACITY):
         raise Refusal(f'Uploading {new_count} screenshots would empty the set first '
                       f'(it holds {capacity}). Upload fewer.')
     return existing[:overflow], existing[overflow:]
+
+
+def reusable_draft(submissions):
+    """The id of the one never-submitted draft `submit` should finish, or None to create one.
+
+    A draft with a `submittedDate` was submitted before: it is a rejection reopened for
+    another round, and it holds the App Review thread. Finishing or cancelling it from
+    here would be the build-19 mistake again (M19 §8-iii), so it is refused with the
+    path that keeps the thread. Two never-submitted drafts cannot be told apart, so
+    that is refused too.
+    """
+    drafts = [x for x in submissions if x['attributes'].get('state') == DRAFT]
+    reopened = [d for d in drafts if d['attributes'].get('submittedDate')]
+    if reopened:
+        raise Refusal(f'Submission {reopened[0]["id"]} was submitted before and reopened; it '
+                      f'holds the review thread.\n' + THREAD_KEEPING_PATH)
+    if len(drafts) > 1:
+        raise Refusal(f'{len(drafts)} unsubmitted drafts: ' + ', '.join(d['id'] for d in drafts)
+                      + '. Remove the extra ones in App Store Connect first.')
+    return drafts[0]['id'] if drafts else None
+
+
+def draft_items_plan(item_version_ids, version_id):
+    """What to do with a draft holding `item_version_ids`, to submit `version_id`.
+
+    `'add'` for an empty draft, `'submit'` when it already holds this version. Refuses
+    when it holds any other version — or an item whose version could not be read, which
+    is treated as another version rather than assumed to be this one.
+    """
+    others = [v for v in item_version_ids if v != version_id]
+    if others:
+        shown = ', '.join(v or '(unreadable item)' for v in others)
+        raise Refusal(f'The open draft holds something other than this version ({shown}); '
+                      f'remove it in App Store Connect first.')
+    return 'submit' if version_id in item_version_ids else 'add'

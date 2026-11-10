@@ -55,7 +55,10 @@ CLAIMS = {
     },
 }
 
-root = pathlib.Path(__file__).resolve().parent.parent / "metadata"
+import os
+# `GATE_PROJECT_DIR` points the gate at another tree (its own tests use fixtures).
+PROJECT = pathlib.Path(os.environ.get("GATE_PROJECT_DIR") or pathlib.Path(__file__).resolve().parent.parent)
+root = PROJECT / "metadata"
 failures = []
 
 for locale in sorted(CLAIMS):
@@ -83,23 +86,66 @@ for locale in sorted(CLAIMS):
 # Writing the NEXT release's notes into `release_notes.txt` early is the trap this
 # catches: if the in-flight version comes back rejected, `asc.py notes` would push the
 # unreleased version's copy onto it, and nothing would say so.
-def project_marketing_version():
-    pbx = (pathlib.Path(__file__).resolve().parent.parent
-           / "Soundpost.xcodeproj" / "project.pbxproj").read_text(encoding="utf-8")
-    m = re.search(r"MARKETING_VERSION = ([0-9.]+);", pbx)
-    return m.group(1) if m else None
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent / "lib"))
+import project_model
+
+VERSION_KEYS = ("MARKETING_VERSION", "CURRENT_PROJECT_VERSION")
 
 
-version = project_marketing_version()
+def project_versions():
+    """`{key: value}` for the two version settings, or None after recording why not.
+
+    **One value, set in one place** (M22 §4B.5). App Store Connect rejects an app whose
+    embedded extension carries a different version or build, and every release script
+    here (`release-preflight.sh`, `asc.py`, this file) reads the version by counting
+    *distinct values* in the project — so an extension with no version setting at all
+    would still have read as "one value". The versions therefore live in the project's
+    own configurations, every target inherits them, and nothing may override them: no
+    target setting, and no `*-Info.plist` with a literal version of its own.
+    """
+    try:
+        model = project_model.load(str(PROJECT))
+    except project_model.ProjectError as e:
+        failures.append(f"could not read the project: {e}")
+        return None
+    found = {}
+    for key in VERSION_KEYS:
+        values = {conf.get(key) for conf in model["projectSettings"].values()}
+        if len(values) != 1 or None in values:
+            failures.append(f"{key} must be set once, at the project level, in every configuration "
+                            f"(found {sorted(map(str, values))})")
+            return None
+        found[key] = values.pop()
+        for t in model["targets"]:
+            for name, conf in t["settings"].items():
+                if key in conf:
+                    failures.append(f"target {t['name']} ({name}) overrides {key}; versions are "
+                                    f"inherited from the project so every bundle ships the same one")
+    for plist in sorted(PROJECT.glob("*-Info.plist")):
+        text = plist.read_text(encoding="utf-8")
+        for k in ("CFBundleShortVersionString", "CFBundleVersion"):
+            if f"<key>{k}</key>" in text:
+                failures.append(f"{plist.name} sets {k} itself; it must come from the project")
+    return found
+
+
+versions = project_versions()
+version = versions["MARKETING_VERSION"] if versions else None
 if version:
     for locale in sorted(CLAIMS):
         live = root / locale / "release_notes.txt"
         archived = root / locale / f"release_notes-{version}.txt"
-        if live.exists() and archived.exists():
-            if live.read_text(encoding="utf-8").strip() != archived.read_text(encoding="utf-8").strip():
-                failures.append(
-                    f"{locale}/release_notes.txt does not match release_notes-{version}.txt "
-                    f"(the project's MARKETING_VERSION). `asc.py notes` pushes the live file.")
+        # A missing archive used to skip this check silently — so bumping the version
+        # before writing its notes passed (M22 §4B.9).
+        if not archived.exists():
+            failures.append(f"{locale}/release_notes-{version}.txt is missing "
+                            f"(the project's MARKETING_VERSION is {version})")
+        elif not live.exists():
+            failures.append(f"{locale}/release_notes.txt is missing")
+        elif live.read_text(encoding="utf-8").strip() != archived.read_text(encoding="utf-8").strip():
+            failures.append(
+                f"{locale}/release_notes.txt does not match release_notes-{version}.txt "
+                f"(the project's MARKETING_VERSION). `asc.py notes` pushes the live file.")
 
 # **Nothing in the listing may sell what the app does not.** 1.9.0 was rejected under
 # 2.1(b) for referring to subscriptions that were never submitted, and the fix was to
@@ -112,8 +158,7 @@ if version:
 # applying without anyone remembering to edit it. If the switch cannot be found this
 # FAILS: a guard that silently stopped reading its input would pass forever.
 def pro_on_sale():
-    src = (pathlib.Path(__file__).resolve().parent.parent
-           / "Soundpost" / "Models" / "ProGate.swift").read_text(encoding="utf-8")
+    src = (PROJECT / "Soundpost" / "Models" / "ProGate.swift").read_text(encoding="utf-8")
     m = re.search(r"static let isOnSaleInThisBuild = (true|false)", src)
     return None if m is None else m.group(1) == "true"
 
@@ -135,8 +180,14 @@ if on_sale is None:
                     "the off-sale wording check has nothing to key on")
 elif not on_sale:
     for locale in sorted(OFF_SALE_TERMS):
-        for field in STORE_FIELDS:
-            path = root / locale / f"{field}.txt"
+        # The versioned notes too: they are what `release_notes.txt` becomes, and a
+        # blocked word written there first would otherwise be found only after the copy.
+        names = [f"{field}.txt" for field in STORE_FIELDS]
+        if version:
+            names.append(f"release_notes-{version}.txt")
+        for name in names:
+            field = name[:-4]
+            path = root / locale / name
             if not path.exists():
                 continue
             text = path.read_text(encoding="utf-8")

@@ -129,7 +129,9 @@ export async function dispatchToToken(opts: {
         "apns-expiration": String(opts.expiration),
         "content-type": "application/json",
       },
-      body: opts.payloadBytes,
+      // A copy typed `Uint8Array<ArrayBuffer>`: Deno ≥ 2.9's lib rejects a plain
+      // `Uint8Array` (whose buffer may be shared) as a fetch body (M21 §13 S5). Same bytes.
+      body: new Uint8Array(opts.payloadBytes),
       // Bound each dispatch so one hung connection can't stretch the batch past
       // the job lock lease (which would let a concurrent run re-claim + double-send).
       signal: AbortSignal.timeout(10_000),

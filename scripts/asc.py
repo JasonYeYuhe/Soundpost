@@ -323,8 +323,10 @@ def cmd_attach(build_version):
     return v, b
 
 
-# States that occupy the single active-submission slot for the app.
-BLOCKING = ('READY_FOR_REVIEW', 'WAITING_FOR_REVIEW', 'WAITING_FOR_EXPORT_COMPLIANCE',
+# States that occupy the single active-submission slot for the app and that a wait can
+# outlast. A draft (READY_FOR_REVIEW) is not here: nothing here cancels one, so waiting
+# for it to clear would only time out (M22 §4B.8) — `submit` finishes it instead.
+BLOCKING = ('WAITING_FOR_REVIEW', 'WAITING_FOR_EXPORT_COMPLIANCE',
             'UNRESOLVED_ISSUES', 'IN_REVIEW', 'CANCELING')
 
 
@@ -369,39 +371,48 @@ def cmd_submit(force_cancel=False):
         s = next(s for s in submissions if s['attributes'].get('state') in IN_APPLES_HANDS)
         print(f"A submission is already {s['attributes']['state']} (id={s['id']}). Nothing to do.")
         return
-    cmd_cancel(force_cancel)
-    # Creating a new submission can briefly 409 (CONCURRENT_REVIEW_SUBMISSION_
-    # TRY_AGAIN) while a just-canceled submission settles on Apple's backend.
-    sub = None
-    for attempt in range(10):
-        try:
-            sub = post('/v1/reviewSubmissions',
-                       {'data': {'type': 'reviewSubmissions',
-                                 'attributes': {'platform': 'IOS'},
-                                 'relationships': {'app': {'data': {'type': 'apps', 'id': APP_ID}}}}})['data']
-            break
-        except requests.HTTPError as e:
-            if e.response is not None and e.response.status_code == 409 and attempt < 9:
-                print(f'  create 409 (settling), retry {attempt + 1}/9 in 15s…')
-                time.sleep(15)
-                continue
-            raise
-    print(f"Created reviewSubmission {sub['id']}")
-    # Add the version as an item if not already present.
-    items = get(f"/v1/reviewSubmissions/{sub['id']}/items").get('data', [])
-    have = any((it.get('relationships', {}).get('appStoreVersion', {}).get('data') or {}).get('id') == v['id']
-               for it in items)
-    if not have:
+    # A draft this script created on an earlier run that stopped half way (M21: the
+    # age-rating 409) cannot be cancelled, so it is finished rather than replaced.
+    sub_id = asc_policy.reusable_draft(submissions)
+    if sub_id:
+        print(f"Reusing the unsubmitted draft {sub_id}")
+    else:
+        cmd_cancel(force_cancel)
+        # Creating a new submission can briefly 409 (CONCURRENT_REVIEW_SUBMISSION_
+        # TRY_AGAIN) while a just-canceled submission settles on Apple's backend.
+        sub = None
+        for attempt in range(10):
+            try:
+                sub = post('/v1/reviewSubmissions',
+                           {'data': {'type': 'reviewSubmissions',
+                                     'attributes': {'platform': 'IOS'},
+                                     'relationships': {'app': {'data': {'type': 'apps', 'id': APP_ID}}}}})['data']
+                break
+            except requests.HTTPError as e:
+                if e.response is not None and e.response.status_code == 409 and attempt < 9:
+                    print(f'  create 409 (settling), retry {attempt + 1}/9 in 15s…')
+                    time.sleep(15)
+                    continue
+                raise
+        sub_id = sub['id']
+        print(f"Created reviewSubmission {sub_id}")
+    # What the draft holds, with each item's version — asked for explicitly, since an
+    # item listed without its relationship would read as holding nothing.
+    items = get(f"/v1/reviewSubmissions/{sub_id}/items",
+                **{'include': 'appStoreVersion', 'limit': 200}).get('data', [])
+    held = [(it.get('relationships', {}).get('appStoreVersion', {}).get('data') or {}).get('id')
+            for it in items]
+    if asc_policy.draft_items_plan(held, v['id']) == 'add':
         post('/v1/reviewSubmissionItems',
              {'data': {'type': 'reviewSubmissionItems',
                        'relationships': {
-                           'reviewSubmission': {'data': {'type': 'reviewSubmissions', 'id': sub['id']}},
+                           'reviewSubmission': {'data': {'type': 'reviewSubmissions', 'id': sub_id}},
                            'appStoreVersion': {'data': {'type': 'appStoreVersions', 'id': v['id']}}}}})
         print(f"Added version {v['attributes']['versionString']} to submission")
-    patch(f"/v1/reviewSubmissions/{sub['id']}",
-          {'data': {'type': 'reviewSubmissions', 'id': sub['id'],
+    patch(f"/v1/reviewSubmissions/{sub_id}",
+          {'data': {'type': 'reviewSubmissions', 'id': sub_id,
                     'attributes': {'submitted': True}}})
-    print(f"SUBMITTED for review (submission {sub['id']}).")
+    print(f"SUBMITTED for review (submission {sub_id}).")
 
 
 # ── Screenshots ──────────────────────────────────────────────────────────────

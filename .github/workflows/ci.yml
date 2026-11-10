@@ -126,6 +126,15 @@ jobs:
         run: |
           if ! command -v deno >/dev/null && ! brew install --quiet deno; then
             echo "::warning::Could not install deno; the delivery server's Deno tests did not run." >&2
+          elif ! deno check backend/supabase/functions/send-due-notifications/{apns,auth,payload,state}.ts; then
+            # These four files import nothing, so this needs no network and runs before
+            # `deno cache`. A warning, not a red build (M22 §4B.10): Homebrew's Deno moves,
+            # and what it newly rejects is news for the next function deploy, not a defect
+            # in a commit that did not touch the function.
+            echo "::warning::deno $(deno --version | head -1 | cut -d' ' -f2) rejects the delivery function's types; fix before the next deploy." >&2
+          fi
+          if ! command -v deno >/dev/null; then
+            :
           elif ! deno cache backend/supabase/functions/send-due-notifications/*_test.ts; then
             echo "::warning::Could not fetch the Deno tests' dependencies; they did not run." >&2
           else

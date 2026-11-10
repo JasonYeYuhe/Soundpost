@@ -685,3 +685,61 @@ Verdict: CHANGES REQUESTED → revised (this revision).
 
 *(one subsection per step: commits, tests and counts, controls, gate fixtures, simulator witnesses,
 CI runs, deviations from this plan and why)*
+
+### S1 — gates and tools that see each target
+
+**What changed.**
+- `scripts/lib/project_model.py` (new): the project read through `plutil -convert json` — no parser
+  of ours at all, so Xcode's field order cannot hide a root. Targets, kinds, executables, roots,
+  membership exceptions (excluded for the owning target, added for any other), settings; refuses a
+  missing or Swift-less root, a missing added file, an unknown exception class, no app target.
+  *Deviation from §4B.1:* the plan said "a brace-matching parser"; `plutil` is Apple's own reader of
+  the same format and strictly better.
+- `check-localization.sh`: per target, against that target's own catalogs; required languages are
+  the union across catalogs; widget/intent constructs scanned (`.configurationDisplayName(`,
+  `.description(`, `.displayName(`, `IntentDescription(`, `DisplayRepresentation(title:`,
+  `LocalizedStringResource`, and stored or dictionary-literal values typed
+  `LocalizedStringResource` / `TypeDisplayRepresentation` / `DisplayRepresentation`).
+- `check-warnings.sh`: ours = under `$PROJECT_DIR/` (minus `SourcePackages`, `/DerivedData/`), plus
+  path-less lines ending `from project 'Soundpost')`; the macro pairing uses the same root.
+- `check-debug-only.sh`: every shipping executable the project names, each with its own premise
+  anchor (`Soundpost heard`; the extension's widget kind); a target with no anchor fails.
+- Versions: `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` moved from the two targets' four
+  configurations to the project's two (`xcodebuild -showBuildSettings` resolves 1.11.0 / 23 for both
+  targets); `check-store-metadata.py` refuses a target override, a missing project value, an
+  `*-Info.plist` with its own version, a version with no `release_notes-<version>.txt`, and scans the
+  versioned notes for blocked words. The three existing `sort -u` readers still see one value.
+- `scripts/verify-archive.sh` (new), called by `build-upload-asc.sh` after archiving, fatal, not
+  covered by the override; `ARCHIVE_PATH`/`EXPORT_PATH` overrides; archive mode with no Sentry token
+  uploads no dSYMs. Run on a scratch copy of the live 1.11.0 archive: passes; doctored three ways
+  (app dSYM renamed to an extension's, a stray `PlugIns/Stray.appex`, the app executable moved) —
+  each refused with its own line.
+- `asc.py` / `asc_policy.py`: `READY_FOR_REVIEW` leaves `CANCELABLE` and `BLOCKING`;
+  `reusable_draft` (refuses a draft with a `submittedDate` — a reopened rejection — with the
+  thread-keeping path, and two drafts); `draft_items_plan` (an unreadable item counts as another
+  version); `cmd_submit` finishes a draft or, only when there is none, cancels and creates; items
+  are read with `include=appStoreVersion`.
+- `apns.ts:132` → `new Uint8Array(opts.payloadBytes)`; CI runs `deno check` on the four import-free
+  files before `deno cache`, as a warning. Local Deno 2.7.5: check passes, 18 tests pass. (2.9.8 not
+  available here; CI's run is the evidence.)
+
+**Proof.** `scripts/test_gates.py` (new, 30 tests; CI's `unittest discover` now runs 78). Each fixture
+tree is built in a temp folder; macOS's own `clang` makes real Mach-O binaries for the binary and
+archive fixtures. **Run against each gate's previous version (from `HEAD`), the fault tests fail**:
+localization 12 failures (7 tests, subtests counted), warnings 3 of 4, debug-only 5 of 5, store/version
+5 of 6 — the tests that still pass there are the "this passes" cases. Run against the new gates: 30/30.
+On the real repo: localization passes ("1 target(s), 3 catalog(s), 354 strings"); with
+`OpenCaptureIntent`'s title and description changed to uncatalogued text, the new gate names both and
+the old gate passed.
+
+**Controls (`scratchpad/mutate_any.py`, cp snapshot → mutate → run → restore → `cmp`):**
+
+| Mutation | Killed by |
+|---|---|
+| `READY_FOR_REVIEW` back in `CANCELABLE` | `test_export_compliance_may_be_cancelled_but_a_draft_may_not` |
+| `reusable_draft` ignores `submittedDate` | `test_a_reopened_rejection_is_never_reused` |
+| `draft_items_plan` treats an unreadable item as this version | `test_an_item_whose_version_cannot_be_read_is_not_assumed_to_be_this_one` |
+| `cmd_cancel` called before the reuse decision | **survived** the first version of `test_submit_finishes_a_draft_and_creates_only_when_there_is_none`; the test now requires exactly one `cmd_cancel`, inside the create branch → killed |
+| the create branch's `cmd_cancel` removed | same test |
+| items read without `include` | `test_the_draft_items_are_read_with_their_versions` |
+| `draft_items_plan` replaced by `if not held` | `test_submit_finishes_a_draft_and_creates_only_when_there_is_none` |

@@ -104,32 +104,68 @@ else
   APP="$DD/Build/Products/Release-iphonesimulator/Soundpost.app"
 fi
 
-BIN="$APP/$(basename "$APP" .app)"
-[ -f "$BIN" ] || { printf '\033[31m✗ no binary at %s\033[0m\n' "$BIN" >&2; exit 1; }
+# Every binary that ships, named by the project rather than assumed (M22 §4B.4). Until M22
+# this read `Soundpost.app/Soundpost` only, so a widget extension's binary — a second
+# executable inside the same `.app` — would never have been looked at. Counting Mach-O
+# files would not do either: the `.app` already holds two (the app and Sentry), so a count
+# passes with the extension missing. So each app and extension target names the exact
+# executable it must produce, and each must be there.
+#
+# `GATE_PROJECT_DIR` points the project reader at another project (the gate's own tests
+# use fixtures); it defaults to this checkout.
+MODEL_PROJECT="${GATE_PROJECT_DIR:-$PROJECT_DIR}"
+EXECUTABLES="$(python3 "$PROJECT_DIR/scripts/lib/project_model.py" --project "$MODEL_PROJECT" executables)" \
+  || { printf '\033[31m✗ could not read the project'"'"'s targets\033[0m\n' >&2; exit 1; }
 
-# Read once. NOT `strings "$BIN" | grep -q …`: under `set -o pipefail`, `grep -q`
-# exits the moment it matches, `strings` takes SIGPIPE, and the pipeline reports
-# failure for a successful match — so the premise check below would fail on a binary
-# that is fine, and every absence check would "pass" for the same wrong reason. This
-# is the third place in this repo where `pipefail` has turned a working pipeline into
-# a lying one (see cloudkit-schema.sh's `diff | sed`).
-SYMBOLS="$(strings "$BIN")"
-
-# The premise, asserted before the absences: this really is the app's binary. Without
-# it, a path typo would produce a clean run over a file with no strings in it at all —
-# every assertion below passing for the one reason that makes them meaningless.
-if ! grep -q "Soundpost heard" <<<"$SYMBOLS"; then
-  printf '\033[31m✗ %s does not look like the Soundpost binary (no shipped copy in it)\033[0m\n' "$BIN" >&2
-  exit 1
-fi
+# The premise for each binary, asserted before the absences: this really is that target's
+# binary. Without it a path typo — or an empty file — produces a clean run over a binary
+# with no strings in it at all, every assertion below passing for the one reason that makes
+# them meaningless. A target with no anchor here fails: whoever adds a target chooses what
+# proves its binary is the real one.
+anchor_for() {
+  case "$1" in
+    Soundpost) printf '%s' "Soundpost heard" ;;
+    SoundpostWidgetExtension) printf '%s' "com.soundpost.Soundpost.widget.newCapsule" ;;
+    *) return 1 ;;
+  esac
+}
 
 failed=0
-for token in "${FORBIDDEN[@]}"; do
-  if grep -q -- "$token" <<<"$SYMBOLS"; then
-    printf '\033[31m✗ %s is in the Release binary\033[0m\n' "$token" >&2
-    failed=1
+checked=0
+while IFS=$'\t' read -r target rel; do
+  [ -n "$target" ] || continue
+  BIN="$APP/$rel"
+  [ -f "$BIN" ] || { printf '\033[31m✗ %s: no binary at %s\033[0m\n' "$target" "$BIN" >&2; exit 1; }
+  ANCHOR="$(anchor_for "$target")" || {
+    printf '\033[31m✗ %s: no premise anchor in check-debug-only.sh for this target\033[0m\n' "$target" >&2
+    exit 1
+  }
+
+  # Read once. NOT `strings "$BIN" | grep -q …`: under `set -o pipefail`, `grep -q`
+  # exits the moment it matches, `strings` takes SIGPIPE, and the pipeline reports
+  # failure for a successful match — so the premise check below would fail on a binary
+  # that is fine, and every absence check would "pass" for the same wrong reason. This
+  # is the third place in this repo where `pipefail` has turned a working pipeline into
+  # a lying one (see cloudkit-schema.sh's `diff | sed`).
+  SYMBOLS="$(strings "$BIN")"
+  if ! grep -q -- "$ANCHOR" <<<"$SYMBOLS"; then
+    printf '\033[31m✗ %s does not look like the %s binary (no "%s" in it)\033[0m\n' "$BIN" "$target" "$ANCHOR" >&2
+    exit 1
   fi
-done
+
+  for token in "${FORBIDDEN[@]}"; do
+    if grep -q -- "$token" <<<"$SYMBOLS"; then
+      printf '\033[31m✗ %s is in the Release binary of %s\033[0m\n' "$token" "$target" >&2
+      failed=1
+    fi
+  done
+  checked=$((checked + 1))
+done <<<"$EXECUTABLES"
+
+if [ "$checked" -eq 0 ]; then
+  printf '\033[31m✗ the project names no shipping binary to check\033[0m\n' >&2
+  exit 1
+fi
 
 if [ "$failed" -ne 0 ]; then
   printf '\033[31mA DEBUG-only entry point reached a shipping build. One of them writes to\n' >&2
@@ -137,4 +173,5 @@ if [ "$failed" -ne 0 ]; then
   exit 1
 fi
 
-printf '\033[32m✓ Debug-only gate passed — %d entry points, none in the Release binary.\033[0m\n' "${#FORBIDDEN[@]}"
+printf '\033[32m✓ Debug-only gate passed — %d entry points, none in %d Release binar%s.\033[0m\n' \
+  "${#FORBIDDEN[@]}" "$checked" "$([ "$checked" -eq 1 ] && echo y || echo ies)"

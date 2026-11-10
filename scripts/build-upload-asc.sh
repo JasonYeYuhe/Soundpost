@@ -24,8 +24,10 @@ MODE="${1:-upload}"
 PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 SCHEME="${SCHEME:-Soundpost}"
 DESTINATION="${DESTINATION:-generic/platform=iOS}"
-ARCHIVE_PATH="$PROJECT_DIR/build/${SCHEME}.xcarchive"
-EXPORT_PATH="$PROJECT_DIR/build/Export-${SCHEME}"
+# Overridable so a dry run (M22 S3) never replaces `build/Soundpost.xcarchive` — the archive
+# of the build a release is waiting on — which this script deletes before archiving.
+ARCHIVE_PATH="${ARCHIVE_PATH:-$PROJECT_DIR/build/${SCHEME}.xcarchive}"
+EXPORT_PATH="${EXPORT_PATH:-$PROJECT_DIR/build/Export-${SCHEME}}"
 
 API_KEY_ID="${ASC_API_KEY_ID:-DMMFP6XTXX}"
 API_ISSUER="${ASC_API_ISSUER:-c5671c11-49ec-47d9-bd38-5e3c1a249416}"
@@ -102,6 +104,14 @@ xcodebuild archive \
 [ -d "$ARCHIVE_PATH" ] || { echo "ERROR: archive failed"; exit 1; }
 echo "Archive OK -> $ARCHIVE_PATH"
 
+# What the archive contains (M22 §4B.6): every target's executable, one version across
+# the app and its extensions, a WidgetKit extension that links nothing it should not,
+# the app's own dSYM. Fatal in both modes, and not covered by RELEASE_PREFLIGHT_OVERRIDE.
+"$PROJECT_DIR/scripts/verify-archive.sh" "$ARCHIVE_PATH" || {
+  echo "ERROR: refusing to continue — the archive is not what this project builds (see above)."
+  exit 1
+}
+
 # Still the commit the preflight saw, and still clean? If the checkout changed while the
 # archive ran, the binary may match neither commit — stop before it reaches App Store
 # Connect rather than tag the wrong one afterwards.
@@ -122,7 +132,11 @@ fi
 echo ""
 echo "=== Step 1.5/2: dSYM upload to Sentry ==="
 dsym_problem=""
-if ! ls -d "$ARCHIVE_PATH"/dSYMs/*.dSYM >/dev/null 2>&1; then
+if [ "$MODE" != "upload" ] && [ -z "${SENTRY_AUTH_TOKEN:-}" ]; then
+  # A dry archive with no Sentry token uploads nothing (M22 S3): it is a signing and
+  # contents check, not a release, and its dSYMs belong to no build anyone will run.
+  echo "SKIP: archive mode with no SENTRY_AUTH_TOKEN — no dSYMs are sent."
+elif ! ls -d "$ARCHIVE_PATH"/dSYMs/*.dSYM >/dev/null 2>&1; then
   dsym_problem="the archive holds no dSYMs"
 elif ! "$PROJECT_DIR/scripts/upload-dsyms.sh" "$ARCHIVE_PATH"; then
   dsym_problem="the dSYM upload to Sentry failed"

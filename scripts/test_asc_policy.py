@@ -96,9 +96,12 @@ class CancelTests(unittest.TestCase):
     def test_the_rejected_state_is_not_in_the_cancel_set(self):
         self.assertNotIn('UNRESOLVED_ISSUES', asc_policy.CANCELABLE)
 
-    def test_drafts_may_be_cancelled(self):
-        self.assertTrue(asc_policy.may_cancel('READY_FOR_REVIEW'))
+    def test_export_compliance_may_be_cancelled_but_a_draft_may_not(self):
+        # M21 §13 S6: Apple refuses to cancel a draft that was never submitted (409), and
+        # a draft that was submitted before holds the review thread. Neither is cancelled.
         self.assertTrue(asc_policy.may_cancel('WAITING_FOR_EXPORT_COMPLIANCE'))
+        self.assertFalse(asc_policy.may_cancel('READY_FOR_REVIEW'))
+        self.assertFalse(asc_policy.may_cancel('READY_FOR_REVIEW', force=True))
 
     def test_apples_queue_is_never_cancelled_from_here(self):
         for state in ('WAITING_FOR_REVIEW', 'IN_REVIEW'):
@@ -126,6 +129,50 @@ class SubmitPlanTests(unittest.TestCase):
     def test_a_clean_slate_proceeds(self):
         self.assertEqual(asc_policy.submit_plan([]), 'proceed')
         self.assertEqual(asc_policy.submit_plan(['COMPLETE', 'READY_FOR_REVIEW']), 'proceed')
+
+
+def _sub(sid, state, submitted=None):
+    return {'id': sid, 'attributes': {'state': state, 'submittedDate': submitted}}
+
+
+class DraftReuseTests(unittest.TestCase):
+    def test_an_unsubmitted_draft_is_finished_not_replaced(self):
+        # M21 §13 S6: `submit` created d56ef962, the add-item step 409'd on the age-rating
+        # question, and the next `submit` tried to cancel the draft and could not.
+        subs = [_sub('old', 'COMPLETE', '2026-10-06T00:00:00Z'), _sub('d56', 'READY_FOR_REVIEW')]
+        self.assertEqual(asc_policy.reusable_draft(subs), 'd56')
+
+    def test_no_draft_means_a_new_submission(self):
+        self.assertIsNone(asc_policy.reusable_draft([_sub('old', 'COMPLETE', '2026-10-06T00:00:00Z')]))
+        self.assertIsNone(asc_policy.reusable_draft([]))
+
+    def test_a_reopened_rejection_is_never_reused(self):
+        # A draft that was submitted before is a rejection reopened with "Update Review":
+        # it carries the App Review thread (M19 §8-iii). Never finished or cancelled here.
+        with self.assertRaises(Refusal) as caught:
+            asc_policy.reusable_draft([_sub('r', 'READY_FOR_REVIEW', '2026-10-01T00:00:00Z')])
+        self.assertIn('Update Review', str(caught.exception))
+
+    def test_a_reopened_rejection_wins_over_a_fresh_draft(self):
+        with self.assertRaises(Refusal):
+            asc_policy.reusable_draft([_sub('fresh', 'READY_FOR_REVIEW'),
+                                       _sub('r', 'READY_FOR_REVIEW', '2026-10-01T00:00:00Z')])
+
+    def test_two_unsubmitted_drafts_are_refused(self):
+        with self.assertRaises(Refusal):
+            asc_policy.reusable_draft([_sub('a', 'READY_FOR_REVIEW'), _sub('b', 'READY_FOR_REVIEW')])
+
+    def test_a_draft_is_filled_with_this_version_only(self):
+        self.assertEqual(asc_policy.draft_items_plan([], 'v-1.12.0'), 'add')
+        self.assertEqual(asc_policy.draft_items_plan(['v-1.12.0'], 'v-1.12.0'), 'submit')
+        with self.assertRaises(Refusal):
+            asc_policy.draft_items_plan(['v-1.11.0'], 'v-1.12.0')
+
+    def test_an_item_whose_version_cannot_be_read_is_not_assumed_to_be_this_one(self):
+        with self.assertRaises(Refusal):
+            asc_policy.draft_items_plan([None], 'v-1.12.0')
+        with self.assertRaises(Refusal):
+            asc_policy.draft_items_plan(['v-1.12.0', None], 'v-1.12.0')
 
 
 class BuildNumberTests(unittest.TestCase):
@@ -235,6 +282,34 @@ class AscUsesThePolicyTests(unittest.TestCase):
     def test_submit_asks_submit_plan_before_cancelling(self):
         submit = _function(self.tree, 'cmd_submit')
         self.assertIn('asc_policy.submit_plan', _calls(submit))
+
+    def test_submit_finishes_a_draft_and_creates_only_when_there_is_none(self):
+        submit = _function(self.tree, 'cmd_submit')
+        calls = _calls(submit)
+        self.assertIn('asc_policy.reusable_draft', calls)
+        self.assertIn('asc_policy.draft_items_plan', calls)
+        # The POST that creates a submission, and the cancel before it, sit only in the
+        # branch taken when there is no draft to finish.
+        creating = [n for n in ast.walk(submit)
+                    if isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and n.func.id == 'post'
+                    and n.args and isinstance(n.args[0], ast.Constant)
+                    and n.args[0].value == '/v1/reviewSubmissions']
+        self.assertEqual(len(creating), 1, 'cmd_submit should create a submission in one place')
+        branches = [n for n in ast.walk(submit) if isinstance(n, ast.If)
+                    and isinstance(n.test, ast.Name) and n.test.id == 'sub_id']
+        self.assertEqual(len(branches), 1, 'no `if sub_id:` branch deciding reuse vs create')
+        orelse = ast.Module(body=branches[0].orelse, type_ignores=[])
+        self.assertIn(creating[0], list(ast.walk(orelse)), 'the create POST runs even with a draft')
+        cancels = [n for n in ast.walk(submit)
+                   if isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and n.func.id == 'cmd_cancel']
+        self.assertEqual(len(cancels), 1, 'cmd_submit should cancel in one place only')
+        self.assertIn(cancels[0], list(ast.walk(orelse)),
+                      'cmd_submit cancels even when it has a draft to finish')
+
+    def test_the_draft_items_are_read_with_their_versions(self):
+        submit = _function(self.tree, 'cmd_submit')
+        self.assertIn('appStoreVersion', _string_constants(submit))
+        self.assertIn('include', _string_constants(submit))
 
     def test_no_cancel_set_in_asc_py_holds_the_rejected_state(self):
         for node in self.tree.body:
