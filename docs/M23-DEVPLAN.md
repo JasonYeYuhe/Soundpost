@@ -1349,6 +1349,52 @@ preflight has no pin check).
 that run (752 tests, 0 warnings) stands for this commit; CI's two toolchains are this step's new
 evidence (below).
 
+**CI.** `975ab77` ([run 43064844629](https://github.com/JasonYeYuhe/Soundpost/actions/runs/43064844629)):
+the Xcode 26.6 entry green — the picker chose `iPhone 17` on iOS 26.5, `Ran 168 tests`, `Executed
+752 tests (floor 752)`, no warnings; the `server` job green on its first run — `Deno: 18 passed
+(floor 18)`, `ALL PASS` from the SQL test against PostgreSQL 16 (the SQL test's first run on CI
+ever). **The Xcode 27.2 entry failed before any gate:** its picker chose `iPhone 17` on iOS 27.2
+(not the `iPhone Duo` runtimes), then `hashFiles()` on `Package.resolved` ran past GitHub's
+120-second template limit on the preview image. `6d1da60` computes the cache key with `shasum -a
+256` in the shell instead (the key changed once for both entries).
+
+`6d1da60` ([run 43066658284](https://github.com/JasonYeYuhe/Soundpost/actions/runs/43066658284)):
+**all three jobs green** — the first green Xcode 27.2 run: `pinned 27B52, this runner 27B52`, `Ran
+168 tests`, `Executed 752 tests (floor 752)`, no warnings, 20 minutes (cold package resolve); 26.6
+the same counts; `server` 18 Deno tests and `ALL PASS`.
+
+**The pre-boot, measured, then moved.** Booting the simulator at the job's start (as §4C.4 says)
+starved the runner's disk: on `975ab77` / `6d1da60` a one-line step took 37–53 s (0 s on S1's run),
+the cache restore 68–130 s (13 s), and the 26.6 job 9m45s against 8m00s — the boot saved about two
+minutes in build-and-test and cost more before it; it is also what pushed `hashFiles()` past its
+limit. The device is still chosen by name at the start; the boot now starts just before the
+debug-only gate's compile, and `bootstatus -b` still precedes the tests (commit after `6d1da60`).
+
 **Deviation.** One matrix job instead of a separately written `test-xcode27` job: the plan's
 requirement is "every step of the 26.6 job", and a matrix makes that true by construction
 (`CiParityTests` pins the only two differences). D23's retirement is then deleting one matrix entry.
+
+### S3 — the store stays where it is
+
+**What changed.** `SoundpostModelContainer.onDiskConfiguration(cloudKit:)` =
+`ModelConfiguration(schema: productionSchema, groupContainer: .none, cloudKitDatabase: cloudKit)`,
+used by rung 1 (`.automatic`) and rung 2 (`.none`); rung 3 (in memory), every test and DEBUG
+container untouched. Name, default URL flag and CloudKit settings unchanged. No entitlement.
+
+**`StoreLocationTests`** (3 tests, two of them over both rungs): (a) each on-disk rung's `url`
+equals `URL.applicationSupportDirectory.appending(path: "default.store")`, built independently;
+(b) each equals the unpinned `ModelConfiguration(schema:cloudKitDatabase:)` 1.12.0 ships, in a
+host with no App Group — the no-op proof; (c) a census over `Soundpost/`: exactly two
+`onDiskConfiguration(` call sites, both in `SoundpostModelContainer.swift` (one `.automatic`, one
+`.none`), and every `ModelConfiguration(…)` call (read to its matching parenthesis) is either
+in memory or carries `groupContainer: .none`; the census `#require`s that it found the file.
+
+| Control (`scratchpad/mutate_swift.py`, `-only-testing`, `-collect-test-diagnostics never`) | Caught by |
+|---|---|
+| `groupContainer: .none` dropped | (c) `everyOnDiskConfigurationIsPinnedAndBothRungsUseThePin` |
+| `.identifier("group.com.soundpost.Soundpost")` | **a crash**: SwiftData traps with "Unable to find App Group Container in Entitlements" when `url` is read in a host without the group, so (a) and (b) never return; `xcodebuild` lists all three under `Failing tests:` and reports `TEST FAILED`. The plan expected a fallback to the default location; there is none. (c) would catch it in a host that did not trap. |
+| the store renamed (`"library"`) | (a) and (b) |
+| rung 2 built unpinned again | (c) |
+
+**Standing bars.** Local `xcodebuild clean test` in place: **755 tests in 99 suites**, no
+warnings. `MIN_TESTS` 752 → 755.

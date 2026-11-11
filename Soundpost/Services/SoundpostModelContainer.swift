@@ -67,12 +67,28 @@ enum SoundpostModelContainer {
         Schema([Capsule.self, ListeningConsent.self, SoundRejection.self])
     }
 
+    /// The on-disk store's configuration, for both on-disk rungs: where the library lives.
+    ///
+    /// **`groupContainer: .none` pins the store where it has always been**
+    /// (`Application Support/default.store`), M23 §4D. The parameter defaults to
+    /// `.automatic`, under which SwiftData resolves the store into the first App Group
+    /// the app is entitled to. The app has none today, so `.none` changes nothing now —
+    /// it is what keeps a later App Group (M24's widget) from moving everyone's library:
+    /// read from the iOS 18.5 and 27.0 SwiftData binaries, the `.automatic` resolver would
+    /// then copy the store into the group container, and whether that copy carries the
+    /// external-storage audio and the CloudKit mirroring state is not known.
+    /// `StoreLocationTests` holds the resolved URL to the literal path and both rungs to
+    /// this function.
+    static func onDiskConfiguration(cloudKit: ModelConfiguration.CloudKitDatabase) -> ModelConfiguration {
+        ModelConfiguration(schema: productionSchema, groupContainer: .none, cloudKitDatabase: cloudKit)
+    }
+
     static func makeProductionContainer() -> ProductionStore {
         let schema = productionSchema
 
         // Rung 1 — CloudKit-mirrored private database.
         do {
-            let config = ModelConfiguration(schema: schema, cloudKitDatabase: .automatic)
+            let config = onDiskConfiguration(cloudKit: .automatic)
             let container = try ModelContainer(for: schema, configurations: config)
             Diagnostics.info("Durability: container on CloudKit rung")
             return ProductionStore(container: container, rung: .cloudKit)
@@ -96,7 +112,7 @@ enum SoundpostModelContainer {
         // as a fallback and was a retry. `TestSupport` already passes `.none` for
         // exactly this reason; production had not.
         do {
-            let config = ModelConfiguration(schema: schema, cloudKitDatabase: .none)
+            let config = onDiskConfiguration(cloudKit: .none)
             let container = try ModelContainer(for: schema, configurations: config)
             Diagnostics.info("Durability: container on local rung")
             return ProductionStore(container: container, rung: .local)
