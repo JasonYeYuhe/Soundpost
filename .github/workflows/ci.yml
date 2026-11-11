@@ -75,16 +75,13 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # Chosen by name and booted now, while the packages restore and the gates run, so the
-      # boot is not paid between the end of the build and the first test (it took 2–12
-      # minutes there; M23 §3.3). `bootstatus -b` before the test waits for it to finish.
-      - name: Select the simulator by name and start it booting
+      # Chosen by name at the start, so a runner without the device fails in seconds.
+      - name: Select the simulator by name
         id: sim
         run: |
           DEVICE_ID="$(xcrun simctl list devices available -j | python3 scripts/ci/pick_simulator.py "${{ matrix.simulator }}" "${{ matrix.min_ios }}")"
           echo "Using simulator: $DEVICE_ID"
           echo "device_id=$DEVICE_ID" >> "$GITHUB_OUTPUT"
-          xcrun simctl boot "$DEVICE_ID" || echo "::notice::simctl boot returned non-zero (already booting?); bootstatus decides."
 
       # Swift packages — Sentry's binary xcframeworks — from the last green run with the
       # same Package.resolved, so a warm run downloads nothing from github.com: on
@@ -226,6 +223,15 @@ jobs:
 
       - name: Store metadata (lengths + the claims the listing must make)
         run: python3 scripts/check-store-metadata.py
+
+      # Booted here, while the debug-only gate compiles, so the boot is not paid between the
+      # end of the test build and the first test (2–12 minutes there; M23 §3.3). Not at the
+      # job's start: a first boot starves the runner's disk, and there it stretched a
+      # one-line step to 53 s, the cache restore to over two minutes, and pushed
+      # `hashFiles()` past its 120-second limit on the xcode-27 image (M23 §13 S2).
+      # `bootstatus -b` before the tests waits for it to finish.
+      - name: Start the simulator booting
+        run: xcrun simctl boot "${{ steps.sim.outputs.device_id }}" || echo "::notice::simctl boot returned non-zero (already booted?); bootstatus decides."
 
       - name: Debug-only gate (no debug launch argument reaches a Release binary)
         run: ./scripts/check-debug-only.sh
