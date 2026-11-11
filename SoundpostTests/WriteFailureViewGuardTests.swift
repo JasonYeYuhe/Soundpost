@@ -15,7 +15,10 @@ import Testing
 struct WriteFailureViewGuardTests {
     @Test func aFailedSealOrUnsealTellsTheUserAndGoesNoFurther() throws {
         let detail = try Self.code("Soundpost/Views/CapsuleDetailView.swift")
-        let paths = [("private func seal(until date: Date) {", "store.commitSeal("),
+        // The seal goes through `CapsuleActions.seal` since M23 §4F.1 (it queues the old
+        // far job's cancel, then `commitSeal`s); `ResealOrphanTests` pins that `commitSeal`
+        // has no other caller.
+        let paths = [("private func seal(until date: Date) {", "CapsuleActions.seal("),
                      ("private func unseal() {", "store.commitUnseal(")]
         for (signature, write) in paths {
             let body = try Self.body(of: signature, in: detail)

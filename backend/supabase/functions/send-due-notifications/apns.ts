@@ -97,6 +97,9 @@ export interface DispatchOutcome {
   status: "ok" | "prune" | "retry";
   httpStatus?: number;
   error?: string; // generic, no content
+  /** APNs' own `reason` on a rejected send (InvalidProviderToken, TooManyRequests…):
+   *  content-free, and the only way to see WHY a push was not delivered (M23 §4F.2). */
+  reason?: string;
 }
 
 /**
@@ -156,5 +159,5 @@ export async function dispatchToToken(opts: {
   if (resp.status === 410 || reason === "BadDeviceToken" || reason === "Unregistered") {
     return { status: "prune", httpStatus: resp.status, error: reason || "410" };
   }
-  return { status: "retry", httpStatus: resp.status, error: `http_${resp.status}` };
+  return { status: "retry", httpStatus: resp.status, error: `http_${resp.status}`, reason: reason || undefined };
 }

@@ -24,7 +24,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { apnsHostFor, buildAPNsJWT, dispatchToToken, type DispatchOutcome } from "./apns.ts";
 import { assertPayloadIsClean, buildPushPayload, type JobKind } from "./payload.ts";
 import { checkCronAuth } from "./auth.ts";
-import { decideSettlement, NO_TOKEN_BACKOFF_SECONDS, type Outcome } from "./state.ts";
+import { decideSettlement, NO_TOKEN_BACKOFF_SECONDS, retryLabel } from "./state.ts";
 
 // Batch + lease are sized so one run's worst-case wall-clock stays well under
 // the lock lease: with a 10s per-token fetch timeout (apns.ts), 50 jobs can't
@@ -177,7 +177,9 @@ Deno.serve(async (req) => {
       continue;
     }
 
-    const outcomes: Outcome[] = [];
+    // Every outcome, not only its status: a retry's APNs reason is what `last_error`
+    // records (M23 §4F.2).
+    const dispatched: DispatchOutcome[] = [];
     for (const t of tokens) {
       const outcome: DispatchOutcome = await dispatchToToken({
         host: apnsHostFor(t.environment),
@@ -193,10 +195,11 @@ Deno.serve(async (req) => {
         if (error) logEvt("prune_failed", job.id, error.code ?? "unknown");
         else prunedTokens++;
       }
-      outcomes.push(outcome.status);
+      dispatched.push(outcome);
     }
 
-    const settlement = decideSettlement(outcomes, job.attempts);
+    const settlement = decideSettlement(dispatched.map((o) => o.status), job.attempts);
+    const failure = retryLabel(dispatched);
     switch (settlement.kind) {
       case "sent": {
         // If this settle write fails, the job stays pending+locked and re-fires
@@ -207,9 +210,10 @@ Deno.serve(async (req) => {
         break;
       }
       case "retry": {
+        logEvt("dispatch_rejected", job.id, failure);
         const { error } = await supabase.rpc("mark_job_retry", {
           p_id: job.id,
-          p_error: "dispatch_failed",
+          p_error: failure,
           p_next_attempt: new Date(Date.now() + settlement.backoffSeconds * 1000).toISOString(),
           p_dead_letter: false,
         });
@@ -218,9 +222,10 @@ Deno.serve(async (req) => {
         break;
       }
       case "dead_letter": {
+        logEvt("dispatch_rejected", job.id, failure);
         const { error } = await supabase.rpc("mark_job_retry", {
           p_id: job.id,
-          p_error: "dispatch_failed",
+          p_error: failure,
           p_next_attempt: new Date().toISOString(),
           p_dead_letter: true,
         });

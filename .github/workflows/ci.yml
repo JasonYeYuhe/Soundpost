@@ -35,7 +35,7 @@ concurrency:
 # found nothing on old Pythons, so the markers alone prove nothing. Raise these
 # deliberately when tests are added; never lower one to make a run pass.
 env:
-  MIN_TESTS: "763"
+  MIN_TESTS: "773"
   MIN_PY_TESTS: "168"
 
 jobs:
@@ -313,7 +313,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
-      MIN_DENO_TESTS: "18"
+      MIN_DENO_TESTS: "22"
       NO_COLOR: "1"
     defaults:
       run:

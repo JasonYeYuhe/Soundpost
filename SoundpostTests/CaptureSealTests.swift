@@ -168,7 +168,7 @@ struct CaptureSealTests {
         let seal = try #require(code.range(of: "private func seal(until date: Date) {"))
         let body = code[seal.upperBound...].prefix(900)
         let prompt = try #require(body.range(of: "requestAuthorization()"))
-        let write = try #require(body.range(of: "store.commitSeal(capsule, until: CapsuleStore.sealInstant(for: date))"),
+        let write = try #require(body.range(of: "CapsuleActions.seal(capsule, until: CapsuleStore.sealInstant(for: date), in: store)"),
                                  "the detail seal writes the picked instant, which may be past by now")
         #expect(prompt.lowerBound < write.lowerBound)
     }

@@ -576,7 +576,9 @@ struct CapsuleDetailView: View {
             do {
                 // The instant is decided now, after the permission prompt above — not
                 // when the day was picked (`CapsuleStore.sealInstant`).
-                try store.commitSeal(capsule, until: CapsuleStore.sealInstant(for: date))
+                // Through `CapsuleActions.seal`: a re-seal of a capsule whose old far job
+                // the server still holds queues that job's cancel first (M23 §4F.1).
+                try CapsuleActions.seal(capsule, until: CapsuleStore.sealInstant(for: date), in: store)
             } catch {
                 // A static, non-PII message to Sentry (Release) + the local log — and,
                 // since M20, to the person: nothing was sealed, so nothing here may say

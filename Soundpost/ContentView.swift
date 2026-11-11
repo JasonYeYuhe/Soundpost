@@ -604,10 +604,9 @@ struct ContentView: View {
     /// `serverJobSyncedAt` for any seal it shifts, so the M10 reconcile in `sync`
     /// re-upserts the corrected wall clock (§S2 P0).
     private func refreshAndSync() async {
-        let store = CapsuleStore(context: modelContext)
-        _ = try? store.normalizeSealHours()
-        _ = try? store.refreshDueSeals()
-        try? store.save()
+        // Normalize, flip due seals, one save — and a pending cancel for any stamped seal
+        // the normalize moves, so its old server job cannot outlive it (M23 §4F.1).
+        CapsuleActions.normalizeAndRefresh(in: CapsuleStore(context: modelContext))
         // **Before anything awaits** (M20 §4F review). A cold-launch request is set
         // before the gallery's first body, so `onChange` never sees it, and the sync
         // below waits on CloudKit and the delivery server — seconds, more outdoors.

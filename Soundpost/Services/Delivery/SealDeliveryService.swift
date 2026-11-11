@@ -255,8 +255,8 @@ final class SealDeliveryService {
     /// that would never notify. Pre-existing since M10.
     ///
     /// Still in the store **and still a far seal** → the delete never committed (or the
-    /// capsule was re-sealed): resolve without cancelling; the ordinary diff owns that
-    /// job. Still in the store but no longer a far seal (M21 §4B: queued by an upsert
+    /// capsule was re-sealed): resolve without cancelling once the capsule is stamped —
+    /// the ordinary diff owns that job — and wait while it is not (M23 §4F.1). Still in the store but no longer a far seal (M21 §4B: queued by an upsert
     /// that found the capsule changed under it, which the diff can no longer see because
     /// nothing was stamped) → cancel. Gone → cancel. Cannot tell → leave it queued.
     ///
@@ -274,7 +274,15 @@ final class SealDeliveryService {
                 continue
             case .stored(let capsule)
                 where SealDeliveryRouter.desiredJob(for: capsule, now: now, horizon: horizon) != nil:
-                DeliveryPreferences.resolvePendingCancel(capsuleID)
+                // Still a far seal. Resolved without a cancel only once it is STAMPED — the
+                // server has confirmed exactly this seal (every change to a seal clears
+                // the stamp), so the old job is gone or replaced (M23 §4F.1). Unstamped,
+                // the server may still hold an older seal's job (a re-seal after an
+                // offline unseal): the entry waits, sending nothing, until the upsert
+                // stamps it — or is cancelled here if the seal turns near or goes first.
+                if capsule.serverJobSyncedAt != nil {
+                    DeliveryPreferences.resolvePendingCancel(capsuleID)
+                }
                 continue
             case .stored, .absent:
                 break

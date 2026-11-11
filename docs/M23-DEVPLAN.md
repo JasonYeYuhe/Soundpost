@@ -1484,3 +1484,73 @@ both `sudo` (owner-only). Not attempted; no `#Preview` was added.
 
 **Standing bars.** Local `xcodebuild clean test` in place: **763 tests in 99 suites**, no
 warnings, localization 100% (363 strings). `MIN_TESTS` 755 → 763.
+**CI** `2a56062` ([run 43073130348](https://github.com/JasonYeYuhe/Soundpost/actions/runs/43073130348)):
+green on 26.6 and 27.2 — `Executed 763 tests (floor 763)` each, localization passed, no warnings
+(green 27.2 push 3).
+
+### S5 — delivery, app-only
+
+**What changed.**
+- `CapsuleActions.seal(_:until:in:timeZone:now:commit:)`: a capsule that carries
+  `serverJobSyncedAt` before the seal gets a durable pending cancel **before** the save; on a failed
+  save (`commitSeal` puts every field back) only the entry this call added is resolved. The detail
+  screen seals through it (after `requestAuthorization()`, as before).
+- `CapsuleActions.normalizeAndRefresh(in:now:commit:)` replaces `refreshAndSync`'s three lines in
+  the same order: the ids of stamped `.sealed` capsules are read **before**
+  `normalizeSealHours` (which clears the stamp of what it moves), each of those it moves gets a
+  pending cancel, then `refreshDueSeals`, then one save; a failed save resolves only the entries it
+  added. `CapsuleStore.normalizeSealHours` / `refreshDueSeals` unchanged; `drainCaptureRequest()`
+  still precedes the first `await`.
+- `SealDeliveryService.drainPendingCancels`: a queued id whose capsule is still a far seal is
+  resolved without a cancel **only once it is stamped**; unstamped it stays queued and sends
+  nothing (the upsert that stamps it replaces the old job, same capsule id), and it is cancelled if
+  the seal turns near or the capsule goes first. The stamped case — every existing test, including
+  `aQueuedCancelForACapsuleStillInTheStoreCancelsNothing` — is unchanged.
+
+**Tests** (`ResealOrphanTests`, 10; `withIsolatedDeliveryPreferences`, `isolatedStore()`,
+`SpyDeliveryBackend`): (1) offline unseal → near re-seal → one cancel on the next reconcile;
+(2) offline unseal → far re-seal with the backend throwing → still queued, no cancel; then the seal
+inside the horizon → one cancel; plus the far re-seal's other ending (upserted and stamped, then
+resolved with **no** cancel); (3) sealing a capsule with no job, near and far, queues and cancels
+nothing; (4a) a failed seal removes its own entry and puts the capsule back; (4b) an entry queued
+before a failed seal survives it; (5) a normalize that moves a stamped seal (23:00 Tokyo, 30 h out)
+to 09:00 (16 h out) queues exactly one cancel, an unstamped one moved the same way none; a failed
+normalize save resolves only its own entries; and two source pins — `commitSeal(` has exactly one
+shipping call site, in `CapsuleActions.swift`; `refreshAndSync` normalizes through `CapsuleActions`
+before the capture drain and the first `await`. Rewritten pins:
+`WriteFailureViewGuardTests.aFailedSealOrUnsealTellsTheUserAndGoesNoFurther` (now
+`CapsuleActions.seal(`, catch-body checks kept) and
+`CaptureSealTests.theDetailScreenSealsAtTheInstantOfTheWrite` (the `CapsuleActions.seal(…, in:
+store)` call after the prompt).
+
+| Control | Caught by |
+|---|---|
+| (1) `seal` skips the enqueue | (1), (2) |
+| (2) the drain resolves a far seal unconditionally (revision 1's rule) | (2) |
+| (3) `seal` enqueues unconditionally | (3) — the near case records a cancel |
+| (4b) a failed seal resolves on every failure | (4b) |
+| (5) stamps read after `normalizeSealHours` | (5) |
+| the detail seal writes `store.commitSeal(` directly | the census, `aFailedSealOrUnseal…`, `theDetailScreenSeals…` |
+| `refreshAndSync` normalizes directly again | `theForegroundRefreshNormalizesThroughCapsuleActions` |
+
+**S5.2 — a content-free failure reason (prepared; Jason deploys).** `apns.ts`'s retry outcome now
+carries APNs' `reason`; `state.ts` gains a pure `retryLabel(outcomes)` (`dispatch_failed:http_403:
+InvalidProviderToken`, `dispatch_failed:network`, distinct parts joined, reasons reduced to
+`[A-Za-z0-9_]`, ≤ 200 characters); `index.ts` keeps the `DispatchOutcome[]`, passes the statuses to
+`decideSettlement`, writes the label as `p_error` on both the retry and the dead-letter branch, and
+logs `dispatch_rejected`. `dispatch_test.ts` (4 Deno tests) drives `dispatchToToken` itself with a
+stubbed `fetch` (403 `InvalidProviderToken`, a thrown network error, a bare 500) and feeds its
+outcome to `retryLabel`. Deno 18 → 22 tests; `deno check` of `index.ts` passes. Controls: `apns.ts`
+drops the reason → the 403 test fails; `retryLabel` returns the fixed label → all four fail;
+`network` not named → the network test fails. **Not deployed.** The deploy also carries M22's
+undeployed `apns.ts:134` fix; Jason runs it only if S0 does not reach `sent`, or after S0 passes —
+never during an S0 window: from `backend/`,
+`supabase functions deploy send-due-notifications --project-ref gkjwsxotmwrgqsvfijzs --no-verify-jwt`
+(before and after: the function's version in the dashboard, and `select status, attempts, last_error
+from public.notification_jobs where status = 'pending'` — states only in §13).
+
+**S5.3 (B2)** not built: S0 has not shown `sent`, D3 is not applied, D11 is unanswered — B2 moves to
+M24 unchanged unless all three change before S6.
+
+**Standing bars.** Local `xcodebuild clean test` in place: **773 tests in 100 suites**, no
+warnings. `MIN_TESTS` 763 → 773; `MIN_DENO_TESTS` 18 → 22.
