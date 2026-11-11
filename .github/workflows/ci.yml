@@ -224,15 +224,6 @@ jobs:
       - name: Store metadata (lengths + the claims the listing must make)
         run: python3 scripts/check-store-metadata.py
 
-      # Booted here, while the debug-only gate compiles, so the boot is not paid between the
-      # end of the test build and the first test (2–12 minutes there; M23 §3.3). Not at the
-      # job's start: a first boot starves the runner's disk, and there it stretched a
-      # one-line step to 53 s, the cache restore to over two minutes, and pushed
-      # `hashFiles()` past its 120-second limit on the xcode-27 image (M23 §13 S2).
-      # `bootstatus -b` before the tests waits for it to finish.
-      - name: Start the simulator booting
-        run: xcrun simctl boot "${{ steps.sim.outputs.device_id }}" || echo "::notice::simctl boot returned non-zero (already booted?); bootstatus decides."
-
       - name: Debug-only gate (no debug launch argument reaches a Release binary)
         run: ./scripts/check-debug-only.sh
 
@@ -264,6 +255,11 @@ jobs:
           # The cached package directory (above), when it is in use.
           source scripts/lib/build_cache.sh
           local_build_args "$PWD"
+          # Booted here and waited for, right before the tests (M23 §4C.4, as measured in
+          # §13 S2): a boot started earlier in the job — at its start, or during the
+          # debug-only compile — slowed everything it overlapped by more than it saved
+          # (26.6 job: 8m00 with no early boot, 9m45 booting at the start, 14m33 booting
+          # during the compile), and at the start it pushed `hashFiles()` past its limit.
           xcrun simctl bootstatus "${{ steps.sim.outputs.device_id }}" -b
           set +e
           xcodebuild test \
