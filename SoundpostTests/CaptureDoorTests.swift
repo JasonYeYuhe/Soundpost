@@ -170,6 +170,17 @@ struct CaptureDoorTests {
         #expect(sites.first?.hasPrefix("Soundpost/Services/CaptureDoor.swift:") == true, "\(sites)")
     }
 
+    // MARK: W7 — the control's intent runs only in the app on iOS 27 (M23 §4C.6)
+
+    /// iOS 27 may run an intent in any target that contains it; in the extension the
+    /// capture request has no coordinator, so a warm control tap there would open the
+    /// gallery. Read from the type itself, on the OS that reads it.
+    @Test func theControlsIntentRunsOnlyInTheApp() {
+        if #available(iOS 27.0, *) {
+            #expect(NewCapsuleControlIntent.allowedExecutionTargets == .main)
+        }
+    }
+
     // MARK: Where the doors are named (M23 §4E.1) — once, in Settings, before About
 
     private static let settings = "Soundpost/Views/SettingsView.swift"

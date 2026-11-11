@@ -1565,3 +1565,29 @@ The `server` job's logs showed both counts (Deno passed count and `ALL PASS`) on
 Homebrew-Deno step (warning-only when Deno would not install, which happened on the control PR's
 run) is gone, with its matrix flag; `CiParityTests` now allows exactly one per-entry step, the
 release-pin assertion (control: gate a second step → `test_only_the_release_pin_differs…` fails).
+**CI** `5be4809` ([run 43078204621](https://github.com/JasonYeYuhe/Soundpost/actions/runs/43078204621)):
+green — 773 tests on 26.6 and 27.2 (green 27.2 push 5), Deno 22.
+
+### D23 and W7 — the 26.6 job retired; the control's intent runs only in the app
+
+**D23 (default, assumed for building; Jason's to overturn by restoring the matrix entry).** The
+Xcode 27.2 entry was green, with both test counts in its log, on five pushes — `6d1da60`, `b27e081`,
+`2a56062`, `d0a4a30`, `5be4809` — and §4C.5's three-push condition held (S2.5), so the 26.6 entry
+is gone. The shipped binary is 27.2-built (27B52, pinned), and the App Store minimum (Xcode 26 /
+iOS 26 SDK) is met. The matrix stays, so a toolchain can come back as an entry that runs every
+step. `CiParityTests` now pins the 27.2 entry and allows exactly one per-entry step.
+
+**W7.** `NewCapsuleControlIntent` (shared `CaptureDoor.swift`, no `#if`) declares
+`@available(iOS 27.0, *) static let allowedExecutionTargets: IntentExecutionTargets = .main`: iOS 27
+may run an intent in any target that contains it, and in the extension `CaptureRequests.coordinator`
+is nil, so a warm tap run there would open the gallery with no capture request. iOS 17–26 never
+read it. `CaptureDoorTests.theControlsIntentRunsOnlyInTheApp` reads it on iOS 27 (control: `.default`
+→ fails). **Beyond the plan:** the extension now names an iOS 27 type, and a strong binding would
+stop it loading on iOS 17–18, so `verify-archive.sh`'s weak-symbol list gains
+`IntentExecutionTargets|allowedExecutionTargets` with a fixture (an `IntentExecutionTargetsProbe`
+bound strongly → refused; the old list passes it). Read from the built extension
+(`SoundpostWidgetExtension.debug.dylib`, simulator): `IntentExecutionTargets.main`, its metadata
+accessor and the `allowedExecutionTargets` requirement are all `weak external`.
+
+**Standing bars.** Local `xcodebuild clean test` in place: **774 tests in 100 suites**, no
+warnings. `MIN_TESTS` 773 → 774. Python 168 (a subtest added). S6 may now start once H2 allows.

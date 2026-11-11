@@ -87,6 +87,14 @@ struct NewCapsuleControlIntent: OpenIntent {
     @available(iOS 26.0, *)
     static let supportedModes: IntentModes = .foreground
 
+    /// Only in the app (W7, M23 §4C.6). iOS 27 may run an intent in any target that
+    /// contains it, and this one is compiled into the widget extension too, where
+    /// `CaptureRequests.coordinator` is nil: run there, a warm tap would open the app on the
+    /// gallery with no capture request. iOS 17–26 never read it. No `#if`: every CI job
+    /// builds with the iOS 27 SDK since D23.
+    @available(iOS 27.0, *)
+    static let allowedExecutionTargets: IntentExecutionTargets = .main
+
     @Parameter(title: "Capsule")
     var target: CaptureDestination
 

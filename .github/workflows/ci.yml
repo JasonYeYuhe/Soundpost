@@ -6,13 +6,14 @@ name: CI
 # nothing here can leak the ASC / Sentry creds (dSYM upload stays in the local
 # build-upload pipeline, gated on SENTRY_AUTH_TOKEN).
 #
-# Two toolchains (M23 §4C): Xcode 26.6 on `macos-26`, and Xcode 27.2 on the `xcode-27`
-# image — the build that makes the shipped binary (scripts/release-toolchain.env; the local
-# release build is 27B52). One job definition with two matrix entries, so the 27.2 job runs
-# EVERY step the 26.6 job runs — the Python policy tests and the CloudKit gates included —
-# and cannot drift from it; only the release-pin assertion is per entry. The delivery
-# server's tests run in the `server` job (Linux, with PostgreSQL). D23: the 26.6 entry is
-# retired after the 27.2 one has been green on five pushes. Deployment target stays iOS 17.
+# The shipping toolchain (M23 §4C): Xcode 27.2 on the `xcode-27` image — the build that
+# makes the released binary (scripts/release-toolchain.env, asserted below). Until D23 a
+# second matrix entry ran every step on Xcode 26.6 too; it was retired after the 27.2 entry
+# had been green on five pushes (M23 §13), because the shipped binary is 27.2-built and the
+# App Store's minimum (Xcode 26) is met — and so that the control's intent can declare
+# `allowedExecutionTargets`, which only the iOS 27 SDK has (W7). The matrix stays, so a
+# toolchain can be added back as an entry that runs every step. The delivery server's tests
+# run in the `server` job (Linux, with PostgreSQL). Deployment target stays iOS 17.
 
 on:
   push:
@@ -35,7 +36,7 @@ concurrency:
 # found nothing on old Pythons, so the markers alone prove nothing. Raise these
 # deliberately when tests are added; never lower one to make a run pass.
 env:
-  MIN_TESTS: "773"
+  MIN_TESTS: "774"
   MIN_PY_TESTS: "168"
 
 jobs:
@@ -47,14 +48,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - xcode: "Xcode 26.6"
-            image: macos-26
-            developer_dir: /Applications/Xcode_26.6.app/Contents/Developer
-            # Read from the image's README (actions/runner-images, 2026-11-12): iOS 26.5
-            # offers iPhone 17. By name, never "the first iPhone" (M23 §4C.4).
-            simulator: "iPhone 17"
-            min_ios: "26"
-            release_toolchain: false
           - xcode: "Xcode 27.2"
             image: xcode-27
             developer_dir: /Applications/Xcode_27.2.app/Contents/Developer

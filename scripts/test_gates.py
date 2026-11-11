@@ -483,6 +483,8 @@ class ArchiveTests(unittest.TestCase):
     def test_a_good_archive_passes(self):
         r = self.verify(self.archive(widget_weak="ControlWidgetProbe"))
         self.assertEqual(r.returncode, 0, r.stderr)
+        r = self.verify(self.archive(widget_weak="IntentExecutionTargetsProbe"))
+        self.assertEqual(r.returncode, 0, r.stderr)
 
     def test_faults_are_each_refused(self):
         cases = {
@@ -492,6 +494,9 @@ class ArchiveTests(unittest.TestCase):
             "a UserDefaults import": (dict(widget_call="NSUserDefaultsProbe"), "imports UserDefaults symbols"),
             "a network import": (dict(widget_call="NSURLSessionProbe"), "imports network symbols"),
             "an iOS 18 symbol bound strongly": (dict(widget_call="ControlWidgetProbe"), "binds a post-iOS-17 symbol strongly"),
+            # W7 (M23 §4C.6): the control's intent names an iOS 27 type in the extension.
+            "an iOS 27 symbol bound strongly": (dict(widget_call="IntentExecutionTargetsProbe"),
+                                                "binds a post-iOS-17 symbol strongly"),
             "only the extension's dSYM": (dict(app_dsym=False), "no Soundpost.app.dSYM"),
             "the extension missing": (dict(with_widget=False), "SoundpostWidgetExtension: no executable"),
         }
@@ -599,16 +604,19 @@ def read_ci():
 
 
 class CiParityTests(unittest.TestCase):
-    """M23 §4C.2: the Xcode 27.2 job runs every step of the 26.6 one. Both are entries of one
-    matrix job, so the only steps that may differ are the ones gated on a matrix flag — and
-    that is exactly the release-pin assertion (the delivery-server step moved to the
-    `server` job, §4C.5)."""
+    """M23 §4C.2: every toolchain CI runs is an entry of one matrix job, so each runs every
+    step; the only step gated on an entry is the release-pin assertion (the delivery-server
+    step moved to the `server` job, §4C.5). Since D23 the 27.2 entry is the only one."""
 
-    def test_both_toolchains_are_entries_of_one_job(self):
+    def test_the_shipping_toolchain_is_an_entry_of_the_one_job(self):
+        # D23 retired the 26.6 entry; the 27.2 one is the build releases are made with.
         ci = read_ci()
-        for line in ('xcode: "Xcode 26.6"', 'xcode: "Xcode 27.2"', "image: xcode-27",
-                     "developer_dir: /Applications/Xcode_27.2.app/Contents/Developer"):
+        for line in ('xcode: "Xcode 27.2"', "image: xcode-27",
+                     "developer_dir: /Applications/Xcode_27.2.app/Contents/Developer",
+                     "release_toolchain: true"):
             self.assertTrue(line in ci, f"ci.yml lacks {line!r}")
+        self.assertEqual(ci.count("          - xcode: "), 1 + ci.count('          - xcode: "Xcode 26'),
+                         "an entry that is neither 27.2 nor a restored 26.x")
 
     def test_only_the_release_pin_differs_between_the_toolchains(self):
         lines = read_ci().splitlines()

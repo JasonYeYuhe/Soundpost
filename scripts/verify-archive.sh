@@ -99,7 +99,8 @@ FORBIDDEN_IMPORTS = {
 }
 # Symbols introduced after iOS 17.0, the deployment target: each must be a weak import,
 # or the extension fails to load on iOS 17 instead of simply not offering the control.
-LATER_THAN_17 = r"ControlWidget|StaticControlConfiguration|ControlWidgetButton|IntentModes|supportedModes|WidgetLocation.*carPlay"
+LATER_THAN_17 = (r"ControlWidget|StaticControlConfiguration|ControlWidgetButton|IntentModes|supportedModes|"
+                 r"IntentExecutionTargets|allowedExecutionTargets|WidgetLocation.*carPlay")
 
 for t in extensions:
     bundle = os.path.join(app, "PlugIns", t["product"])
