@@ -15,6 +15,8 @@ set -uo pipefail
 #                          errSecInternalComponent (Stride 1.2.1, 2026-09-08)
 #   - a reused build no. → App Store Connect refuses it only after the upload
 #   - no Sentry token    → 1.6.0, 1.6.1 and 1.6.2 shipped with no dSYMs in Sentry
+#   - another Xcode      → the shipped binary would come from a toolchain CI never ran
+#                          (scripts/release-toolchain.env, M23 §4C.3)
 #
 # It reports every failure, not just the first, then refuses. To go past ONE named check:
 #
@@ -75,6 +77,15 @@ if [ "$(printf '%s\n' "$VERSION" | grep -c .)" -ne 1 ] || [ "$(printf '%s\n' "$B
   fail "the project does not hold one MARKETING_VERSION and one CURRENT_PROJECT_VERSION (got '$VERSION' / '$BUILD')"
 else
   pass "project is $VERSION ($BUILD)"
+fi
+
+# ── The toolchain the release is pinned to (M23 §4C.3) ──────────────────────
+# Checked before the archive, so an Xcode that auto-updated is caught in a second rather
+# than by verify-archive.sh after twenty minutes. No ALLOW name skips it.
+if out="$(toolchain_matches "$PROJECT_DIR/scripts/release-toolchain.env")"; then
+  pass "$out"
+else
+  fail "$out"
 fi
 
 # ── iCloud conflict copies, in what ships ────────────────────────────────────

@@ -227,3 +227,42 @@ sentry_probe() {
   printf '%s\n' "$code"
   sentry_probe_verdict "$code"
 }
+
+# ── The release toolchain (M23 §4C.3) ─────────────────────────────────────────
+#   toolchain_pin FILE        Prints "BUILD MIN_SDK" from release-toolchain.env, or refuses
+#                             (status 1) a missing file, a missing key or a malformed build.
+#   toolchain_matches FILE    Status 0 when the local `xcodebuild -version` build equals the
+#                             pin; otherwise prints why and the two ways out.
+toolchain_pin() {
+  local file="$1" build sdk
+  if [ ! -s "$file" ]; then
+    echo "no release toolchain pin at $file (EXPECTED_RELEASE_XCODE_BUILD, MIN_SDK)"
+    return 1
+  fi
+  build="$(sed -nE 's/^EXPECTED_RELEASE_XCODE_BUILD=([^[:space:]#]*).*/\1/p' "$file" | tail -1)"
+  sdk="$(sed -nE 's/^MIN_SDK=([^[:space:]#]*).*/\1/p' "$file" | tail -1)"
+  if ! printf '%s' "$build" | grep -Eq '^[0-9]{2}[A-Z][0-9]+[a-z]?$'; then
+    echo "EXPECTED_RELEASE_XCODE_BUILD '$build' in $file is not an Xcode build number (e.g. 27B52)"
+    return 1
+  fi
+  if ! printf '%s' "$sdk" | grep -Eq '^[a-z]+[0-9]+(\.[0-9]+)*$'; then
+    echo "MIN_SDK '$sdk' in $file is not an SDK name (e.g. iphoneos26)"
+    return 1
+  fi
+  printf '%s %s\n' "$build" "$sdk"
+}
+
+toolchain_matches() {
+  local pin want have
+  pin="$(toolchain_pin "$1")" || { printf '%s\n' "$pin"; return 1; }
+  want="${pin%% *}"
+  have="$(xcodebuild -version 2>/dev/null | sed -nE 's/^Build version ([^[:space:]]+).*/\1/p' | head -1)"
+  if [ "$have" = "$want" ]; then
+    printf 'Xcode build %s, as pinned\n' "$have"
+    return 0
+  fi
+  echo "this Mac's Xcode is build ${have:-unknown}, but releases are pinned to $want (scripts/release-toolchain.env)."
+  echo "        Either install Xcode $want beside it and run with DEVELOPER_DIR=/Applications/<that Xcode>.app/Contents/Developer,"
+  echo "        or bump the pin in a commit whose CI ran on the new build."
+  return 1
+}

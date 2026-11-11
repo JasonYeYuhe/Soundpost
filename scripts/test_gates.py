@@ -14,6 +14,7 @@ Standard library only; run by CI's `unittest discover -s scripts`. Needs macOS
 import json
 import os
 import plistlib
+import re
 import shutil
 import subprocess
 import sys
@@ -443,26 +444,34 @@ class VersionTests(unittest.TestCase):
 VERIFY = os.path.join(HERE, "verify-archive.sh")
 
 
+TOOLCHAIN_ENV = "EXPECTED_RELEASE_XCODE_BUILD=27B52\nMIN_SDK=iphoneos26\n"
+# What a good archive's bundles record, written as LITERALS — never read from the pin file,
+# or a missing pin would compare '' with '' and pass (M23 §4C.3).
+GOOD_TOOLCHAIN = {"DTXcodeBuild": "27B52", "DTSDKName": "iphoneos27.2"}
+
+
 class ArchiveTests(unittest.TestCase):
     def setUp(self):
         self.tree = Tree(self)
         two_targets(self.tree, widget_catalog=catalog(["New capsule"]))
+        self.tree.write("scripts/release-toolchain.env", TOOLCHAIN_ENV)
 
     def archive(self, widget_version=("1.12.0", "24"), point="com.apple.widgetkit-extension",
-                widget_call=None, widget_weak=None, app_dsym=True, with_widget=True):
+                widget_call=None, widget_weak=None, app_dsym=True, with_widget=True,
+                app_toolchain=GOOD_TOOLCHAIN, widget_toolchain=GOOD_TOOLCHAIN):
         root = os.path.join(self.tree.dir, "out", "Soundpost.xcarchive")
         if os.path.exists(root):
             shutil.rmtree(root)
         app = os.path.join(root, "Products", "Applications", "Soundpost.app")
         macho(os.path.join(app, "Soundpost"), ["Soundpost heard"])
         with open(os.path.join(app, "Info.plist"), "wb") as f:
-            plistlib.dump({"CFBundleShortVersionString": "1.12.0", "CFBundleVersion": "24"}, f)
+            plistlib.dump(dict({"CFBundleShortVersionString": "1.12.0", "CFBundleVersion": "24"}, **app_toolchain), f)
         if with_widget:
             ext = os.path.join(app, "PlugIns", "SoundpostWidgetExtension.appex")
             macho(os.path.join(ext, "SoundpostWidgetExtension"), [WIDGET_KIND], call=widget_call, weak=widget_weak)
             with open(os.path.join(ext, "Info.plist"), "wb") as f:
-                plistlib.dump({"CFBundleShortVersionString": widget_version[0], "CFBundleVersion": widget_version[1],
-                               "NSExtension": {"NSExtensionPointIdentifier": point}}, f)
+                plistlib.dump(dict({"CFBundleShortVersionString": widget_version[0], "CFBundleVersion": widget_version[1],
+                                    "NSExtension": {"NSExtensionPointIdentifier": point}}, **widget_toolchain), f)
         os.makedirs(os.path.join(root, "dSYMs", "SoundpostWidgetExtension.appex.dSYM"))
         if app_dsym:
             os.makedirs(os.path.join(root, "dSYMs", "Soundpost.app.dSYM"))
@@ -492,7 +501,125 @@ class ArchiveTests(unittest.TestCase):
                 self.assertNotEqual(r.returncode, 0, f"{name} passed")
                 self.assertIn(message, r.stderr)
 
+    # M23 §4C.3 — the release refuses an untested toolchain
+    def test_the_toolchain_is_printed_for_every_binary(self):
+        r = self.verify(self.archive())
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("Soundpost.app: DTXcodeBuild=27B52 DTSDKName=iphoneos27.2", r.stdout)
+        self.assertIn("SoundpostWidgetExtension.appex: DTXcodeBuild=27B52", r.stdout)
 
+    def test_a_missing_or_empty_pin_is_fatal(self):
+        pin = os.path.join(self.tree.dir, "scripts", "release-toolchain.env")
+        for content in (None, ""):
+            with self.subTest(content=content):
+                if content is None:
+                    os.remove(pin)
+                else:
+                    self.tree.write("scripts/release-toolchain.env", content)
+                r = self.verify(self.archive())
+                self.assertNotEqual(r.returncode, 0)
+                self.assertIn("no release toolchain pin", r.stderr)
+
+    def test_a_malformed_pin_is_fatal(self):
+        self.tree.write("scripts/release-toolchain.env", "EXPECTED_RELEASE_XCODE_BUILD=latest\nMIN_SDK=iphoneos26\n")
+        r = self.verify(self.archive())
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("is not an Xcode build number", r.stderr)
+
+    def test_toolchain_faults_are_each_refused(self):
+        older = {"DTXcodeBuild": "27A9275", "DTSDKName": "iphoneos27.1"}
+        cases = {
+            "the app built by another Xcode": (dict(app_toolchain=older), "Soundpost.app was built by Xcode 27A9275"),
+            "the app right, the extension not": (dict(widget_toolchain=older),
+                                                 "SoundpostWidgetExtension.appex was built by Xcode 27A9275"),
+            "no DTXcodeBuild in the app": (dict(app_toolchain={"DTSDKName": "iphoneos27.2"}), "Soundpost.app records no DTXcodeBuild"),
+            "no DTSDKName in the extension": (dict(widget_toolchain={"DTXcodeBuild": "27B52"}),
+                                              "SoundpostWidgetExtension.appex records no DTSDKName"),
+            "an SDK below the minimum": (dict(app_toolchain={"DTXcodeBuild": "27B52", "DTSDKName": "iphoneos18.5"}),
+                                         "built against iphoneos18.5, below the minimum iphoneos26"),
+        }
+        for name, (kwargs, message) in cases.items():
+            with self.subTest(name):
+                r = self.verify(self.archive(**kwargs))
+                self.assertNotEqual(r.returncode, 0, f"{name} passed")
+                self.assertIn(message, r.stderr)
+
+
+
+
+# ── CI's simulator, by name (M23 §4C.4) ──────────────────────────────────────────
+
+PICKER = os.path.join(HERE, "ci", "pick_simulator.py")
+
+
+def simctl_json(runtimes):
+    """{runtime suffix: [device names]} -> simctl's `list devices available -j` shape."""
+    return json.dumps({"devices": {
+        f"com.apple.CoreSimulator.SimRuntime.iOS-{rt}": [
+            {"name": n, "udid": f"{rt}-{n}".replace(" ", "_"), "isAvailable": True} for n in names]
+        for rt, names in runtimes.items()}})
+
+
+class SimulatorPickerTests(unittest.TestCase):
+    def pick(self, runtimes, name="iPhone 17", min_major="27"):
+        return subprocess.run([sys.executable, PICKER, name, min_major], input=simctl_json(runtimes),
+                              capture_output=True, text=True)
+
+    # The xcode-27 image (actions/runner-images, read 2026-11-12) has runtimes whose only
+    # device is `iPhone Duo`; "the first iPhone on the newest runtime" picks it.
+    def test_the_named_device_on_the_newest_runtime_that_offers_it(self):
+        r = self.pick({"27-2": ["iPhone Duo"], "27-0": ["iPhone 17", "iPhone 17e"]})
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(r.stdout.strip(), "27-0-iPhone_17")
+
+    def test_a_newer_runtime_wins_when_it_has_the_device(self):
+        r = self.pick({"27-2": ["iPhone 17", "iPhone Duo"], "27-1": ["iPhone Duo"], "27-0": ["iPhone 17"]})
+        self.assertEqual(r.stdout.strip(), "27-2-iPhone_17")
+
+    def test_no_such_device_fails_and_says_what_exists(self):
+        r = self.pick({"27-2": ["iPhone Duo"]})
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("no available 'iPhone 17' on an iOS 27+ runtime", r.stderr)
+        self.assertIn("iPhone Duo (iOS 27.2.0)", r.stderr)
+
+    def test_a_runtime_below_the_minimum_does_not_count(self):
+        r = self.pick({"26-5": ["iPhone 17"], "27-2": ["iPhone Duo"]})
+        self.assertEqual(r.returncode, 1)
+        self.assertEqual(self.pick({"26-5": ["iPhone 17"]}, min_major="26").stdout.strip(), "26-5-iPhone_17")
+
+    def test_ci_uses_the_picker_by_name(self):
+        ci = read_ci()
+        self.assertTrue("scripts/ci/pick_simulator.py" in ci, "ci.yml does not use the picker")
+        self.assertFalse("startswith('iPhone')" in ci, "the old first-iPhone picker is still in ci.yml")
+
+
+def read_ci():
+    with open(os.path.join(REPO, ".github", "workflows", "ci.yml"), encoding="utf-8") as f:
+        return f.read()
+
+
+class CiParityTests(unittest.TestCase):
+    """M23 §4C.2: the Xcode 27.2 job runs every step of the 26.6 one. Both are entries of one
+    matrix job, so the only steps that may differ are the ones gated on a matrix flag — and
+    those are exactly the release-pin assertion and the delivery-server step."""
+
+    def test_both_toolchains_are_entries_of_one_job(self):
+        ci = read_ci()
+        for line in ('xcode: "Xcode 26.6"', 'xcode: "Xcode 27.2"', "image: xcode-27",
+                     "developer_dir: /Applications/Xcode_27.2.app/Contents/Developer"):
+            self.assertTrue(line in ci, f"ci.yml lacks {line!r}")
+
+    def test_only_two_steps_differ_between_the_toolchains(self):
+        lines = read_ci().splitlines()
+        gated = [lines[i - 1].strip() for i, l in enumerate(lines) if l.strip().startswith("if: matrix.")]
+        self.assertEqual(gated, ["- name: Assert the release toolchain pin", "- name: Delivery server tests"])
+
+    def test_the_floors_are_workflow_level(self):
+        ci = read_ci()
+        top = ci[:ci.index("\njobs:")]
+        self.assertRegex(top, r'\n  MIN_TESTS: "\d+"')
+        self.assertRegex(top, r'\n  MIN_PY_TESTS: "\d+"')
+        self.assertFalse(re.search(r'\n {6,}MIN_TESTS:', ci), "a job sets its own MIN_TESTS")
 
 # ── The release path (M23 §4B) ───────────────────────────────────────────────────
 #
@@ -552,6 +679,7 @@ def shipping_tree(test):
     two_targets(tree, widget_catalog=catalog(["New capsule"]))
     for d in ("metadata/en-US", "scripts", "backend/supabase"):
         tree.write(f"{d}/keep.txt", "x\n")
+    tree.write("scripts/release-toolchain.env", TOOLCHAIN_ENV)
     return tree
 
 
@@ -733,9 +861,10 @@ class PreflightTests(unittest.TestCase):
     stub `security` that reports a locked keychain — allowed by name, so the check under
     test is the one that decides."""
 
-    def run_preflight(self, tree, mode="archive", allow="keychain", extra=None):
+    def run_preflight(self, tree, mode="archive", allow="keychain", extra=None, xcode_build="27B52"):
         bin_dir = os.path.join(tree.dir, "..", "bin")
         stub(bin_dir, "security", 'echo "User interaction is not allowed."; exit 51')
+        stub(bin_dir, "xcodebuild", f'[ "$1" = "-version" ] && printf "Xcode 27.2\\nBuild version {xcode_build}\\n"; exit 0')
         stub(bin_dir, "sentry-cli", "exit 0")
         env = dict(os.environ, GATE_PROJECT_DIR=tree.dir, PATH=f"{bin_dir}:{os.environ['PATH']}",
                    SOUNDPOST_SCREENSHOT_DIR=os.path.join(tree.dir, "..", "no-shots"),
@@ -792,6 +921,26 @@ class PreflightTests(unittest.TestCase):
             r = self.run_preflight(tree, allow=f"keychain,{name}")
             self.assertEqual(r.returncode, 1, name)
             self.assertIn(f"RELEASE_PREFLIGHT_ALLOW={name} is not a check you can go past", r.stderr)
+
+    def test_another_xcode_is_refused_with_the_two_ways_out(self):
+        # §4C.3: an Xcode that auto-updated is caught before the archive, and no ALLOW name
+        # reaches this check.
+        r = self.run_preflight(shipping_tree(self), xcode_build="27C10", allow="keychain,copies,build-number")
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("this Mac's Xcode is build 27C10, but releases are pinned to 27B52", r.stdout)
+        self.assertIn("DEVELOPER_DIR=", r.stdout)
+        self.assertIn("bump the pin in a commit whose CI ran on the new build", r.stdout)
+
+    def test_a_missing_pin_is_refused(self):
+        tree = shipping_tree(self)
+        os.remove(os.path.join(tree.dir, "scripts", "release-toolchain.env"))
+        r = self.run_preflight(tree)
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("no release toolchain pin", r.stdout)
+
+    def test_the_pinned_xcode_passes(self):
+        r = self.run_preflight(shipping_tree(self))
+        self.assertIn("Xcode build 27B52, as pinned", r.stdout)
 
     def committed(self):
         tree = shipping_tree(self)

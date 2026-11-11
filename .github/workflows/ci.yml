@@ -6,10 +6,13 @@ name: CI
 # nothing here can leak the ASC / Sentry creds (dSYM upload stays in the local
 # build-upload pipeline, gated on SENTRY_AUTH_TOKEN).
 #
-# Runs on macos-26 to match the local toolchain (Xcode 26 / iOS 26 SDK): the app
-# uses iOS-26-SDK symbols (e.g. AVAudioSession's renamed `.allowBluetoothHFP`), so
-# an older runner (macos-15 / Xcode 16) can't compile it. Deployment target stays
-# iOS 17 — only the build SDK must match.
+# Two toolchains (M23 §4C): Xcode 26.6 on `macos-26`, and Xcode 27.2 on the `xcode-27`
+# image — the build that makes the shipped binary (scripts/release-toolchain.env; the local
+# release build is 27B52). One job definition with two matrix entries, so the 27.2 job runs
+# EVERY step the 26.6 job runs — the Python policy tests and the CloudKit gates included —
+# and cannot drift from it; only the delivery-server step is per entry (it moves to the
+# `server` job below). D23: the 26.6 entry is retired after the 27.2 one has been green on
+# five pushes and the `server` job on three. Deployment target stays iOS 17.
 
 on:
   push:
@@ -27,23 +30,61 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+# The executed-test floors, one value for every job (M20 §4B, M23 §4C.2). `** TEST
+# SUCCEEDED **` is printed by a run that executed nothing, and `unittest` exits 0 having
+# found nothing on old Pythons, so the markers alone prove nothing. Raise these
+# deliberately when tests are added; never lower one to make a run pass.
+env:
+  MIN_TESTS: "752"
+  MIN_PY_TESTS: "168"
+
 jobs:
   test:
-    name: Build, test & guard standing bars
-    runs-on: macos-26
-    timeout-minutes: 30
+    name: Build, test & guard standing bars (${{ matrix.xcode }})
+    runs-on: ${{ matrix.image }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - xcode: "Xcode 26.6"
+            image: macos-26
+            developer_dir: /Applications/Xcode_26.6.app/Contents/Developer
+            # Read from the image's README (actions/runner-images, 2026-11-12): iOS 26.5
+            # offers iPhone 17. By name, never "the first iPhone" (M23 §4C.4).
+            simulator: "iPhone 17"
+            min_ios: "26"
+            release_toolchain: false
+            delivery_server: true
+          - xcode: "Xcode 27.2"
+            image: xcode-27
+            developer_dir: /Applications/Xcode_27.2.app/Contents/Developer
+            # xcode-27 (preview, macOS 27, image 20261104): Xcode 27.1 is the default and
+            # 27.2 is beside it; iOS 27.1 and one iOS 27.2 runtime offer only `iPhone Duo`.
+            simulator: "iPhone 17"
+            min_ios: "27"
+            release_toolchain: true
+            delivery_server: false
     env:
       # The toolchain this job claims to test with. Asserted, not just printed: a
       # runner image that moves its default Xcode would otherwise change the
       # compiler under every "CI is green" without a line of this repo changing.
-      EXPECTED_XCODE: "Xcode 26.6"
-      # The executed-test floor (M20 §4B). `** TEST SUCCEEDED **` is printed by a
-      # run that executed nothing, so the marker alone proves nothing. Raise it
-      # deliberately when tests are added; never lower it to make a run pass.
-      MIN_TESTS: "752"
+      EXPECTED_XCODE: ${{ matrix.xcode }}
+      DEVELOPER_DIR: ${{ matrix.developer_dir }}
 
     steps:
       - uses: actions/checkout@v7
+
+      # Chosen by name and booted now, while the packages restore and the gates run, so the
+      # boot is not paid between the end of the build and the first test (it took 2–12
+      # minutes there; M23 §3.3). `bootstatus -b` before the test waits for it to finish.
+      - name: Select the simulator by name and start it booting
+        id: sim
+        run: |
+          DEVICE_ID="$(xcrun simctl list devices available -j | python3 scripts/ci/pick_simulator.py "${{ matrix.simulator }}" "${{ matrix.min_ios }}")"
+          echo "Using simulator: $DEVICE_ID"
+          echo "device_id=$DEVICE_ID" >> "$GITHUB_OUTPUT"
+          xcrun simctl boot "$DEVICE_ID" || echo "::notice::simctl boot returned non-zero (already booting?); bootstatus decides."
 
       # Swift packages — Sentry's binary xcframeworks — from the last green run with the
       # same Package.resolved, so a warm run downloads nothing from github.com: on
@@ -99,6 +140,19 @@ jobs:
             exit 1
           fi
 
+      # The build releases are made with (M23 §4C.3). Only the job that runs that Xcode
+      # asserts it: the local preflight and verify-archive.sh read the same file.
+      - name: Assert the release toolchain pin
+        if: matrix.release_toolchain
+        run: |
+          PINNED="$(sed -nE 's/^EXPECTED_RELEASE_XCODE_BUILD=([^[:space:]#]*).*/\1/p' scripts/release-toolchain.env)"
+          BUILT="$(xcodebuild -version | sed -nE 's/^Build version (.*)/\1/p')"
+          echo "pinned $PINNED, this runner $BUILT"
+          if [ -z "$PINNED" ] || [ "$BUILT" != "$PINNED" ]; then
+            echo "::error::scripts/release-toolchain.env pins Xcode build '${PINNED}', but this job runs '${BUILT}'. Releases must be built with the Xcode CI ran." >&2
+            exit 1
+          fi
+
       # The release tooling's decisions (scripts/asc_policy.py): which app, which
       # version, what may be cancelled. Not a bare `python3 -m unittest` — scripts/
       # is not a package, so that finds 0 tests and on Python < 3.12 still exits 0.
@@ -109,8 +163,14 @@ jobs:
           mkdir -p build
           python3 -m unittest discover -s scripts -p 'test_*.py' -v > build/py-tests.log 2>&1 || { cat build/py-tests.log; exit 1; }
           cat build/py-tests.log
-          if ! grep -Eq '^Ran [1-9][0-9]* tests?' build/py-tests.log; then
-            echo "::error::No release-tooling policy tests ran." >&2
+          RAN="$(grep -Eo '^Ran [0-9]+ tests?' build/py-tests.log | tail -1 | grep -Eo '[0-9]+' || true)"
+          if [ -z "$RAN" ]; then
+            echo "::error::No 'Ran N tests' line — the release-tooling tests prove nothing." >&2
+            exit 1
+          fi
+          echo "Ran $RAN Python tests (floor $MIN_PY_TESTS)."
+          if [ "$RAN" -lt "$MIN_PY_TESTS" ]; then
+            echo "::error::Only $RAN Python tests ran; the floor is $MIN_PY_TESTS." >&2
             exit 1
           fi
 
@@ -119,7 +179,10 @@ jobs:
       # local Postgres when the runner already has one. Installing a tool or fetching
       # Deno's std from the network is not this repo's fault and only warns; a failing
       # test fails the job.
+      # Kept on the 26.6 entry until the `server` job's logs have shown both counts on
+      # three pushes (M23 §4C.5); then removed.
       - name: Delivery server tests
+        if: matrix.delivery_server
         env:
           HOMEBREW_NO_AUTO_UPDATE: "1"
           HOMEBREW_NO_INSTALL_CLEANUP: "1"
@@ -179,14 +242,6 @@ jobs:
       - name: CloudKit seed coverage (every entity can be created in Development)
         run: ./scripts/cloudkit-schema.sh check-seed
 
-      - name: Select an available iPhone simulator
-        id: sim
-        run: |
-          DEVICE_ID=$(xcrun simctl list devices available -j | python3 -c "import json,sys; d=json.load(sys.stdin)['devices']; ids=[v['udid'] for rt in sorted(d, reverse=True) for v in d[rt] if v.get('isAvailable') and v['name'].startswith('iPhone')]; print(ids[0] if ids else '')")
-          if [ -z "$DEVICE_ID" ]; then echo 'No iPhone simulator available' >&2; exit 1; fi
-          echo "Using simulator: $DEVICE_ID"
-          echo "device_id=$DEVICE_ID" >> "$GITHUB_OUTPUT"
-
       - name: Build & test (iOS Simulator)
         run: |
           # Ad-hoc local signing ("-"): needs no Apple identity or provisioning
@@ -198,6 +253,7 @@ jobs:
           # The cached package directory (above), when it is in use.
           source scripts/lib/build_cache.sh
           local_build_args "$PWD"
+          xcrun simctl bootstatus "${{ steps.sim.outputs.device_id }}" -b
           set +e
           xcodebuild test \
             -project Soundpost.xcodeproj \
@@ -236,7 +292,61 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: xcresult
+          name: xcresult-${{ matrix.image }}
           path: build/ci.xcresult
           retention-days: 7
           if-no-files-found: ignore
+
+  # The delivery server's tests (M23 §4C.5), on Linux where PostgreSQL is part of the image:
+  # the macOS runner has none, so the SQL hygiene test had never run on CI. Here a failed
+  # Deno install or `deno cache` is an ERROR, the passed count is checked against a floor,
+  # and the SQL test's `ALL PASS` marker is required — a job that ran nothing cannot pass.
+  server:
+    name: Delivery server tests (Deno + SQL)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      MIN_DENO_TESTS: "18"
+      NO_COLOR: "1"
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Type-check the import-free files (a warning, as on macOS)
+        run: |
+          deno --version
+          if ! deno check backend/supabase/functions/send-due-notifications/{apns,auth,payload,state}.ts; then
+            echo "::warning::deno $(deno --version | head -1 | cut -d' ' -f2) rejects the delivery function's types; fix before the next deploy." >&2
+          fi
+
+      - name: Deno tests (count checked)
+        run: |
+          deno cache backend/supabase/functions/send-due-notifications/*_test.ts
+          deno test --no-check backend/supabase/functions 2>&1 | tee deno-tests.log
+          PASSED="$(grep -Eo '[0-9]+ passed' deno-tests.log | tail -1 | grep -Eo '[0-9]+' || true)"
+          if [ -z "$PASSED" ]; then
+            echo "::error::No 'N passed' line from deno test — it proves nothing." >&2
+            exit 1
+          fi
+          echo "Deno: $PASSED passed (floor $MIN_DENO_TESTS)."
+          if [ "$PASSED" -lt "$MIN_DENO_TESTS" ]; then
+            echo "::error::Only $PASSED Deno tests passed; the floor is $MIN_DENO_TESTS." >&2
+            exit 1
+          fi
+
+      - name: SQL hygiene test (a throwaway PostgreSQL cluster)
+        run: |
+          PGBIN="$(ls -d /usr/lib/postgresql/*/bin | sort -V | tail -1)"
+          export PATH="$PGBIN:$PATH"
+          initdb --version
+          backend/supabase/tests/run-local.sh 2>&1 | tee sql-tests.log
+          if ! grep -q "ALL PASS" sql-tests.log; then
+            echo "::error::The SQL hygiene test did not print ALL PASS." >&2
+            exit 1
+          fi

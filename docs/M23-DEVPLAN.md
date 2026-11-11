@@ -1271,7 +1271,8 @@ build 24 (already on App Store Connect) — the build-number check ran through t
 **Standing bars.** Local `xcodebuild clean test` in place (Xcode 27.2, shared `iPhone 17 Pro`,
 iOS 27.0, app uninstalled first): **752 tests in 98 suites**, `check-warnings.sh` clean,
 localization 100%. No Swift changed; `MIN_TESTS` stays 752; the Python count (153) becomes
-`MIN_PY_TESTS` in S2.
+`MIN_PY_TESTS` in S2. **CI** on `6fa9411` ([run 43063372664](https://github.com/JasonYeYuhe/Soundpost/actions/runs/43063372664)):
+green — `Ran 153 tests`, `Executed 752 tests (floor 752)`, no warnings (Xcode 26.6, 8 minutes).
 
 **Deviations.** (1) `RELEASE_PREFLIGHT_ALLOW` runs a named check and reports it as allowed rather
 than skipping it, so the log still says what was gone past. (2) The copy scan also covers the test
@@ -1282,3 +1283,72 @@ reads the new group on 1.13.0 it removes nothing. (4) `screenshots.sh` already r
 and writes outside iCloud in S1 (asc.py reads the same folder); its device and status-bar work stays
 in S6. (5) No real dry archive in S1: every decision is exercised through the stubbed end-to-end
 fixtures, and the first real run is S7's (the preflight there runs with no override).
+
+### S2 — CI on the shipping toolchain
+
+**S2.1, read first** (GitHub's `actions/runner-images`, 2026-11-12, through `gh api`):
+[`images/macos/xcode-27-arm64-Readme.md`](https://github.com/actions/runner-images/blob/main/images/macos/xcode-27-arm64-Readme.md)
+— label `xcode-27` (also `xcode-27-xlarge`), arm64, macOS 27.0.1, image 20261104.0337.1, **still a
+public preview** ([issue 14404](https://github.com/actions/runner-images/issues/14404), open; the
+grounding's "GA since 2026-10-15" did not hold). Xcode 27.2 (27B52) at
+`/Applications/Xcode_27.2.app`, **27.1 the default**, 27.0 beside them. iOS runtimes: 27.0 and one
+27.2 runtime offer iPhone 17 / 17e / 18 Pro / 18 Pro Max / Air and iPads; 27.1 and a second 27.2
+runtime offer only `iPhone Duo` — the old picker would have chosen it. `macos-26` (image
+20261102.0473.1): Xcode 26.6 (17F113) default; iOS 26.2 / 26.4 / 26.5 offer iPhone 17.
+Ubuntu: `ubuntu-24.04` ships PostgreSQL 16 (service off); `ubuntu-latest` was not used because the
+26.04 image (PostgreSQL 18) exists beside it and the label can move.
+
+**What changed.**
+- `.github/workflows/ci.yml`: the macOS job is one definition with two matrix entries — Xcode 26.6
+  on `macos-26`, Xcode 27.2 on `xcode-27` (`DEVELOPER_DIR=/Applications/Xcode_27.2.app/…`,
+  `EXPECTED_XCODE "Xcode 27.2"` asserted as before) — `fail-fast: false`, 45-minute timeout. Only two
+  steps are gated on the entry: the release-pin assertion (27.2) and the macOS delivery-server step
+  (26.6, until the `server` job's logs have shown both counts on three pushes). `MIN_TESTS` (752) and
+  the new `MIN_PY_TESTS` (168) are workflow-level; the Python step parses `Ran N` against it. The
+  simulator is picked by name at the job's start and booted there; `simctl bootstatus -b` runs
+  before `xcodebuild test`. Artifacts are named per image.
+- `server` job on `ubuntu-24.04`: `denoland/setup-deno@v2` (v2.x; a failed install fails the job),
+  `deno check` of the four import-free files (a warning, as on macOS), `deno cache` (an error),
+  `deno test --no-check` with its `N passed` checked against `MIN_DENO_TESTS` 18 (today's count,
+  local Deno 2.7.5), and `run-local.sh` against the image's PostgreSQL with its `ALL PASS`
+  required. `run-local.sh` needed no change.
+- `scripts/ci/pick_simulator.py` (new): the named device on the newest iOS runtime ≥ the minimum
+  that offers it; non-zero with what exists otherwise. Arguments per entry: `"iPhone 17" 26` and
+  `"iPhone 17" 27`.
+- `scripts/release-toolchain.env` (new): `EXPECTED_RELEASE_XCODE_BUILD=27B52`, `MIN_SDK=iphoneos26`.
+  Read by the 27.2 entry (its build must equal it), by `release-preflight.sh` before archiving
+  (`toolchain_pin` / `toolchain_matches` in `release_policy.sh`: a mismatch refuses at once with the
+  two ways out; no `ALLOW` name reaches it), and by `verify-archive.sh` (fatal): the app's and each
+  appex's `DTXcodeBuild` must equal it and `DTSDKName` be at least `MIN_SDK`, both printed per
+  bundle; the value must match `^[0-9]{2}[A-Z][0-9]+[a-z]?$`.
+
+**Proof.** Python suite 153 → 168: `ArchiveTests` (`setUp` writes the pin; the good archive
+writes `DTXcodeBuild 27B52` / `DTSDKName iphoneos27.2` as literals) +4 — printed per binary, a
+missing or empty pin, a malformed pin, and five faults (the app by another Xcode, the app right and
+the appex not, no `DTXcodeBuild`, no `DTSDKName`, an SDK below the minimum); `PreflightTests` +3
+(another Xcode refused with both ways out even with every `ALLOW` name; a missing pin; the pinned
+build passes); `SimulatorPickerTests` 5; `CiParityTests` 3. Against S1's scripts (`6fa9411`) all
+seven toolchain fixtures fail (the old `verify-archive.sh` passes a wrong-toolchain archive; the old
+preflight has no pin check).
+
+| Mutation (`scratchpad/mutate_s2.py`) | Killed by |
+|---|---|
+| the old "first iPhone on the newest runtime" rule | `test_the_named_device_on_the_newest_runtime_that_offers_it` |
+| the minimum major ignored | `test_a_runtime_below_the_minimum_does_not_count` |
+| `verify-archive.sh` checks the app only | `test_toolchain_faults_are_each_refused`, `test_the_toolchain_is_printed_for_every_binary` |
+| a missing pin passes | `test_a_missing_or_empty_pin_is_fatal` |
+| the SDK minimum not compared | `test_toolchain_faults_are_each_refused` |
+| a malformed build accepted | `test_a_malformed_pin_is_fatal` |
+| the preflight's pin check nameable (`ALLOW=copies`) | `test_another_xcode_is_refused_with_the_two_ways_out` |
+| no pin check in the preflight | the same, and `test_a_missing_pin_is_refused` |
+| a third step gated on the matrix | `test_only_two_steps_differ_between_the_toolchains` |
+| a job-level `MIN_TESTS` again | `test_the_floors_are_workflow_level` |
+
+**Standing bars.** No file the app build reads changed since S1's local clean run
+(`git diff 6fa9411 -- Soundpost SoundpostTests SoundpostWidget Soundpost.xcodeproj` is empty), so
+that run (752 tests, 0 warnings) stands for this commit; CI's two toolchains are this step's new
+evidence (below).
+
+**Deviation.** One matrix job instead of a separately written `test-xcode27` job: the plan's
+requirement is "every step of the 26.6 job", and a matrix makes that true by construction
+(`CiParityTests` pins the only two differences). D23's retirement is then deleting one matrix entry.
