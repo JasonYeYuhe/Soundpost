@@ -97,17 +97,22 @@ jobs:
       # SwiftPM wrote; and saved only from a run whose resolve finished (its marker file
       # exists), because a cache that hit is never saved again — a partial one would
       # otherwise stay until Package.resolved changed.
+      # The key's hash is computed here, not with `hashFiles()`: on the xcode-27 image that
+      # template function ran past GitHub's 120-second limit and failed the job before a
+      # single gate ran (M23 S2, run 43064844629). `shasum` of one file has no such limit.
       - name: Name the Swift package directory
         run: |
           echo "SOUNDPOST_SPM_DIR=$RUNNER_TEMP/SourcePackages" >> "$GITHUB_ENV"
           echo "SPM_CACHE_XCODE=$(echo "$EXPECTED_XCODE" | tr ' ' '-')" >> "$GITHUB_ENV"
+          RESOLVED="Soundpost.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved"
+          echo "SPM_RESOLVED_SHA=$(shasum -a 256 "$RESOLVED" | cut -d' ' -f1)" >> "$GITHUB_ENV"
 
       - name: Restore Swift packages
         id: spm-cache
         uses: actions/cache/restore@v6
         with:
           path: ${{ runner.temp }}/SourcePackages
-          key: spm-${{ runner.os }}-${{ env.SPM_CACHE_XCODE }}-${{ hashFiles('Soundpost.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
+          key: spm-${{ runner.os }}-${{ env.SPM_CACHE_XCODE }}-${{ env.SPM_RESOLVED_SHA }}
 
       - name: Resolve Swift packages (nothing to fetch on a cache hit)
         run: |
