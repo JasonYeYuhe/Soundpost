@@ -263,6 +263,38 @@
         }
       }
     },
+    "Add the “New capsule” widget to your Home Screen.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ホーム画面に「新しいカプセル」ウィジェットを追加できます。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "可以把“新建胶囊”小组件添加到主屏幕。"
+          }
+        }
+      }
+    },
+    "Add “New capsule” to Control Center.": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "コントロールセンターに「新しいカプセル」を追加できます。"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "可以把“新建胶囊”添加到控制中心。"
+          }
+        }
+      }
+    },
     "Allow Location Access": {
       "extractionState": "stale",
       "localizations": {
@@ -2426,6 +2458,22 @@
         }
       }
     },
+    "Rate Soundpost": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Soundpostを評価"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "评价 Soundpost"
+          }
+        }
+      }
+    },
     "Reached the 60-second limit.": {
       "localizations": {
         "ja": {
@@ -2889,6 +2937,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "设置"
+          }
+        }
+      }
+    },
+    "Share Soundpost": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Soundpostを共有"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "分享 Soundpost"
           }
         }
       }
@@ -3782,6 +3846,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "恢复默认时段"
+          }
+        }
+      }
+    },
+    "Ways to start a capsule": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "カプセルを始める方法"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新建胶囊的方式"
           }
         }
       }

@@ -35,7 +35,7 @@ concurrency:
 # found nothing on old Pythons, so the markers alone prove nothing. Raise these
 # deliberately when tests are added; never lower one to make a run pass.
 env:
-  MIN_TESTS: "755"
+  MIN_TESTS: "763"
   MIN_PY_TESTS: "168"
 
 jobs:

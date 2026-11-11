@@ -1,3 +1,4 @@
+import AppIntents
 import SwiftUI
 import SwiftData
 import UIKit
@@ -41,6 +42,10 @@ struct SettingsView: View {
     @AppStorage(MoodPalette.storageKey) private var moodPaletteRaw = ""
     @AppStorage(EchoPreferences.lowerKey) private var echoLowerRaw: Int?
     @AppStorage(EchoPreferences.upperKey) private var echoUpperRaw: Int?
+    /// Whether Siri's own tip for "New capsule" still shows (M23 §4E.1). Bound to the
+    /// tip's `isVisible`, so dismissing it is remembered: a tip that came back would be a
+    /// nag. Default on; nothing ever turns it back on.
+    @AppStorage("settings.showsSiriTip") private var showsSiriTip = true
 
     @State private var showingPaywall = false
     @State private var confirmingCloudDelete = false
@@ -59,6 +64,8 @@ struct SettingsView: View {
     private let privacyURL = URL(string: "https://jasonyeyuhe.github.io/soundpost-site/privacy.html")!
     private let termsURL = URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!
     private let supportURL = URL(string: "https://jasonyeyuhe.github.io/soundpost-site/")!
+    /// The App Store page, for the passive Share / Rate rows in About (M23 D17).
+    private let appStoreURL = URL(string: "https://apps.apple.com/app/id6778389097")!
 
     var body: some View {
         NavigationStack {
@@ -75,6 +82,7 @@ struct SettingsView: View {
                 } else if store.offer.showsPersonalisation(hasChoicesToUndo: hasChoicesToUndo) {
                     personalisationOnlySection
                 }
+                doorsSection
                 aboutSection
             }
             .navigationTitle("Settings")
@@ -340,6 +348,30 @@ struct SettingsView: View {
         }
     }
 
+    // MARK: - Ways to start a capsule (M23 §4E.1)
+
+    /// The doors M20 and M22 built, named where someone looking for them would look —
+    /// and nowhere else. Passive: it is here when Settings is open, never presents itself,
+    /// and the Siri tip stays gone once dismissed. The phrase is the system's own, drawn
+    /// from the shipped App Shortcut; the intent is constructed for the tip, never
+    /// performed here. The footer is the qualifier every other door carries.
+    private var doorsSection: some View {
+        Section {
+            if showsSiriTip {
+                SiriTipView(intent: OpenCaptureIntent(), isVisible: $showsSiriTip)
+            }
+            ShortcutsLink()
+            Text("Add the “New capsule” widget to your Home Screen.")
+            if #available(iOS 18.0, *) {
+                Text("Add “New capsule” to Control Center.")
+            }
+        } header: {
+            Text("Ways to start a capsule")
+        } footer: {
+            Text("Opens Soundpost ready to record. Recording starts only when you tap.")
+        }
+    }
+
     // MARK: - About
 
     private var aboutSection: some View {
@@ -347,6 +379,12 @@ struct SettingsView: View {
             Link("Privacy Policy", destination: privacyURL)
             Link("Terms of Use", destination: termsURL)
             Link("Help & Support", destination: supportURL)
+            // Passive rows (D17): they never present themselves. Sharing sends only the
+            // App Store link; rating opens the App Store's own review page.
+            ShareLink("Share Soundpost", item: appStoreURL)
+            Link("Rate Soundpost", destination: appStoreURL.appending(queryItems: [
+                URLQueryItem(name: "action", value: "write-review")
+            ]))
         } header: {
             Text("About")
         } footer: {

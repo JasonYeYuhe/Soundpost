@@ -53,6 +53,10 @@ struct LauncherView: View {
 
     var body: some View {
         face
+            // Every face reads as one VoiceOver element, "New capsule" (M23 §4E.3): the
+            // small and rectangular faces used to expose the glyph as a second element.
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("New capsule")
             // The whole widget is the door: the app sets the capture request for this
             // URL and nothing else (`CaptureDoor.open`, in `SoundpostApp`).
             .widgetURL(CaptureDoor.newCapsuleURL)
@@ -69,8 +73,6 @@ struct LauncherView: View {
                     .font(.title2)
                     .widgetAccentable()
             }
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("New capsule")
         case .accessoryRectangular:
             HStack(spacing: 6) {
                 Image(systemName: "waveform")

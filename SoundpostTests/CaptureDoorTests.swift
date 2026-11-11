@@ -170,6 +170,64 @@ struct CaptureDoorTests {
         #expect(sites.first?.hasPrefix("Soundpost/Services/CaptureDoor.swift:") == true, "\(sites)")
     }
 
+    // MARK: Where the doors are named (M23 §4E.1) — once, in Settings, before About
+
+    private static let settings = "Soundpost/Views/SettingsView.swift"
+
+    /// Exactly one Siri tip and one Shortcuts link in all shipping code, both in Settings.
+    /// "Only in SettingsView" alone would pass with the section deleted; "exactly one"
+    /// does not.
+    @Test func theDoorsAreNamedExactlyOnceInSettings() throws {
+        let sources = try Self.shippingSources()
+        for name in ["SiriTipView", "ShortcutsLink"] {
+            let sites = Self.callSites(of: name, in: sources)
+            #expect(sites.count == 1, "\(name): \(sites)")
+            #expect(sites.allSatisfy { $0.hasPrefix(Self.settings + ":") }, "\(name): \(sites)")
+        }
+    }
+
+    /// The tip's dismissal is remembered: `isVisible` is bound to an `@AppStorage`
+    /// property, and the tip is shown only while that property is true. `SiriTipView(intent:)`
+    /// alone has `isVisible: nil`, and a tip that came back would be a nag.
+    @Test func aDismissedSiriTipStaysDismissed() throws {
+        let code = try #require(try Self.shippingSources().first { $0.path == Self.settings }?.code)
+        let tip = try #require(code.split(separator: "\n").first { $0.contains("SiriTipView(") })
+        let binding = try #require(tip.firstMatch(of: #/isVisible: \$(\w+)/#)?.output.1, "the tip has no isVisible binding")
+        #expect(code.contains("@AppStorage(") && code.split(separator: "\n").contains {
+            $0.contains("@AppStorage(") && $0.contains("private var \(binding) ")
+        }, "\(binding) is not an @AppStorage property")
+        #expect(code.contains("if \(binding) {\n                SiriTipView("), "the tip is not shown only while \(binding) is true")
+        #expect(tip.contains("intent: OpenCaptureIntent()"), "the tip is not for the shipped intent")
+    }
+
+    /// The section sits before About in Settings' form, and the intent is constructed for
+    /// the tip, never performed by the app's own code.
+    @Test func theDoorsSectionIsBeforeAboutAndPerformsNothing() throws {
+        let sources = try Self.shippingSources()
+        let code = try #require(sources.first { $0.path == Self.settings }?.code)
+        let body = try #require(code.range(of: "var body: some View {"))
+        let doors = try #require(code.range(of: "doorsSection", range: body.upperBound..<code.endIndex))
+        let about = try #require(code.range(of: "aboutSection", range: body.upperBound..<code.endIndex))
+        #expect(doors.upperBound < about.lowerBound, "the doors section is not before About")
+        let performs = sources.flatMap { file in
+            file.code.split(separator: "\n").filter { $0.contains(".perform(") }.map { "\(file.path): \($0)" }
+        }
+        #expect(performs.isEmpty, "\(performs)")
+        #expect(Self.callSites(of: "requestCapture", in: sources).count == 1)
+    }
+
+    /// D17: the passive Share and Rate rows, once each, in Settings.
+    @Test func shareAndRateAreOnePassiveRowEachInSettings() throws {
+        let sources = try Self.shippingSources()
+        let shares = Self.callSites(of: "ShareLink", in: sources)
+        #expect(shares.count == 1 && shares.allSatisfy { $0.hasPrefix(Self.settings + ":") }, "\(shares)")
+        let rates = sources.flatMap { file in
+            file.code.split(separator: "\n").enumerated().filter { $0.element.contains("\"Rate Soundpost\"") }
+                .map { "\(file.path):\($0.offset + 1)" }
+        }
+        #expect(rates.count == 1 && rates.allSatisfy { $0.hasPrefix(Self.settings + ":") }, "\(rates)")
+    }
+
     /// No bundle may run in the background beyond receiving a push: a background mode
     /// such as `audio` is what recording "headless" would need.
     @Test func noBundleRunsInTheBackgroundBeyondPushes() throws {

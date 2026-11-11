@@ -1370,6 +1370,20 @@ minutes in build-and-test and cost more before it; it is also what pushed `hashF
 limit. The device is still chosen by name at the start; the boot now starts just before the
 debug-only gate's compile, and `bootstatus -b` still precedes the tests (commit after `6d1da60`).
 
+**Then dropped.** Booting during the debug-only compile was worse still: on `b27e081` that
+compile took 6m42 (1m26 before) and the 26.6 job 14m33. Three measurements, one direction — every
+early boot slowed what it overlapped more than it saved — so `101a41e` keeps no early boot at all:
+the device is picked by name at the start and `simctl bootstatus -b` boots it and waits right
+before `xcodebuild test`. (Deviation from §4C.4's "boot in the background at the start".)
+
+**The control** ([JasonYeYuhe/Soundpost#2](https://github.com/JasonYeYuhe/Soundpost/pull/2),
+throwaway branch `m23-s2-control-warning`, never on master): dropping `ContentView.swift`'s `import
+StoreKit` turned the Xcode 27.2 job red at the warning gate (`ContentView.swift:9:47: warning:
+cannot use struct 'RequestReviewAction'…`) while the 26.6 job stayed green (run 43068292942). The PR
+was closed unmerged and the branch deleted.
+
+**Green 27.2 pushes toward D23:** `6d1da60` (1), `b27e081` (2, S3: 755 tests, both toolchains).
+
 **Deviation.** One matrix job instead of a separately written `test-xcode27` job: the plan's
 requirement is "every step of the 26.6 job", and a matrix makes that true by construction
 (`CiParityTests` pins the only two differences). D23's retirement is then deleting one matrix entry.
@@ -1398,3 +1412,75 @@ in memory or carries `groupContainer: .none`; the census `#require`s that it fou
 
 **Standing bars.** Local `xcodebuild clean test` in place: **755 tests in 99 suites**, no
 warnings. `MIN_TESTS` 752 → 755.
+**CI** `b27e081` ([run 43070068413](https://github.com/JasonYeYuhe/Soundpost/actions/runs/43070068413)):
+green on Xcode 26.6 and 27.2 — `Executed 755 tests (floor 755)` on each, no warnings, `Ran 168
+tests`; `server` green.
+
+### S4 — doors people can find
+
+**What changed.**
+- `SettingsView`: a "Ways to start a capsule" section before About — `SiriTipView(intent:
+  OpenCaptureIntent(), isVisible: $showsSiriTip)` inside `if showsSiriTip`, where
+  `@AppStorage("settings.showsSiriTip") private var showsSiriTip = true`; `ShortcutsLink()`; "Add
+  the “New capsule” widget to your Home Screen."; inside `if #available(iOS 18.0, *)`, "Add “New
+  capsule” to Control Center."; and as the section's footer, under those lines, the existing
+  "Opens Soundpost ready to record. Recording starts only when you tap." The intent is constructed
+  for the tip, never performed; `OpenCaptureIntent.swift` is untouched (its SHA test passes).
+  The widget line does **not** name the Lock Screen: no Lock Screen face has been seen added and
+  tapped (S6 / H4 decide).
+- D17 (default yes, assumed for building): About gains `ShareLink("Share Soundpost", item:
+  appStoreURL)` and `Link("Rate Soundpost", …?action=write-review)`, one `appStoreURL`
+  (`https://apps.apple.com/app/id6778389097`). Passive rows; if Jason says no to D17 they come out.
+- `LauncherWidget`: `.accessibilityElement(children: .ignore)` + `.accessibilityLabel("New
+  capsule")` moved from the circular case onto `face` in `body`, before `.widgetURL` — every family
+  now reads as one element (no new string).
+- Five catalog keys (app catalog only; no widget string changed), translations drafted from the
+  catalog's own terms.
+
+**Copy, reviewed by hand against §1.1 and the store gate's off-sale terms (§1.3):**
+
+| Key | ja | zh-Hans |
+|---|---|---|
+| Ways to start a capsule | カプセルを始める方法 | 新建胶囊的方式 |
+| Add the “New capsule” widget to your Home Screen. | ホーム画面に「新しいカプセル」ウィジェットを追加できます。 | 可以把“新建胶囊”小组件添加到主屏幕。 |
+| Add “New capsule” to Control Center. | コントロールセンターに「新しいカプセル」を追加できます。 | 可以把“新建胶囊”添加到控制中心。 |
+| Share Soundpost | Soundpostを共有 | 分享 Soundpost |
+| Rate Soundpost | Soundpostを評価 | 评价 Soundpost |
+
+No "quickly / instantly / never miss", no すぐ / 瞬時 / 見逃さ, no 快速 / 立即 / 错过, no `!` / `！`;
+no Pro, price, purchase or trial term. Each sentence is literally true where it is shown: the
+widget line is read inside the app, so the app has launched once and iOS 18 lists its widgets; the
+Control Center line exists only on iOS 18+. JA follows the description's 「新しいカプセルを始め
+られます」; ZH uses the catalog's 新建胶囊, 主屏幕, 控制中心 and “” quotes as the catalog does.
+
+**Guards** (`CaptureDoorTests`, over `shippingSources()`, beside the existing censuses):
+`theDoorsAreNamedExactlyOnceInSettings` (exactly one `SiriTipView(` and one `ShortcutsLink(`, both
+in `SettingsView.swift`), `aDismissedSiriTipStaysDismissed` (`isVisible: $<p>` where `<p>` is an
+`@AppStorage` property, shown only `if <p>`, for `OpenCaptureIntent()`),
+`theDoorsSectionIsBeforeAboutAndPerformsNothing` (order in `body`; no `.perform(` in shipping code;
+`requestCapture` still one site), `shareAndRateAreOnePassiveRowEachInSettings`.
+**Widget pins** (`WidgetExtensionTests`, comment-stripped exact text):
+`theLauncherIsDisfavouredOnlyOnCarPlayAndMac`, `everyGlyphIsAccentableAndTheCircleHasItsBackground`,
+`theFaceReadsNothingFromTheTimeline` (the `{ _ in LauncherView() }` closure; no stored property in
+`LauncherView` but `@Environment(\.widgetFamily)`), `everyFaceReadsAsOneNewCapsule`.
+
+| Control (`scratchpad/mutate_swift.py`) | Caught by |
+|---|---|
+| the tip and the link deleted | `theDoorsAreNamedExactlyOnceInSettings`, `aDismissedSiriTipStaysDismissed` |
+| `doorsSection` left out of the form | `theDoorsSectionIsBeforeAboutAndPerformsNothing` |
+| `ShortcutsLink()` moved into `ContentView` | `theDoorsAreNamedExactlyOnceInSettings` |
+| `isVisible:` dropped | `aDismissedSiriTipStaysDismissed` |
+| the flag as `@State` instead of `@AppStorage` | `aDismissedSiriTipStaysDismissed` |
+| the Share row deleted | `shareAndRateAreOnePassiveRowEachInSettings` |
+| `.carPlay` dropped | `theLauncherIsDisfavouredOnlyOnCarPlayAndMac` |
+| a glyph's `.widgetAccentable()` moved onto its `Text` | `everyGlyphIsAccentableAndTheCircleHasItsBackground` |
+| `{ e in LauncherView(stamp: e.date) }` | `theFaceReadsNothingFromTheTimeline` |
+| the VoiceOver modifiers back on the circular face only | `everyFaceReadsAsOneNewCapsule` |
+| one Japanese translation deleted | `check-localization.sh` (`[ja] "Ways to start a capsule" → missing`) |
+
+**S4.4 RenderPreview spike — dropped** (second in §2's drop order): `xcrun mcp-server` exists in
+Xcode 27.2, but serving this folder headlessly needs `mcp-server allow-folder` and agent approval,
+both `sudo` (owner-only). Not attempted; no `#Preview` was added.
+
+**Standing bars.** Local `xcodebuild clean test` in place: **763 tests in 99 suites**, no
+warnings, localization 100% (363 strings). `MIN_TESTS` 755 → 763.

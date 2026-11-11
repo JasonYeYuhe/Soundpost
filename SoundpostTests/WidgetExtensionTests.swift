@@ -107,6 +107,80 @@ struct WidgetExtensionTests {
         #expect(launcher.contains(".containerBackground("), "iOS 17 shows a placeholder without one")
     }
 
+    // MARK: What 1.12.0 shipped without a test (M23 §4E.3)
+
+    /// The launcher's body: `LauncherView` from `struct LauncherView` to the end of the file.
+    private static func launcherView() throws -> String {
+        let launcher = try code("\(folder)/LauncherWidget.swift")
+        let start = try #require(launcher.range(of: "struct LauncherView: View {"), "no LauncherView; this pin checks nothing")
+        return String(launcher[start.lowerBound...])
+    }
+
+    /// M22 D14: suggested everywhere but CarPlay (iOS 26+) and a Mac's iPhone widgets.
+    @Test func theLauncherIsDisfavouredOnlyOnCarPlayAndMac() throws {
+        let launcher = try Self.code("\(Self.folder)/LauncherWidget.swift")
+        #expect(launcher.contains("""
+                if #available(iOS 26.0, *) {
+                    return [.carPlay, .iPhoneWidgetsOnMac]
+                }
+                return [.iPhoneWidgetsOnMac]
+        """), "the disfavoured locations changed")
+        #expect(launcher.contains(".disfavoredLocations(Self.disfavored, for: [.systemSmall])"))
+    }
+
+    /// Every glyph follows the tint of a tinted or Lock Screen face, and the circular face
+    /// keeps its system background.
+    @Test func everyGlyphIsAccentableAndTheCircleHasItsBackground() throws {
+        let view = try Self.launcherView()
+        let lines = view.split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) }
+        let glyphs = lines.indices.filter { lines[$0].hasPrefix("Image(systemName: \"waveform\")") }
+        #expect(glyphs.count == 3, "\(glyphs.count) waveform glyphs")
+        let views = ["Image(", "Text(", "Spacer(", "ZStack", "HStack", "VStack", "AccessoryWidgetBackground("]
+        for index in glyphs {
+            // Its modifiers: the lines after it, up to the next view.
+            let modifiers = lines[(index + 1)...].prefix { line in !views.contains { line.hasPrefix($0) } && line != "}" }
+            #expect(modifiers.contains(".widgetAccentable()"), "the glyph at line \(index) is not accentable")
+        }
+        #expect(view.components(separatedBy: "AccessoryWidgetBackground()").count == 2, "AccessoryWidgetBackground() once")
+        let circular = try #require(view.range(of: "case .accessoryCircular:"))
+        let rectangular = try #require(view.range(of: "case .accessoryRectangular:"))
+        let background = try #require(view.range(of: "AccessoryWidgetBackground()"))
+        #expect(circular.upperBound < background.lowerBound && background.upperBound < rectangular.lowerBound,
+                "the background is not inside the circular face")
+    }
+
+    /// The face shows nothing a timeline could carry: the closure discards its entry and
+    /// the view holds nothing but the family it draws.
+    @Test func theFaceReadsNothingFromTheTimeline() throws {
+        let launcher = try Self.code("\(Self.folder)/LauncherWidget.swift")
+        #expect(launcher.contains("""
+                StaticConfiguration(kind: Self.kind, provider: LauncherProvider()) { _ in
+                    LauncherView()
+                }
+        """), "the configuration hands the view something from its entry")
+        let view = try Self.launcherView()
+        let stored = view.split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { ($0.hasPrefix("let ") || $0.hasPrefix("var ") || $0.hasPrefix("@") || $0.hasPrefix("private let ")
+                       || $0.hasPrefix("private var ")) && !$0.contains("some View") && !$0.hasPrefix("@ViewBuilder") }
+        #expect(stored == ["@Environment(\\.widgetFamily) private var family"], "\(stored)")
+    }
+
+    /// One VoiceOver element per face, "New capsule": the modifiers sit on `face` in
+    /// `body`, and none inside the switch.
+    @Test func everyFaceReadsAsOneNewCapsule() throws {
+        let view = try Self.launcherView()
+        #expect(view.contains("""
+                face
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("New capsule")
+                    .widgetURL(CaptureDoor.newCapsuleURL)
+        """), "the face is not one element labelled New capsule, applied before .widgetURL")
+        let faces = try #require(view.range(of: "private var face: some View {"))
+        let inside = view[faces.lowerBound...]
+        #expect(!inside.contains(".accessibilityElement(") && !inside.contains(".accessibilityLabel("),
+                "an accessibility modifier inside the switch")
+    }
+
     // MARK: Strings — the extension looks them up in its own bundle
 
     private static func catalog(_ path: String) throws -> [String: [String: String]] {
