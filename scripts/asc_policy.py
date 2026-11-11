@@ -37,9 +37,6 @@ DRAFT = 'READY_FOR_REVIEW'
 # thread, and is never touched from here (`reusable_draft` refuses it).
 CANCELABLE = ('WAITING_FOR_EXPORT_COMPLIANCE',)
 
-# A screenshot set holds at most this many images (App Store Connect's limit).
-SCREENSHOT_SET_CAPACITY = 10
-
 THREAD_KEEPING_PATH = (
     'A rejected submission (UNRESOLVED_ISSUES) holds the App Review thread.\n'
     'Cancelling it opens a fresh submission and makes that thread read-only (M19 §8-iii).\n'
@@ -164,26 +161,6 @@ def build_number_is_new(local_build, uploaded_builds):
     return newest
 
 
-def screenshot_swap(existing_ids, new_count, capacity=SCREENSHOT_SET_CAPACITY):
-    """Which old screenshots to delete before uploading the new set, and which after.
-
-    Upload first, delete after: a failure part-way through then leaves the locale
-    with its old images rather than with none. The set's capacity is the only reason
-    to delete anything first, and only as many as the new set needs room for.
-    Returns `(delete_before, delete_after)`, both lists of ids, oldest first.
-    """
-    if new_count <= 0:
-        raise Refusal('No new screenshots to upload; refusing to touch the set.')
-    if new_count > capacity:
-        raise Refusal(f'{new_count} screenshots will not fit: a set holds {capacity}.')
-    existing = list(existing_ids)
-    overflow = max(0, len(existing) + new_count - capacity)
-    if existing and overflow >= len(existing):
-        raise Refusal(f'Uploading {new_count} screenshots would empty the set first '
-                      f'(it holds {capacity}). Upload fewer.')
-    return existing[:overflow], existing[overflow:]
-
-
 def reusable_draft(submissions):
     """The id of the one never-submitted draft `submit` should finish, or None to create one.
 
@@ -217,3 +194,220 @@ def draft_items_plan(item_version_ids, version_id):
         raise Refusal(f'The open draft holds something other than this version ({shown}); '
                       f'remove it in App Store Connect first.')
     return 'submit' if version_id in item_version_ids else 'add'
+
+
+# ── M23 §4B.1: a version goes live only when a person presses Release ──────────
+
+MANUAL = 'MANUAL'
+
+
+def require_manual_release(version):
+    """Refuse unless `version` will wait for a person to release it (`releaseType` MANUAL).
+
+    Every release since 1.9.0 was MANUAL only because someone read it back by hand; nothing
+    in asc.py looked. `AFTER_APPROVAL` would put a build in front of users the moment App
+    Review approved it, and `SCHEDULED` on a date. Called before `attach` or `submit` writes
+    anything.
+    """
+    release_type = (version.get('attributes') or {}).get('releaseType')
+    if release_type != MANUAL:
+        raise Refusal(
+            f"Refusing: v{_version_string(version)} has releaseType {release_type or '(none)'}, "
+            f"not {MANUAL}.\n"
+            f"  It would go live without anyone pressing Release. `asc.py create-version "
+            f"{_version_string(version)}` sets MANUAL while the version is PREPARE_FOR_SUBMISSION;\n"
+            f"  otherwise set \"Manually release this version\" in App Store Connect first.")
+    return version
+
+
+def release_type_plan(version):
+    """What `create-version` does with a version that already exists.
+
+    `'ok'` when it is MANUAL; `'patch'` when it is PREPARE_FOR_SUBMISSION with another
+    release type (the one state where changing it touches nothing in review); `'report'`
+    otherwise — print it and write nothing.
+    """
+    a = version.get('attributes') or {}
+    if a.get('releaseType') == MANUAL:
+        return 'ok'
+    if a.get('appStoreState') == 'PREPARE_FOR_SUBMISSION':
+        return 'patch'
+    return 'report'
+
+
+# ── M23 §4B.4, §4B.7: screenshots ─────────────────────────────────────────────
+#
+# Settled read-only in M23 S1 (docs/M23-DEVPLAN.md §13, with links):
+#   - `appScreenshotSets` / `appScreenshots` are deprecated (API 4.5) in favour of App
+#     Asset Library placements; they still answer, with no announced sunset.
+#   - A new version's screenshots are its own placements over the SAME library images
+#     (read on 1.12.0: the inherited 6.5-inch set is four `IPHONE_FACE_ID_LARGE_PROFILE`
+#     placements; its appScreenshot ids differ from 1.11.0's, its image assets do not).
+#   - `DELETE /v1/appScreenshots/{id}` is documented only as "use the image delete
+#     instead", and an image backs the LIVE version's placements too. Its effect is not
+#     documented, so asc.py never sends it. A placement delete is documented to leave the
+#     image in the library, so a stale set leaves a new version that way, or by hand.
+#   - 1320x2868 is accepted for "iPhone with Dynamic Island (large display)"; the
+#     display-type enum's largest iPhone value is APP_IPHONE_67 (there is no _69).
+
+SCREENSHOT_DISPLAY_TYPE = 'APP_IPHONE_67'
+SCREENSHOT_SIZE = (1320, 2868)
+# The placement group App Store Connect files an APP_IPHONE_67 upload under, and the one
+# the old 6.5-inch set sits in (read on 1.12.0). The new group is by analogy until S7 reads
+# it on 1.13.0, so `stale_placements` refuses unless the kept group really holds the upload.
+SCREENSHOT_PLACEMENT_GROUP = 'IPHONE_DYNAMIC_ISLAND_LARGE_PROFILE'
+# What `scripts/screenshots.sh` captures, in store order. The file for screen i is
+# `NN-<screen>.png`, NN = i + 1, two digits.
+SCREENSHOT_SCREENS = ('gallery', 'detail', 'search', 'capture')
+
+
+def screenshot_dir():
+    """Where screenshots.sh writes and `asc.py screenshots` reads: outside iCloud.
+
+    Not `build/screenshots/` — that is the set the store shows today, iCloud-synced, and
+    screenshots.sh empties a locale folder before capturing into it.
+    """
+    import os
+    return os.environ.get('SOUNDPOST_SCREENSHOT_DIR') or os.path.expanduser(
+        '~/Library/Caches/Soundpost-build/screenshots-69')
+
+
+def screenshot_file_names(screens=SCREENSHOT_SCREENS):
+    return [f'{i + 1:02d}-{s}.png' for i, s in enumerate(screens)]
+
+
+def screenshot_files(names, screens=SCREENSHOT_SCREENS):
+    """The files to upload from one locale folder, in store order — exactly the names
+    screenshots.sh produces, or a refusal naming what is extra or missing.
+
+    `cmd_screenshots` used to upload every `.png` it found: an iCloud `01-gallery 2.png`
+    sorts before `01-gallery.png` and would have gone to the store as the first image.
+    """
+    expected = screenshot_file_names(screens)
+    pngs = sorted(n for n in names if n.lower().endswith('.png'))
+    extra = [n for n in pngs if n not in expected]
+    missing = [n for n in expected if n not in pngs]
+    if extra or missing:
+        parts = []
+        if extra:
+            parts.append('not a screen screenshots.sh captures: ' + ', '.join(extra))
+        if missing:
+            parts.append('missing: ' + ', '.join(missing))
+        raise Refusal('Refusing to upload this locale\'s screenshots — ' + '; '.join(parts) + '.')
+    return expected
+
+
+def screenshot_target_set_plan(existing_ids):
+    """Upload into a set only while it is empty.
+
+    asc.py no longer deletes screenshots (`DELETE /v1/appScreenshots` has undocumented
+    effects on the live version's images), so a set that already holds images is left for
+    a placement delete or the web UI rather than replaced.
+    """
+    existing = list(existing_ids)
+    if existing:
+        raise Refusal(
+            f'The {SCREENSHOT_DISPLAY_TYPE} set already holds {len(existing)} image(s). asc.py does not '
+            f'delete screenshots (§4B.7);\n'
+            f'  remove them in App Store Connect, or with `asc.py screenshots-prune` once it lists them, then rerun.')
+    return 'upload'
+
+
+def stale_placements(placements, keep_group=SCREENSHOT_PLACEMENT_GROUP, expected_count=len(SCREENSHOT_SCREENS)):
+    """The editable version's screenshot placements to remove: every group except the one
+    just uploaded — and only once that group holds exactly `expected_count` images.
+
+    `placements`: [{'id', 'group'}] listed from the EDITABLE localization only (a new
+    version's placements are its own records, so the live version's are never in it).
+    Refuses rather than leave a locale with no screenshots.
+    """
+    kept = [p for p in placements if p['group'] == keep_group]
+    if len(kept) != expected_count:
+        raise Refusal(
+            f'Refusing to remove anything: the {keep_group} group holds {len(kept)} placement(s), '
+            f'not the {expected_count} this release uploads.\n'
+            f'  Groups present: {sorted({p["group"] for p in placements}) or "(none)"}.')
+    return [p['id'] for p in placements if p['group'] != keep_group]
+
+
+# ── M23 §4B.5: check-submittable ──────────────────────────────────────────────
+
+LIVE_APP_INFO_STATE = 'READY_FOR_DISTRIBUTION'   # read on 2026-11-12 (§13 S1)
+
+# Age-rating attributes that may be null in a complete declaration (learned from the live
+# one, 2026-11-12): optional fields, and follow-ups to a question answered "no".
+AGE_RATING_OPTIONAL = ('developerAgeRatingInfoUrl', 'gracRatingClassificationNumber', 'kidsAgeBand')
+AGE_RATING_FOLLOW_UPS = {'socialMediaAgeRestricted': ('socialMedia', False)}
+
+REQUIRED_WHATS_NEW_LOCALES = ('en-US', 'ja', 'zh-Hans')
+
+
+def editable_app_info(app_infos):
+    """The one app info that is not live. Two exist while a version is in flight, each
+    with its own age-rating declaration; the live one answers nothing about the next
+    release. Refuses unless exactly one qualifies."""
+    candidates = [i for i in app_infos if (i.get('attributes') or {}).get('state') != LIVE_APP_INFO_STATE]
+    if len(candidates) != 1:
+        states = ', '.join(f"{i['id'][:8]}={(i.get('attributes') or {}).get('state')}" for i in app_infos)
+        raise Refusal(f'Expected exactly one app info that is not {LIVE_APP_INFO_STATE}; '
+                      f'found {len(candidates)} ({states or "none"}).')
+    return candidates[0]
+
+
+def age_rating_gaps(attributes):
+    """Every unanswered age-rating question: a null attribute, except the optional ones
+    and a follow-up whose question was answered so that it does not apply."""
+    gaps = []
+    for name, value in sorted((attributes or {}).items()):
+        if value is not None or name in AGE_RATING_OPTIONAL:
+            continue
+        follow = AGE_RATING_FOLLOW_UPS.get(name)
+        if follow and attributes.get(follow[0]) == follow[1]:
+            continue
+        gaps.append(name)
+    return gaps
+
+
+def submittable_problems(version, build, whats_new, display_types, age_gaps,
+                         expected_type=SCREENSHOT_DISPLAY_TYPE):
+    """Every reason `version` cannot be submitted — read-only, all of them at once.
+
+    `build`: the attached build's attributes or None. `whats_new`: {locale: text}.
+    `display_types`: {locale: {display type: image count}}. `age_gaps`: from
+    `age_rating_gaps` on the EDITABLE app info's declaration.
+    """
+    problems = []
+    if (version.get('attributes') or {}).get('releaseType') != MANUAL:
+        problems.append(f"releaseType is {(version.get('attributes') or {}).get('releaseType')}, not MANUAL")
+    if not build:
+        problems.append('no build is attached')
+    else:
+        if build.get('processingState') != 'VALID':
+            problems.append(f"the attached build is {build.get('processingState')}, not VALID")
+        if build.get('usesNonExemptEncryption') is None:
+            problems.append('the attached build has no export-compliance answer (usesNonExemptEncryption)')
+    for locale in REQUIRED_WHATS_NEW_LOCALES:
+        if not (whats_new.get(locale) or '').strip():
+            problems.append(f"What's New is empty in {locale}")
+    for locale in REQUIRED_WHATS_NEW_LOCALES:
+        types = display_types.get(locale, {})
+        if not types.get(expected_type):
+            problems.append(f'{locale} has no {expected_type} screenshots')
+        for t, count in sorted(types.items()):
+            if t != expected_type and t.startswith('APP_IPHONE'):
+                problems.append(f'{locale} still has a stale {t} set ({count} image(s))')
+    for name in age_gaps:
+        problems.append(f'age rating: {name} is unanswered on the editable app info')
+    return problems
+
+
+# ── M23 §4B.8: measurement ────────────────────────────────────────────────────
+
+def analytics_request_plan(existing_requests):
+    """One ONGOING analytics report request per app: refuse if one already exists."""
+    ongoing = [r for r in existing_requests
+               if (r.get('attributes') or {}).get('accessType') == 'ONGOING']
+    if ongoing:
+        raise Refusal(f'An ONGOING analytics report request already exists ({ongoing[0]["id"]}); '
+                      f'nothing to send.')
+    return {'accessType': 'ONGOING'}

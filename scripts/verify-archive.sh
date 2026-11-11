@@ -9,8 +9,8 @@
 # an iOS 18 symbol strongly (the extension would then fail to load on iOS 17, where
 # nobody here can run it). So every one of those is read from the archive itself.
 #
-# Fatal in every mode, and deliberately NOT covered by RELEASE_PREFLIGHT_OVERRIDE: that
-# override exists for a dirty tree or a conflict copy, never for a wrong binary.
+# Fatal in every mode, and no setting skips it: RELEASE_PREFLIGHT_ALLOW names preflight
+# checks only (a conflict copy, the keychain, the build number), never a wrong binary.
 #
 # Usage: scripts/verify-archive.sh <path.xcarchive>
 # `GATE_PROJECT_DIR` points the project reader at another project (its tests use fixtures).

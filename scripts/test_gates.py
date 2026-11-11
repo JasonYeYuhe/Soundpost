@@ -493,5 +493,564 @@ class ArchiveTests(unittest.TestCase):
                 self.assertIn(message, r.stderr)
 
 
+
+# ── The release path (M23 §4B) ───────────────────────────────────────────────────
+#
+# The decisions live in scripts/lib/release_policy.sh so these fixtures reach them
+# without an ASC key, a keychain or a network: each fixture fails against the old scripts
+# for the reason under test (an archive overwritten, a lock file counted as a dirty
+# tree, an upload without dSYMs), never because a credential is missing (§4B.0).
+
+POLICY = os.path.join(HERE, "lib", "release_policy.sh")
+PREFLIGHT = os.path.join(HERE, "release-preflight.sh")
+DSYMS = os.path.join(HERE, "upload-dsyms.sh")
+TODAY = "2026-11-12"
+
+
+def bash_policy(call, env=None, cwd=None):
+    """Run one release_policy.sh function: `bash -c 'source …; <call>'`."""
+    full = dict(os.environ)
+    full.pop("RELEASE_PREFLIGHT_OVERRIDE", None)
+    full.pop("RELEASE_PREFLIGHT_ALLOW", None)
+    full.update(env or {})
+    return subprocess.run(["/bin/bash", "-c", f'source "{POLICY}"; {call}'],
+                          capture_output=True, text=True, env=full, cwd=cwd)
+
+
+def make_archive(root, date, name, upload=None, marker=None):
+    """An .xcarchive whose Info.plist records `upload`: None, "success" or "failed"."""
+    path = os.path.join(root, date, name)
+    os.makedirs(path)
+    info = {"ApplicationProperties": {"CFBundleShortVersionString": "1.13.0", "CFBundleVersion": "25"}}
+    if upload:
+        info["Distributions"] = [{"destination": "upload", "uploadEvent": {"state": upload}}]
+    with open(os.path.join(path, "Info.plist"), "wb") as f:
+        plistlib.dump(info, f)
+    if marker:
+        with open(os.path.join(path, marker), "w") as f:
+            f.write("an earlier attempt\n")
+    return path
+
+
+def stub(bin_dir, name, body):
+    os.makedirs(bin_dir, exist_ok=True)
+    path = os.path.join(bin_dir, name)
+    with open(path, "w") as f:
+        f.write("#!/bin/bash\n" + body + "\n")
+    os.chmod(path, 0o755)
+    return path
+
+
+def git(cwd, *args):
+    subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@example.com", *args],
+                   cwd=cwd, check=True, capture_output=True)
+
+
+def shipping_tree(test):
+    """A project tree with every root the copy scan requires."""
+    tree = Tree(test)
+    two_targets(tree, widget_catalog=catalog(["New capsule"]))
+    for d in ("metadata/en-US", "scripts", "backend/supabase"):
+        tree.write(f"{d}/keep.txt", "x\n")
+    return tree
+
+
+class ReleasePolicyTests(unittest.TestCase):
+    def setUp(self):
+        self.root = tempfile.mkdtemp(prefix="archives-")
+        self.addCleanup(shutil.rmtree, self.root, True)
+
+    def plan(self, version="1.13.0", build="25"):
+        return bash_policy(f'archive_plan "{self.root}" {version} {build} {TODAY}')
+
+    # §4B.2 — archives leave iCloud, and nothing is overwritten
+    def test_the_default_archive_is_in_xcodes_archives_under_its_version(self):
+        r = bash_policy(f'default_archive_path "$HOME/Library/Developer/Xcode/Archives" 1.13.0 25 {TODAY}')
+        self.assertEqual(r.stdout.strip(), os.path.expanduser(
+            f"~/Library/Developer/Xcode/Archives/{TODAY}/Soundpost 1.13.0 (25).xcarchive"))
+        r = self.plan()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(r.stdout.strip(), f"{self.root}/{TODAY}/Soundpost 1.13.0 (25).xcarchive")
+
+    def test_a_build_already_uploaded_is_refused(self):
+        uploaded = make_archive(self.root, "2026-11-10", "Soundpost 1.13.0 (25).xcarchive", upload="success")
+        r = self.plan()
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("was already uploaded to App Store Connect", r.stderr)
+        self.assertIn(uploaded, r.stderr)
+
+    def test_a_failed_upload_moves_on_to_the_next_name(self):
+        make_archive(self.root, TODAY, "Soundpost 1.13.0 (25).xcarchive", upload="failed")
+        r = self.plan()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(r.stdout.strip(), f"{self.root}/{TODAY}/Soundpost 1.13.0 (25) - attempt 2.xcarchive")
+
+    def test_an_earlier_unuploaded_attempt_is_left_intact(self):
+        # A plain existence check would refuse here, and dead-end every retry after a
+        # failure between the archive and the upload.
+        old = make_archive(self.root, "2026-11-11", "Soundpost 1.13.0 (25).xcarchive", marker="kept")
+        r = self.plan()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(r.stdout.strip(), f"{self.root}/{TODAY}/Soundpost 1.13.0 (25) - attempt 2.xcarchive")
+        self.assertTrue(os.path.isfile(os.path.join(old, "kept")))
+        self.assertIn("left as they are", r.stderr)
+
+    def test_attempt_numbers_skip_names_already_taken(self):
+        make_archive(self.root, "2026-11-11", "Soundpost 1.13.0 (25).xcarchive")
+        make_archive(self.root, "2026-11-11", "Soundpost 1.13.0 (25) - attempt 2.xcarchive")
+        self.assertTrue(self.plan().stdout.strip().endswith("Soundpost 1.13.0 (25) - attempt 3.xcarchive"))
+
+    def test_other_builds_and_versions_do_not_count(self):
+        make_archive(self.root, "2026-11-10", "Soundpost 1.13.0 (24).xcarchive", upload="success")
+        make_archive(self.root, "2026-11-10", "Soundpost 1.13.0 (250).xcarchive", upload="success")
+        make_archive(self.root, "2026-11-10", "Soundpost 1.12.0 (25).xcarchive", upload="success")
+        r = self.plan()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertTrue(r.stdout.strip().endswith(f"{TODAY}/Soundpost 1.13.0 (25).xcarchive"))
+
+    # §4B.3 — one dirty rule
+    def repo(self):
+        repo = os.path.join(self.root, "repo")
+        os.makedirs(os.path.join(repo, ".claude"))
+        with open(os.path.join(repo, ".claude", "settings.json"), "w") as f:
+            f.write("{}\n")
+        with open(os.path.join(repo, "README"), "w") as f:
+            f.write("x\n")
+        git(repo, "init", "-q")
+        git(repo, "add", "-A")
+        git(repo, "commit", "-qm", "init")
+        return repo
+
+    def dirty(self, repo):
+        return bash_policy(f'tree_is_dirty "{repo}"')
+
+    def touch(self, repo, rel, text=""):
+        path = os.path.join(repo, rel)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w") as f:
+            f.write(text)
+
+    def test_another_sessions_untracked_lock_is_not_dirt(self):
+        repo = self.repo()
+        self.touch(repo, ".claude/scheduled_tasks 2.lock")
+        self.touch(repo, ".claude/worktrees/w/Soundpost/X 2.swift")
+        r = self.dirty(repo)
+        self.assertEqual(r.returncode, 1, f"counted as dirty: {r.stdout}")
+
+    def test_an_untracked_file_elsewhere_is_dirt(self):
+        repo = self.repo()
+        self.touch(repo, "Soundpost/X 2.swift")
+        r = self.dirty(repo)
+        self.assertEqual(r.returncode, 0)
+        self.assertIn("Soundpost/X 2.swift", r.stdout)
+
+    def test_a_tracked_change_under_claude_is_dirt(self):
+        # A pathspec exclude of .claude would hide this one too.
+        repo = self.repo()
+        self.touch(repo, ".claude/settings.json", '{"changed": true}\n')
+        r = self.dirty(repo)
+        self.assertEqual(r.returncode, 0)
+        self.assertIn(".claude/settings.json", r.stdout)
+
+    def test_a_git_that_cannot_answer_is_dirt(self):
+        r = self.dirty(os.path.join(self.root, "not-a-repo"))
+        self.assertEqual(r.returncode, 0)
+        self.assertIn("git status failed", r.stdout)
+
+    # §4B.3 — named overrides only
+    def test_only_three_checks_can_be_named(self):
+        ok = bash_policy("allow_validate && allow_has keychain && ! allow_has dirty",
+                         {"RELEASE_PREFLIGHT_ALLOW": "copies,keychain,build-number"})
+        self.assertEqual(ok.returncode, 0, ok.stderr)
+        for name, message in (("dirty", "HEAD/clean guard decides"), ("sentry", "requires its dSYMs"),
+                              ("everything", "unknown check 'everything'")):
+            with self.subTest(name):
+                r = bash_policy("allow_validate", {"RELEASE_PREFLIGHT_ALLOW": f"copies,{name}"})
+                self.assertNotEqual(r.returncode, 0)
+                self.assertIn(message, r.stderr)
+
+    def test_the_old_override_is_refused_by_name(self):
+        r = bash_policy("legacy_override_refused", {"RELEASE_PREFLIGHT_OVERRIDE": "yes"})
+        self.assertEqual(r.returncode, 0)
+        self.assertIn("RELEASE_PREFLIGHT_ALLOW=<check>", r.stderr)
+        self.assertEqual(bash_policy("legacy_override_refused").returncode, 1)
+
+    # §4B.3 — the copy scan covers what ships, and fails closed
+    def scan(self, tree, shots=""):
+        return bash_policy(f'copy_scan "{tree.dir}" "{shots}"')
+
+    def test_a_copy_in_a_source_root_is_found(self):
+        tree = shipping_tree(self)
+        tree.write("Soundpost/X 2.swift", "//\n")
+        r = self.scan(tree)
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("Soundpost/X 2.swift", r.stdout)
+
+    def test_copies_under_claude_are_ignored(self):
+        tree = shipping_tree(self)
+        tree.write(".claude/x 2.lock", "")
+        tree.write(".claude/worktrees/w/Soundpost/X 2.swift", "//\n")
+        r = self.scan(tree)
+        self.assertEqual(r.returncode, 0, r.stdout)
+
+    def test_a_missing_required_root_fails_closed(self):
+        tree = shipping_tree(self)
+        shutil.rmtree(os.path.join(tree.dir, "backend"))
+        r = self.scan(tree)
+        self.assertEqual(r.returncode, 2)
+        self.assertIn("required scan root(s) missing: backend/", r.stdout)
+
+    def test_a_project_that_cannot_be_read_fails_closed(self):
+        tree = shipping_tree(self)
+        shutil.rmtree(os.path.join(tree.dir, "Soundpost.xcodeproj"))
+        r = self.scan(tree)
+        self.assertEqual(r.returncode, 2)
+        self.assertIn("project reader failed", r.stdout)
+
+    def test_the_screenshot_folder_counts_only_when_present(self):
+        tree = shipping_tree(self)
+        self.assertEqual(self.scan(tree, os.path.join(self.root, "no-shots")).returncode, 0)
+        shots = os.path.join(self.root, "shots")
+        os.makedirs(os.path.join(shots, "ja"))
+        open(os.path.join(shots, "ja", "01-gallery 2.png"), "w").close()
+        r = self.scan(tree, shots)
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("01-gallery 2.png", r.stdout)
+
+    # §4B.6 — a rejected token is fatal, anything else only warns
+    def test_the_sentry_probe_verdicts(self):
+        for code, status in (("200", 0), ("401", 1), ("403", 2), ("000", 2), ("500", 2)):
+            with self.subTest(code):
+                self.assertEqual(bash_policy(f"sentry_probe_verdict {code}").returncode, status)
+
+    def test_only_an_upload_pushes_a_tag(self):
+        self.assertEqual(bash_policy("should_push_tag upload").returncode, 0)
+        self.assertEqual(bash_policy("should_push_tag archive").returncode, 1)
+
+
+class PreflightTests(unittest.TestCase):
+    """The preflight on a fixture tree (GATE_PROJECT_DIR), archive mode unless stated, with a
+    stub `security` that reports a locked keychain — allowed by name, so the check under
+    test is the one that decides."""
+
+    def run_preflight(self, tree, mode="archive", allow="keychain", extra=None):
+        bin_dir = os.path.join(tree.dir, "..", "bin")
+        stub(bin_dir, "security", 'echo "User interaction is not allowed."; exit 51')
+        stub(bin_dir, "sentry-cli", "exit 0")
+        env = dict(os.environ, GATE_PROJECT_DIR=tree.dir, PATH=f"{bin_dir}:{os.environ['PATH']}",
+                   SOUNDPOST_SCREENSHOT_DIR=os.path.join(tree.dir, "..", "no-shots"),
+                   ASC_PYTHON=os.path.join(tree.dir, "..", "no-venv", "python3"))
+        env.pop("RELEASE_PREFLIGHT_OVERRIDE", None)
+        env.pop("SENTRY_AUTH_TOKEN", None)
+        if allow is not None:
+            env["RELEASE_PREFLIGHT_ALLOW"] = allow
+        else:
+            env.pop("RELEASE_PREFLIGHT_ALLOW", None)
+        env.update(extra or {})
+        return subprocess.run([PREFLIGHT, mode], capture_output=True, text=True, env=env)
+
+    def test_a_clean_tree_passes(self):
+        r = self.run_preflight(shipping_tree(self))
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("no iCloud conflict copies", r.stdout)
+
+    def test_a_copy_in_the_app_is_refused_and_named(self):
+        tree = shipping_tree(self)
+        tree.write("Soundpost/X 2.swift", "//\n")
+        r = self.run_preflight(tree)
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("iCloud conflict copies would compile into the build", r.stdout)
+        self.assertIn("Soundpost/X 2.swift", r.stdout)
+
+    def test_other_sessions_files_do_not_block_a_release(self):
+        tree = shipping_tree(self)
+        tree.write(".claude/scheduled_tasks 2.lock", "")
+        tree.write(".claude/worktrees/w/Soundpost/X 2.swift", "//\n")
+        r = self.run_preflight(tree)
+        self.assertEqual(r.returncode, 0, r.stdout)
+
+    def test_a_missing_scan_root_is_a_failure_not_a_pass(self):
+        tree = shipping_tree(self)
+        shutil.rmtree(os.path.join(tree.dir, "metadata"))
+        r = self.run_preflight(tree)
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("the copy scan could not run", r.stdout)
+
+    def test_copies_can_be_named_and_only_then_pass(self):
+        tree = shipping_tree(self)
+        tree.write("Soundpost/X 2.swift", "//\n")
+        r = self.run_preflight(tree, allow="keychain,copies")
+        self.assertEqual(r.returncode, 0, r.stdout)
+        self.assertIn("allowed: RELEASE_PREFLIGHT_ALLOW=copies", r.stdout)
+
+    def test_the_old_override_and_unknown_names_are_refused(self):
+        tree = shipping_tree(self)
+        r = self.run_preflight(tree, extra={"RELEASE_PREFLIGHT_OVERRIDE": "yes"})
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("RELEASE_PREFLIGHT_OVERRIDE is retired", r.stderr)
+        for name in ("dirty", "sentry"):
+            r = self.run_preflight(tree, allow=f"keychain,{name}")
+            self.assertEqual(r.returncode, 1, name)
+            self.assertIn(f"RELEASE_PREFLIGHT_ALLOW={name} is not a check you can go past", r.stderr)
+
+    def committed(self):
+        tree = shipping_tree(self)
+        tree.write(".claude/settings.json", "{}\n")
+        git(tree.dir, "init", "-q")
+        git(tree.dir, "add", "-A")
+        git(tree.dir, "commit", "-qm", "init")
+        return tree
+
+    def upload(self, tree):
+        return self.run_preflight(tree, mode="upload", allow="keychain,build-number",
+                                  extra={"SENTRY_AUTH_TOKEN": "sntryu_fixture"})
+
+    def test_upload_counts_untracked_claude_files_as_clean(self):
+        tree = self.committed()
+        tree.write(".claude/scheduled_tasks 2.lock", "")
+        r = self.upload(tree)
+        self.assertEqual(r.returncode, 0, r.stdout)
+        self.assertIn("working tree clean", r.stdout)
+
+    def test_upload_refuses_any_other_change(self):
+        for rel, text in (("docs/new.md", "x\n"), (".claude/settings.json", '{"changed": 1}\n')):
+            with self.subTest(rel):
+                tree = self.committed()
+                tree.write(rel, text)
+                r = self.upload(tree)
+                self.assertEqual(r.returncode, 1)
+                self.assertIn("the working tree is not clean", r.stdout)
+                self.assertIn(rel, r.stdout)
+
+    def test_upload_without_a_token_is_refused_and_cannot_be_allowed(self):
+        tree = self.committed()
+        r = self.run_preflight(tree, mode="upload", allow="keychain,build-number,copies")
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("SENTRY_AUTH_TOKEN is not set", r.stdout)
+
+
+XCODEBUILD_STUB = r'''
+prev=""; ap=""; ep=""
+for a in "$@"; do
+  [ "$prev" = "-archivePath" ] && ap="$a"
+  [ "$prev" = "-exportPath" ] && ep="$a"
+  prev="$a"
+done
+if [ "$1" = "archive" ]; then
+  mkdir -p "$ap/dSYMs/Soundpost.app.dSYM" "$ap/Products/Applications/Soundpost.app"
+  printf '<plist version="1.0"><dict/></plist>' > "$ap/Info.plist"
+elif [ "$1" = "-exportArchive" ]; then
+  mkdir -p "$ep"
+fi'''
+
+# git: HEAD is $GIT_HEAD, or $GIT_HEAD_LATER after the first answer; status is a file.
+GIT_STUB = r'''
+args=" $* "
+case "$args" in
+  *" rev-parse -q --verify refs/tags/"*) exit 1 ;;
+  *" rev-parse --verify HEAD "*)
+    n=$(cat "$STUB_STATE/heads" 2>/dev/null || echo 0); echo $((n + 1)) > "$STUB_STATE/heads"
+    if [ "$n" -gt 0 ] && [ -n "${GIT_HEAD_LATER:-}" ]; then echo "$GIT_HEAD_LATER"; else echo "${GIT_HEAD:-abc1234def}"; fi ;;
+  *" status --porcelain"*) cat "$STUB_STATE/status" 2>/dev/null; exit 0 ;;
+  *" push origin "*) exit "${GIT_PUSH_EXIT:-0}" ;;
+  *) exit 0 ;;
+esac'''
+
+
+class BuildUploadTests(unittest.TestCase):
+    """build-upload-asc.sh end to end, in a temp tree: the real script and policy, stub
+    preflight / verify-archive / upload-dsyms scripts, and stub xcodebuild, git and curl on
+    PATH that log every call. HOME is a temp folder, so the default archives root is too."""
+
+    def setUp(self):
+        self.base = tempfile.mkdtemp(prefix="upload-")
+        self.addCleanup(shutil.rmtree, self.base, True)
+        self.dir = os.path.join(self.base, "Soundpost")
+        self.home = os.path.join(self.base, "home")
+        self.log = os.path.join(self.base, "calls.log")
+        scripts = os.path.join(self.dir, "scripts")
+        os.makedirs(os.path.join(scripts, "lib"))
+        shutil.copy(os.path.join(HERE, "build-upload-asc.sh"), scripts)
+        shutil.copy(POLICY, os.path.join(scripts, "lib"))
+        log = 'echo "$(basename "$0") $*" >> "$STUB_LOG"'
+        stub(scripts, "release-preflight.sh", log + "\nexit 0")
+        stub(scripts, "verify-archive.sh", log + "\nexit 0")
+        stub(scripts, "upload-dsyms.sh", log + '\n'
+             'if [ "$1" = "--required" ] && [ -z "${SENTRY_AUTH_TOKEN:-}" ]; then exit 1; fi\n'
+             'exit "${DSYM_EXIT:-0}"')
+        os.makedirs(os.path.join(self.dir, "Soundpost.xcodeproj"))
+        with open(os.path.join(self.dir, "Soundpost.xcodeproj", "project.pbxproj"), "w") as f:
+            f.write("\t\t\t\tMARKETING_VERSION = 1.13.0;\n\t\t\t\tCURRENT_PROJECT_VERSION = 25;\n"
+                    "\t\t\t\tMARKETING_VERSION = 1.13.0;\n\t\t\t\tCURRENT_PROJECT_VERSION = 25;\n")
+        self.bin = os.path.join(self.base, "bin")
+        stub(self.bin, "xcodebuild", log + XCODEBUILD_STUB)
+        stub(self.bin, "git", log + GIT_STUB)
+        stub(self.bin, "curl", 'echo -n "${CURL_CODE:-200}"')
+        stub(self.bin, "sentry-cli", "exit 0")
+        self.key = os.path.join(self.base, "AuthKey_TEST.p8")
+        open(self.key, "w").close()
+
+    def status(self, text):
+        with open(os.path.join(self.base, "status"), "w") as f:
+            f.write(text)
+
+    def run_upload(self, mode="upload", **env):
+        full = dict(os.environ, HOME=self.home, PATH=f"{self.bin}:{os.environ['PATH']}",
+                    ASC_API_KEY_PATH=self.key, CK_SKIP_SCHEMA_CHECK="yes", SENTRY_AUTH_TOKEN="sntryu_fixture",
+                    STUB_LOG=self.log, STUB_STATE=self.base)
+        for k in ("RELEASE_PREFLIGHT_OVERRIDE", "RELEASE_PREFLIGHT_ALLOW", "ARCHIVE_PATH", "EXPORT_PATH",
+                  "ARCHIVES_ROOT"):
+            full.pop(k, None)
+        for k, v in env.items():
+            if v is None:
+                full.pop(k, None)
+            else:
+                full[k] = v
+        r = subprocess.run([os.path.join(self.dir, "scripts", "build-upload-asc.sh"), mode],
+                           capture_output=True, text=True, env=full)
+        calls = ""
+        if os.path.exists(self.log):
+            with open(self.log, encoding="utf-8") as f:
+                calls = f.read()
+        return r, calls
+
+    @property
+    def archives(self):
+        return os.path.join(self.home, "Library", "Developer", "Xcode", "Archives")
+
+    def today_archive(self, suffix=""):
+        import datetime
+        return os.path.join(self.archives, datetime.date.today().isoformat(),
+                            f"Soundpost 1.13.0 (25){suffix}.xcarchive")
+
+    def test_an_upload_archives_into_xcodes_archives_and_pushes_its_tag_once(self):
+        r, calls = self.run_upload()
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn(f"-archivePath {self.today_archive()}", calls)
+        self.assertTrue(os.path.isdir(self.today_archive()))
+        self.assertEqual(len([l for l in calls.splitlines() if " push origin v1.13.0-b25" in l]), 1)
+        self.assertIn("Pushed v1.13.0-b25 to origin.", r.stdout)
+        self.assertIn(os.path.join(self.home, "Library/Caches/Soundpost-build/export/1.13.0-25"), calls)
+
+    def test_a_failed_tag_push_still_reports_the_upload(self):
+        r, calls = self.run_upload(GIT_PUSH_EXIT="1")
+        self.assertEqual(r.returncode, 0, r.stdout)
+        self.assertIn("Push it by hand: git push origin v1.13.0-b25", r.stdout)
+
+    def test_archive_mode_never_tags_or_pushes(self):
+        r, calls = self.run_upload("archive")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertNotIn(" push ", calls)
+        self.assertNotIn(" tag ", calls)
+
+    def test_an_upload_without_a_token_is_refused_before_archiving(self):
+        r, calls = self.run_upload(SENTRY_AUTH_TOKEN=None)
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("refusing to upload — SENTRY_AUTH_TOKEN is not set", r.stdout)
+        self.assertNotIn("xcodebuild archive", calls)
+
+    def test_a_rejected_token_is_refused_before_archiving(self):
+        r, calls = self.run_upload(CURL_CODE="401")
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("token rejected", r.stdout)
+        self.assertNotIn("xcodebuild archive", calls)
+
+    def test_a_forbidden_probe_only_warns(self):
+        r, calls = self.run_upload(CURL_CODE="403")
+        self.assertEqual(r.returncode, 0, r.stdout)
+        self.assertIn("WARN: the Sentry probe answered HTTP 403", r.stdout)
+        self.assertIn("upload-dsyms.sh --required", calls)
+
+    def test_an_upload_requires_its_dsyms(self):
+        r, calls = self.run_upload(DSYM_EXIT="1")
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("the dSYM upload to Sentry failed", r.stdout)
+        self.assertIn("upload-dsyms.sh --required", calls)
+        self.assertNotIn("-exportArchive", calls)
+        self.assertTrue(os.path.isdir(self.today_archive()), "the archive was not kept")
+
+    def test_an_uploaded_build_is_refused_before_archiving(self):
+        make_archive(self.archives, "2026-11-01", "Soundpost 1.13.0 (25).xcarchive", upload="success")
+        r, calls = self.run_upload()
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("was already uploaded to App Store Connect", r.stderr)
+        self.assertNotIn("xcodebuild archive", calls)
+
+    def test_a_failed_attempt_is_kept_and_the_next_name_used(self):
+        import datetime
+        old = make_archive(self.archives, datetime.date.today().isoformat(),
+                           "Soundpost 1.13.0 (25).xcarchive", upload="failed", marker="kept")
+        r, calls = self.run_upload()
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn(f"-archivePath {self.today_archive(' - attempt 2')}", calls)
+        self.assertTrue(os.path.isfile(os.path.join(old, "kept")), "an earlier attempt was touched")
+
+    def test_an_existing_explicit_archive_path_is_refused(self):
+        existing = make_archive(self.base, "x", "Mine.xcarchive", marker="kept")
+        r, calls = self.run_upload("archive", ARCHIVE_PATH=existing)
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("nothing here overwrites an archive", r.stdout)
+        self.assertTrue(os.path.isfile(os.path.join(existing, "kept")))
+
+    def test_another_sessions_lock_does_not_block_the_upload(self):
+        self.status('?? ".claude/scheduled_tasks 2.lock"\n')
+        r, calls = self.run_upload()
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+
+    def test_a_change_during_the_archive_is_refused(self):
+        self.status('?? "Soundpost/X 2.swift"\n')
+        r, calls = self.run_upload()
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("the checkout changed while the archive ran", r.stdout)
+        self.assertNotIn("-exportArchive", calls)
+
+    def test_head_moving_during_the_archive_is_refused(self):
+        r, calls = self.run_upload(GIT_HEAD_LATER="fff9999aaa")
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("now fff9999aaa", r.stdout)
+        self.assertNotIn("-exportArchive", calls)
+
+    def test_no_setting_skips_the_head_guard_or_the_dsyms(self):
+        r, calls = self.run_upload(RELEASE_PREFLIGHT_OVERRIDE="yes")
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("RELEASE_PREFLIGHT_OVERRIDE is retired", r.stderr)
+        self.assertNotIn("xcodebuild archive", calls)
+        for name in ("dirty", "sentry"):
+            r, _ = self.run_upload(RELEASE_PREFLIGHT_ALLOW=name)
+            self.assertEqual(r.returncode, 1, name)
+
+
+class UploadDsymsTests(unittest.TestCase):
+    def run_dsyms(self, *args, token=None, with_cli=True):
+        bin_dir = tempfile.mkdtemp(prefix="dsym-bin-")
+        self.addCleanup(shutil.rmtree, bin_dir, True)
+        if with_cli:
+            stub(bin_dir, "sentry-cli", "exit 0")
+        env = dict(os.environ, PATH=f"{bin_dir}:/usr/bin:/bin")
+        env.pop("SENTRY_AUTH_TOKEN", None)
+        if token:
+            env["SENTRY_AUTH_TOKEN"] = token
+        return subprocess.run(["/bin/bash", DSYMS, *args], capture_output=True, text=True, env=env)
+
+    def test_required_without_a_token_fails(self):
+        r = self.run_dsyms("--required", "/nowhere.xcarchive")
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("were NOT uploaded", r.stderr)
+
+    def test_required_without_sentry_cli_fails(self):
+        r = self.run_dsyms("--required", "/nowhere.xcarchive", token="t", with_cli=False)
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("sentry-cli not installed", r.stderr)
+
+    def test_a_dry_archive_without_a_token_still_only_warns(self):
+        r = self.run_dsyms("/nowhere.xcarchive")
+        self.assertEqual(r.returncode, 0)
+        self.assertIn("skipping dSYM upload", r.stdout)
+
+    def test_required_with_a_token_uploads(self):
+        r = self.run_dsyms("--required", "/nowhere.xcarchive", token="t")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("debug-files upload (/nowhere.xcarchive)", r.stdout)
+
 if __name__ == "__main__":
     unittest.main()

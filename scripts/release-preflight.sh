@@ -1,8 +1,8 @@
 #!/bin/bash
 set -uo pipefail
 
-# Release preflight (M20 §4B). Run by build-upload-asc.sh before it archives; also
-# runnable on its own to see where a release stands.
+# Release preflight (M20 §4B; M23 §4B.3). Run by build-upload-asc.sh before it archives;
+# also runnable on its own to see where a release stands.
 #
 #   ./scripts/release-preflight.sh           # upload: every check
 #   ./scripts/release-preflight.sh archive   # local archive only: iCloud copies + signing
@@ -16,47 +16,80 @@ set -uo pipefail
 #   - a reused build no. → App Store Connect refuses it only after the upload
 #   - no Sentry token    → 1.6.0, 1.6.1 and 1.6.2 shipped with no dSYMs in Sentry
 #
-# It reports every failure, not just the first, then refuses. One override, loud on
-# purpose, modelled on CK_SKIP_SCHEMA_CHECK:
+# It reports every failure, not just the first, then refuses. To go past ONE named check:
 #
-#   RELEASE_PREFLIGHT_OVERRIDE=yes ./scripts/build-upload-asc.sh
+#   RELEASE_PREFLIGHT_ALLOW=copies,keychain ./scripts/build-upload-asc.sh
 #
-# The same override also lets build-upload-asc.sh continue past a failed dSYM upload.
+# Only `copies`, `keychain` and `build-number` can be named. The clean tree and the Sentry
+# token cannot: for an upload, the post-archive HEAD/clean guard and the dSYM step decide
+# anyway, and no name reaches them. The old all-or-nothing RELEASE_PREFLIGHT_OVERRIDE is
+# refused — 1.11.0 and 1.12.0 both shipped under it because of one untracked lock file.
+#
+# What "clean" means (scripts/lib/release_policy.sh `tree_is_dirty`): every line of
+# `git status --porcelain --untracked-files=all` except untracked entries under .claude/.
+# `GATE_PROJECT_DIR` points the checks at another tree (its tests use fixtures).
 
 MODE="${1:-upload}"
-PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-ASC_PYTHON="${ASC_PYTHON:-/tmp/asc-venv/bin/python3}"
+SCRIPTS="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_DIR="${GATE_PROJECT_DIR:-$(cd "$SCRIPTS/.." && pwd)}"
+# shellcheck source=lib/release_policy.sh
+source "$SCRIPTS/lib/release_policy.sh"
+# Outside /tmp, which macOS empties; the daily cleanup job keeps it (its `.no-sweep`).
+ASC_VENV_DEFAULT="$HOME/Library/Caches/Soundpost-build/asc-venv"
+if [ -z "${ASC_PYTHON:-}" ]; then
+  ASC_PYTHON="$ASC_VENV_DEFAULT/bin/python3"
+  [ -x "$ASC_PYTHON" ] || [ ! -x /tmp/asc-venv/bin/python3 ] || ASC_PYTHON=/tmp/asc-venv/bin/python3
+fi
 PBXPROJ="$PROJECT_DIR/Soundpost.xcodeproj/project.pbxproj"
 
+case "$MODE" in
+  upload|archive) ;;
+  *) echo "ERROR: unknown mode '$MODE' (upload or archive)" >&2; exit 2 ;;
+esac
+if legacy_override_refused; then exit 1; fi
+allow_validate || exit 1
+
 failures=()
+allowed=()
 fail() { failures+=("$1"); printf '  ✘ %s\n' "$1"; }
 pass() { printf '  ✔ %s\n' "$1"; }
+# A check that RELEASE_PREFLIGHT_ALLOW may name: reported either way, counted only if not allowed.
+fail_or_allow() {
+  if allow_has "$1"; then
+    allowed+=("$1: ${2%%$'\n'*}")
+    printf '  ! %s (allowed: RELEASE_PREFLIGHT_ALLOW=%s)\n' "$2" "$1"
+  else
+    fail "$2"
+  fi
+}
 
 project_setting() {
-  grep -E "^[[:space:]]*$1 = " "$PBXPROJ" | sed -E 's/.*= ([^;]*);.*/\1/' | sort -u
+  grep -E "^[[:space:]]*$1 = " "$PBXPROJ" | sed -E 's/.*= "?([^";]*)"?;.*/\1/' | sort -u
 }
 
 echo "==> Release preflight ($MODE)"
 
-VERSION="$(project_setting MARKETING_VERSION)"
-BUILD="$(project_setting CURRENT_PROJECT_VERSION)"
+VERSION="$(project_setting MARKETING_VERSION 2>/dev/null)"
+BUILD="$(project_setting CURRENT_PROJECT_VERSION 2>/dev/null)"
 if [ "$(printf '%s\n' "$VERSION" | grep -c .)" -ne 1 ] || [ "$(printf '%s\n' "$BUILD" | grep -c .)" -ne 1 ]; then
   fail "the project does not hold one MARKETING_VERSION and one CURRENT_PROJECT_VERSION (got '$VERSION' / '$BUILD')"
 else
   pass "project is $VERSION ($BUILD)"
 fi
 
-# ── iCloud conflict copies ────────────────────────────────────────────────────
-# Any copy number, not only " 2": with `Foo 2.swift` already present, the next copy
-# is `Foo 3.swift`.
-copies="$(find -E "$PROJECT_DIR" \( -path "$PROJECT_DIR/.git" -o -path "$PROJECT_DIR/build" \) -prune \
-          -o -regex '.* [0-9]+(\.[^/]*)?' -print 2>/dev/null)"
-if [ -n "$copies" ]; then
-  fail "iCloud conflict copies would compile into the build:"
-  printf '%s\n' "$copies" | sed 's/^/        /'
-else
-  pass "no iCloud conflict copies"
-fi
+# ── iCloud conflict copies, in what ships ────────────────────────────────────
+# The project's source roots (from the project file), the .xcodeproj, metadata/, scripts/,
+# backend/ — each required to exist — and the screenshot folder if there is one. Not the
+# whole checkout: other sessions' files under .claude/ never build, and a scan of them
+# blocked 1.12.0 (M23 §4B.3).
+SHOT_DIR="$(python3 -c "import sys; sys.path.insert(0, '$SCRIPTS'); import asc_policy; print(asc_policy.screenshot_dir())" 2>/dev/null || true)"
+copies="$(copy_scan "$PROJECT_DIR" "$SHOT_DIR")"
+case $? in
+  0) pass "no iCloud conflict copies" ;;
+  1) fail_or_allow copies "iCloud conflict copies would compile into the build or reach the store:
+$(printf '%s\n' "$copies" | sed 's/^/        /')" ;;
+  *) fail "the copy scan could not run: $copies" ;;
+esac
 
 # ── Signing: is the keychain usable right now? ────────────────────────────────
 console_locked="$(ioreg -n Root -d1 -a 2>/dev/null | grep -A1 IOConsoleLocked | grep -c '<true/>' || true)"
@@ -64,19 +97,19 @@ console_locked="$(ioreg -n Root -d1 -a 2>/dev/null | grep -A1 IOConsoleLocked | 
 keychain="$HOME/Library/Keychains/login.keychain-db"
 keychain_info="$(security show-keychain-info "$keychain" 2>&1)"
 if printf '%s' "$keychain_info" | grep -q 'User interaction is not allowed'; then
-  fail "the login keychain is locked (unlock the Mac, then re-run)"
+  fail_or_allow keychain "the login keychain is locked (unlock the Mac, then re-run)"
 else
   identity="$(security find-identity -v -p codesigning 2>/dev/null | awk '/"Apple Distribution/{print $2; exit}')"
   [ -z "$identity" ] && identity="$(security find-identity -v -p codesigning 2>/dev/null | awk '/"Apple Development/{print $2; exit}')"
   if [ -z "$identity" ]; then
-    fail "no Apple Distribution or Apple Development identity in the keychain search list"
+    fail_or_allow keychain "no Apple Distribution or Apple Development identity in the keychain search list"
   else
     probe_dir="$(mktemp -d)"
     cp /bin/echo "$probe_dir/sigtest"
     if codesign -f -s "$identity" "$probe_dir/sigtest" >"$probe_dir/log" 2>&1; then
       pass "codesign works (one-second probe)"
     else
-      fail "codesign probe failed: $(tail -1 "$probe_dir/log") — the keychain will not sign; unlock the Mac"
+      fail_or_allow keychain "codesign probe failed: $(tail -1 "$probe_dir/log") — the keychain will not sign; unlock the Mac"
     fi
     rm -rf "$probe_dir"
   fi
@@ -84,52 +117,45 @@ fi
 
 if [ "$MODE" = "upload" ]; then
   # ── Clean tree ──────────────────────────────────────────────────────────────
-  # Fail closed: a git that cannot answer prints nothing, which must not read as clean.
-  if ! dirty="$(git -C "$PROJECT_DIR" status --porcelain --untracked-files=all)"; then
-    fail "git status failed — cannot tell whether the tree is clean"
-  elif [ -n "$dirty" ]; then
-    fail "the working tree is not clean — the binary would not be any commit:"
-    printf '%s\n' "$dirty" | head -20 | sed 's/^/        /'
+  # Fail closed: `tree_is_dirty` treats a git that cannot answer as dirty.
+  if dirty="$(tree_is_dirty "$PROJECT_DIR")"; then
+    fail "the working tree is not clean — the binary would not be any commit:
+$(printf '%s\n' "$dirty" | head -20 | sed 's/^/        /')"
   elif ! head_sha="$(git -C "$PROJECT_DIR" rev-parse --verify --short HEAD 2>/dev/null)" || [ -z "$head_sha" ]; then
     fail "git cannot resolve HEAD — the binary would not be any commit"
   else
-    pass "working tree clean at $head_sha"
+    pass "working tree clean at $head_sha (untracked files under .claude/ do not count)"
   fi
 
   # ── Build number ────────────────────────────────────────────────────────────
   if [ ! -x "$ASC_PYTHON" ]; then
-    fail "no ASC venv at $ASC_PYTHON (macOS empties /tmp) — rebuild:
-        python3 -m venv /tmp/asc-venv && /tmp/asc-venv/bin/python3 -m pip install \"pyjwt[crypto]\" requests"
-  elif out="$("$ASC_PYTHON" "$PROJECT_DIR/scripts/asc.py" check-build-number "$BUILD" 2>&1)"; then
+    fail_or_allow build-number "no ASC venv at $ASC_PYTHON — rebuild it:
+        python3 -m venv \"$ASC_VENV_DEFAULT\" && \"$ASC_VENV_DEFAULT/bin/python3\" -m pip install \"pyjwt[crypto]\" requests && touch \"$ASC_VENV_DEFAULT/.no-sweep\""
+  elif out="$("$ASC_PYTHON" "$SCRIPTS/asc.py" check-build-number "$BUILD" 2>&1)"; then
     pass "$out"
   else
-    fail "$out"
+    fail_or_allow build-number "$out"
   fi
 
   # ── Sentry: this build's crashes must symbolicate ───────────────────────────
-  if ! command -v sentry-cli >/dev/null 2>&1; then
-    fail "sentry-cli is not installed (brew install getsentry/tools/sentry-cli)"
-  elif [ -z "${SENTRY_AUTH_TOKEN:-}" ]; then
-    fail "SENTRY_AUTH_TOKEN is not set — agent shells do not read ~/.zshrc:
-        eval \"\$(grep -E '^export SENTRY_' ~/.zshrc)\""
-  elif [ "${SENTRY_AUTH_TOKEN#<}" != "$SENTRY_AUTH_TOKEN" ]; then
-    fail "SENTRY_AUTH_TOKEN starts with '<' — it was pasted with its angle brackets"
+  problem="$(sentry_token_problem)"
+  if [ -n "$problem" ]; then
+    fail "$problem"
   else
     pass "Sentry token present (${#SENTRY_AUTH_TOKEN} chars)"
   fi
 fi
 
+if [ "${#allowed[@]}" -gt 0 ]; then
+  echo "!!! RELEASE_PREFLIGHT_ALLOW — going past ${#allowed[@]} named check(s):"
+  for f in "${allowed[@]}"; do printf '!!!   - %s\n' "$f"; done
+fi
 if [ "${#failures[@]}" -eq 0 ]; then
   echo "==> Preflight passed."
   exit 0
 fi
 
 echo
-if [ "${RELEASE_PREFLIGHT_OVERRIDE:-}" = "yes" ]; then
-  echo "!!! RELEASE_PREFLIGHT_OVERRIDE=yes — continuing WITHOUT ${#failures[@]} check(s):"
-  for f in "${failures[@]}"; do printf '!!!   - %s\n' "${f%%$'\n'*}"; done
-  exit 0
-fi
 echo "ERROR: refusing to $MODE — ${#failures[@]} preflight check(s) failed (listed above)."
-echo "       To go ahead regardless: RELEASE_PREFLIGHT_OVERRIDE=yes $0 $MODE"
+echo "       Only copies, keychain and build-number can be named in RELEASE_PREFLIGHT_ALLOW."
 exit 1

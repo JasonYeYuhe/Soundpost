@@ -1123,3 +1123,162 @@ Verdict: CHANGES REQUESTED → both applied (revision 4). Nothing open.
 
 *(one subsection per step: commits, tests and counts, controls, gate fixtures, simulator witnesses,
 CI runs, deviations from this plan and why)*
+
+### Day one (2026-11-12)
+
+Re-verified before any change: master `44d3fdc`, tree clean, CI green on it; 1.12.0 (24)
+`WAITING_FOR_REVIEW`, `releaseType MANUAL` (read back); 21 GB free; Xcode 27.2 (27B52) local;
+`build/Soundpost.xcarchive` still has an empty `Products/Applications/`. Jason was sent S0 (both
+options, the read columns), H1–H6 and D3, D5–D9, D11, D15–D23 with their defaults, in Chinese. No
+answer yet: nothing outside the repo was written (no analytics POST, no production read).
+
+### S1 — release safety
+
+**What changed.**
+- `scripts/lib/release_policy.sh` (new, sourced, bash 3.2): `default_archive_path`, `archive_plan`
+  (refuses only an archive whose `Info.plist` records `destination = upload` with
+  `uploadEvent.state = success`; otherwise the next free `… - attempt <n>.xcarchive`),
+  `archive_records_upload`, `allow_validate` / `allow_has`, `legacy_override_refused`,
+  `tree_is_dirty` (porcelain lines minus `?? .claude/…`, quoted or not; a failing git is dirty),
+  `copy_scan` (roots from `project_model.py roots --kinds app,appex,test,other`, the `.xcodeproj`,
+  `metadata/`, `scripts/`, `backend/` — each required — plus the screenshot folder if present;
+  0 / 1 found / 2 cannot scan), `should_push_tag`, `sentry_token_problem`, `sentry_probe` /
+  `sentry_probe_verdict` (the org's `chunk-upload/` options: 2xx pass, 401 fatal, else warn).
+- `release-preflight.sh`: honours `GATE_PROJECT_DIR`; the retired `RELEASE_PREFLIGHT_OVERRIDE` is
+  refused with a message naming `RELEASE_PREFLIGHT_ALLOW`; `ALLOW` takes only `copies`,
+  `keychain`, `build-number` (`dirty`, `sentry`, anything else refused by name); one dirty rule;
+  the narrowed copy scan, failing closed; `ASC_PYTHON` defaults to
+  `~/Library/Caches/Soundpost-build/asc-venv/bin/python3` (`/tmp/asc-venv` only as a fallback),
+  with the rebuild command printed.
+- `build-upload-asc.sh`: versions read first, then `archive_plan` under `ARCHIVES_ROOT`
+  (default `~/Library/Developer/Xcode/Archives`); an explicit `ARCHIVE_PATH` that exists is
+  refused; nothing deletes an archive (`rm -rf` now touches only the export folder,
+  `~/Library/Caches/Soundpost-build/export/<v>-<b>/`). Upload mode checks the token and runs the
+  probe before `xcodebuild archive`, applies the dirty rule to the HEAD/clean guard (no setting
+  skips it), calls `upload-dsyms.sh --required`, tags, and pushes the tag (a failed push warns and
+  prints the command; exit 0). Archive mode never tags or pushes.
+- `upload-dsyms.sh --required`: no `sentry-cli` or no token exits 1; without it, unchanged; the
+  stale `--backfill` comment corrected.
+- `verify-archive.sh`: comment only (no setting skips it).
+- `asc_policy.py`: `require_manual_release`, `release_type_plan`; the screenshot constant
+  (`APP_IPHONE_67`, 1320×2868, screens, folder `~/Library/Caches/Soundpost-build/screenshots-69`,
+  overridable by `SOUNDPOST_SCREENSHOT_DIR` for fixtures), `screenshot_files`,
+  `screenshot_target_set_plan`, `stale_placements`; `editable_app_info`, `age_rating_gaps`,
+  `submittable_problems`; `analytics_request_plan`. `screenshot_swap` removed (nothing deletes
+  screenshots any more), with its five tests.
+- `asc.py`: `attach` and `submit` call `require_manual_release(v)` as the statement right after the
+  `if not v:` exit; `submit` then runs `submittable_problems` and refuses on any; `create-version`
+  POSTs `releaseType: 'MANUAL'`, and for an existing version PATCHes MANUAL only in
+  `PREPARE_FOR_SUBMISSION` (read back), otherwise prints; `status` shows `releaseType`; new
+  `check-submittable` (GET only, app checked first), `screenshots-prune [--apply]` (placement
+  deletes on the editable version, dry run by default), `analytics-request` (one POST, refuses a
+  second — **not sent**: D5 is Jason's), `analytics` (GET only, to
+  `~/Library/Caches/Soundpost-build/analytics/`). `cmd_screenshots` uploads only the names the
+  policy accepts, from the policy's folder, into an empty `APP_IPHONE_67` set, and never sends a
+  DELETE.
+- `screenshots.sh`: reads the screens, display type, size and folder from `asc_policy`; writes to
+  the Caches folder (`.no-sweep`), refuses a folder in `~/Documents` or the repo; `red` defined
+  before use. The device stays `Soundpost-Shots` until S6, so until then it refuses on size.
+
+**§4B.7, settled read-only** (Apple's documentation read on 2026-11-12, plus reads of this app):
+- (a) `appScreenshotSets` / `appScreenshots` are **deprecated** (API 4.5) in favour of App Asset
+  Library images and placements
+  ([4.5.1 release notes](https://developer.apple.com/documentation/appstoreconnectapi/app-store-connect-api-4-5-1-release-notes),
+  [App Screenshot Sets](https://developer.apple.com/documentation/appstoreconnectapi/app-screenshot-sets));
+  no sunset date is published, and they still answer (read on 1.12.0 today).
+- (b) A new version's screenshots are **its own placements over the same library images**: on
+  1.12.0 the inherited set is four `IPHONE_FACE_ID_LARGE_PROFILE` placements created with the
+  version; its `appScreenshot` ids differ from 1.11.0's while the image assets (template URL,
+  asset token, checksum) are identical. A placement delete
+  ([Placing assets](https://developer.apple.com/documentation/appstoreconnectapi/placing-assets-on-your-app-store-surfaces))
+  removes the asset from that surface and leaves the image in the library.
+- (c) **Not documented.** [DELETE appScreenshots](https://developer.apple.com/documentation/appstoreconnectapi/delete-v1-appscreenshots-_id_)
+  says only to use the image delete instead, and an image backs the live version's placements;
+  [image deletes with placements fail](https://developer.apple.com/documentation/appstoreconnectapi/uploading-and-managing-image-assets)
+  (`STATE_ERROR.ASSET_HAS_PLACEMENTS`). So asc.py never sends it (pinned by
+  `test_nothing_in_asc_py_deletes_a_screenshot_or_an_image`); the stale set leaves 1.13.0 by
+  `screenshots-prune` (placement deletes, only once the new group holds exactly the four new
+  images) or by Jason in the web UI (H5).
+- (d) [ScreenshotDisplayType](https://developer.apple.com/documentation/appstoreconnectapi/screenshotdisplaytype)
+  has no `APP_IPHONE_69`; `APP_IPHONE_67` is the largest iPhone value. The
+  [screenshot specifications](https://developer.apple.com/help/app-store-connect/reference/app-information/screenshot-specifications)
+  accept 1320×2868 for "iPhone with Dynamic Island (large display)", and require 6.5-inch only when
+  that is absent. No Apple page maps the class to the enum value; `APP_IPHONE_67` follows Jason's
+  RoastMate tool (`asc_product_page.py:136-149`). The new placement group
+  (`IPHONE_DYNAMIC_ISLAND_LARGE_PROFILE`) is by the same analogy; `stale_placements` removes nothing
+  until S7 sees it holding the upload. **Open for S7:** the same page's "required device sizes"
+  also mentions a medium-display iPhone screenshot; `check-submittable` and the submit will say.
+
+**Other reads (S1).** App infos: live `state = READY_FOR_DISTRIBUTION` (pinned as
+`LIVE_APP_INFO_STATE`), the in-flight one `WAITING_FOR_REVIEW`. Both age-rating declarations leave
+exactly four attributes null — `developerAgeRatingInfoUrl`, `gracRatingClassificationNumber`,
+`kidsAgeBand` (optional) and `socialMediaAgeRestricted` (follow-up to `socialMedia = false`) — the
+allowlist. `check-submittable` on 1.12.0 reports exactly the six screenshot items the new constant
+predicts (no `APP_IPHONE_67`, a stale `APP_IPHONE_65` set, per locale) and nothing else. Every
+Soundpost archive in Xcode's Archives (1.2.0, 1.10.0, 1.11.0, and the 1.12.0 remnant) records
+`uploadEvent.state = success`, so a dry run at build 24 is refused unless it passes a scratch
+`ARCHIVES_ROOT`. Sentry: the token is a user auth token (`sntryu_` prefix) whose scopes include
+`project:releases`, `project:write` and `org:read`; the probe answers 200 with it and 401 with a
+bogus one.
+
+**Proof.** Python suite 78 → 153 tests (`test_asc_policy.py` 48 → 77; `test_gates.py` 30 → 76:
+`ReleasePolicyTests` 20, `PreflightTests` 9, `BuildUploadTests` 14, `UploadDsymsTests` 4).
+The release-path fixtures run against the scripts at `44d3fdc` (each old script copied into the
+fixture tree so its own location names the tree): **20 of 27 fail**, for the reason under test:
+the archive path (`build/`), the overwrite of an existing `ARCHIVE_PATH`, no refusal of an uploaded
+build, no token check or probe before the archive, no `--required`, no tag push, the old override
+accepted, a missing scan root passing, and `.claude/scheduled_tasks 2.lock` reported both as an
+iCloud copy and as a dirty tree (old output read, not only the exit code); two pass-cases fail
+because the old preflight has no named allowance at all. The seven that pass against the old
+scripts are regression guards (a source-root copy, another untracked file, a change during the
+archive, a moved HEAD, no token in the preflight, archive mode not tagging, a dry archive warning).
+
+**Controls** (`scratchpad/mutate_s1.py`: `cp` snapshot → mutate → run the named tests → restore
+→ `cmp`; all 25 killed):
+
+| Mutation | Killed by |
+|---|---|
+| `archive_plan` refuses on mere existence | `test_an_earlier_unuploaded_attempt_is_left_intact`, `test_a_failed_attempt_is_kept_and_the_next_name_used` |
+| a failed upload counts as uploaded | `test_a_failed_upload_moves_on_to_the_next_name` |
+| dirty rule without the `.claude` filter | `test_another_sessions_untracked_lock_is_not_dirt`, `test_upload_counts_untracked_claude_files_as_clean` |
+| dirty rule as a pathspec exclude | `test_a_tracked_change_under_claude_is_dirt` |
+| a missing scan root skipped | `test_a_missing_required_root_fails_closed`, `test_a_missing_scan_root_is_a_failure_not_a_pass` |
+| scan the whole checkout, no prune | `test_copies_under_claude_are_ignored`, `test_other_sessions_files_do_not_block_a_release` |
+| 403 fatal | `test_the_sentry_probe_verdicts`, `test_a_forbidden_probe_only_warns` |
+| `ALLOW=dirty` accepted | `test_only_three_checks_can_be_named` |
+| no token check before the archive | `test_an_upload_without_a_token_is_refused_before_archiving` |
+| dSYMs without `--required` | `test_an_upload_requires_its_dsyms` |
+| tag not pushed / archive mode tags | `…_pushes_its_tag_once` / `test_archive_mode_never_tags_or_pushes` |
+| `--required` only warns | `test_required_without_a_token_fails`, `test_required_without_sentry_cli_fails` |
+| `attach`: MANUAL guard moved into `else:` | `test_attach_and_submit_refuse_a_non_manual_version_before_any_write` |
+| `submit`: MANUAL guard moved after `cmd_cancel` | same test |
+| `create-version` without `releaseType` | `test_create_version_posts_manual` |
+| `cmd_screenshots` sends `DELETE /v1/appScreenshots` again | `test_screenshots_never_delete_…`, `test_nothing_in_asc_py_deletes_…` |
+| `screenshots-prune` without its dry-run return | `test_prune_removes_placements_only_with_apply_and_by_the_policy` |
+| `editable_app_info` picks the first | `test_the_editable_app_info_is_read_even_when_the_live_one_is_listed_first` |
+| a follow-up always skipped | `test_a_follow_up_counts_once_its_question_says_it_applies` |
+| stale display types not reported | `test_a_stale_display_type_is_reported` |
+| a missing `releaseType` passes | `test_a_missing_release_type_is_refused` |
+| extra screenshot names accepted | `test_an_icloud_copy_is_refused_by_name` |
+| analytics request repeated | `test_an_existing_ongoing_request_is_not_repeated` |
+| stale placements removed before the upload is complete | `test_nothing_goes_while_the_new_group_is_incomplete` |
+
+**On the real repo, no override:** `release-preflight.sh archive` passes (no copies, codesign
+probe OK). `release-preflight.sh upload` refuses exactly two things: the uncommitted S1 changes and
+build 24 (already on App Store Connect) — the build-number check ran through the new Caches venv
+(Homebrew Python 3.14, `.no-sweep`).
+
+**Standing bars.** Local `xcodebuild clean test` in place (Xcode 27.2, shared `iPhone 17 Pro`,
+iOS 27.0, app uninstalled first): **752 tests in 98 suites**, `check-warnings.sh` clean,
+localization 100%. No Swift changed; `MIN_TESTS` stays 752; the Python count (153) becomes
+`MIN_PY_TESTS` in S2.
+
+**Deviations.** (1) `RELEASE_PREFLIGHT_ALLOW` runs a named check and reports it as allowed rather
+than skipping it, so the log still says what was gone past. (2) The copy scan also covers the test
+target's root and a sibling `* N.xcodeproj`; a project the reader cannot read fails closed through
+the reader. (3) §4B.7(c) is unsettled by Apple, so instead of "refuse to delete until settled" asc.py
+deletes no screenshot at all, and `screenshots-prune` (placement deletes) is added for S7; until S7
+reads the new group on 1.13.0 it removes nothing. (4) `screenshots.sh` already reads the constant
+and writes outside iCloud in S1 (asc.py reads the same folder); its device and status-bar work stays
+in S6. (5) No real dry archive in S1: every decision is exercised through the stubbed end-to-end
+fixtures, and the first real run is S7's (the preflight there runs with no override).

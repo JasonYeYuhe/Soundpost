@@ -3,14 +3,22 @@
 1.1.0 version, and (re)submit for review via the ASC API.
 
 Usage (run with the venv that has pyjwt+requests):
-  /tmp/asc-venv/bin/python3 scripts/asc.py status
-  /tmp/asc-venv/bin/python3 scripts/asc.py create-version 1.4.0     # new version record
-  /tmp/asc-venv/bin/python3 scripts/asc.py notes                    # metadata/*/release_notes.txt -> whatsNew
-  /tmp/asc-venv/bin/python3 scripts/asc.py attach <build-version>   # e.g. 5
-  /tmp/asc-venv/bin/python3 scripts/asc.py submit [--force-cancel]
-  /tmp/asc-venv/bin/python3 scripts/asc.py release             # APPROVED -> live (manual release)
-  /tmp/asc-venv/bin/python3 scripts/asc.py resubmit <build-version> # attach + submit
-  /tmp/asc-venv/bin/python3 scripts/asc.py check-build-number <n>  # read-only: is <n> new?
+  $ASC_PYTHON scripts/asc.py status
+  $ASC_PYTHON scripts/asc.py create-version 1.4.0     # new version record
+  $ASC_PYTHON scripts/asc.py notes                    # metadata/*/release_notes.txt -> whatsNew
+  $ASC_PYTHON scripts/asc.py attach <build-version>   # e.g. 5
+  $ASC_PYTHON scripts/asc.py submit [--force-cancel]
+  $ASC_PYTHON scripts/asc.py release             # APPROVED -> live (manual release)
+  $ASC_PYTHON scripts/asc.py resubmit <build-version> # attach + submit
+  $ASC_PYTHON scripts/asc.py check-build-number <n>  # read-only: is <n> new?
+  $ASC_PYTHON scripts/asc.py check-submittable    # read-only: every reason submit would fail
+  $ASC_PYTHON scripts/asc.py screenshots-prune [--apply]  # stale screenshot placements off the new version
+  $ASC_PYTHON scripts/asc.py analytics-request    # ONE POST, on Jason's word only (M23 D5)
+  $ASC_PYTHON scripts/asc.py analytics            # read-only: weekly store reports, to ~/Library/Caches
+
+ASC_PYTHON is ~/Library/Caches/Soundpost-build/asc-venv/bin/python3 (M23 §4B.6; /tmp is
+emptied by macOS). `attach` and `submit` refuse a version whose releaseType is not MANUAL,
+before any write; `create-version` sends MANUAL; `submit` runs `check-submittable` first.
 
 After a REJECTION, do not `resubmit`: a rejected (UNRESOLVED_ISSUES) submission carries the
 App Review thread, and cancelling it makes the thread read-only. `submit` refuses it unless
@@ -20,7 +28,9 @@ The decisions — which app, which version, what may be cancelled — live in as
 (stdlib only) so CI can test them; scripts/test_asc_policy.py checks they are called here.
 
 Rebuilding the venv:
-  python3 -m venv /tmp/asc-venv && /tmp/asc-venv/bin/python3 -m pip install "pyjwt[crypto]" requests
+  python3 -m venv ~/Library/Caches/Soundpost-build/asc-venv \
+    && ~/Library/Caches/Soundpost-build/asc-venv/bin/python3 -m pip install "pyjwt[crypto]" requests \
+    && touch ~/Library/Caches/Soundpost-build/asc-venv/.no-sweep
 """
 import sys, time, json, os, re, hashlib
 import jwt, requests
@@ -176,7 +186,8 @@ def cmd_status():
                     reverse=True):
         a = v['attributes']
         bid = (v.get('relationships', {}).get('build', {}).get('data') or {}).get('id')
-        print(f"  v{a['versionString']:8} state={a['appStoreState']:24} build_rel={bid}  id={v['id']}")
+        print(f"  v{a['versionString']:8} state={a['appStoreState']:24} release={a.get('releaseType') or '?':14} "
+              f"build_rel={bid}  id={v['id']}")
     print('=== Recent builds ===')
     for b in recent_builds(8):
         a = b['attributes']
@@ -226,23 +237,40 @@ def cmd_release():
 
 
 def cmd_create_version(version_string):
-    """Create a new (PREPARE_FOR_SUBMISSION) App Store version record.
+    """Create a new (PREPARE_FOR_SUBMISSION) App Store version record, released MANUALLY.
 
-    Idempotent: if the version already exists it is returned untouched. Creating a
-    version cannot affect an already-live one, and a PREPARE_FOR_SUBMISSION version
-    can be deleted in ASC, so this is reversible.
+    Idempotent: an existing version is returned — after making sure it is MANUAL where
+    that is safe to change (`asc_policy.release_type_plan`): PATCHed and read back in
+    PREPARE_FOR_SUBMISSION, only printed in any other state. Creating a version cannot
+    affect an already-live one, and a PREPARE_FOR_SUBMISSION version can be deleted in
+    ASC, so this is reversible.
     """
     v = asc_policy.pick_version(ios_versions(version_string), version_string)
     if v:
+        a = v['attributes']
         print(f"Version {version_string} already exists "
-              f"(state={v['attributes']['appStoreState']}, id={v['id']}) — leaving it alone.")
+              f"(state={a['appStoreState']}, releaseType={a.get('releaseType')}, id={v['id']}).")
+        plan = asc_policy.release_type_plan(v)
+        if plan == 'patch':
+            patch(f"/v1/appStoreVersions/{v['id']}",
+                  {'data': {'type': 'appStoreVersions', 'id': v['id'],
+                            'attributes': {'releaseType': 'MANUAL'}}})
+            v = asc_policy.pick_version(ios_versions(version_string), version_string)
+            print(f"  set releaseType=MANUAL; read back: {v['attributes'].get('releaseType')}")
+            asc_policy.require_manual_release(v)
+        elif plan == 'report':
+            print(f"  ! not MANUAL and not PREPARE_FOR_SUBMISSION — left alone; `attach` and "
+                  f"`submit` will refuse it.")
         return v
     v = post('/v1/appStoreVersions',
              {'data': {'type': 'appStoreVersions',
-                       'attributes': {'platform': 'IOS', 'versionString': version_string},
+                       'attributes': {'platform': 'IOS', 'versionString': version_string,
+                                      'releaseType': 'MANUAL'},
                        'relationships': {'app': {'data': {'type': 'apps', 'id': APP_ID}}}}})['data']
     print(f"Created version {version_string} "
-          f"(state={v['attributes']['appStoreState']}, id={v['id']})")
+          f"(state={v['attributes']['appStoreState']}, releaseType={v['attributes'].get('releaseType')}, "
+          f"id={v['id']})")
+    asc_policy.require_manual_release(v)
     return v
 
 
@@ -304,6 +332,7 @@ def cmd_attach(build_version):
     v = editable_version()
     if not v:
         sys.exit('No editable App Store version found — run `create-version <x.y.z>` first.')
+    asc_policy.require_manual_release(v)   # before any write (M23 §4B.1)
     guard_not_in_review(v, 'attach a build to')
     b = find_build(build_version)
     if not b:
@@ -364,6 +393,11 @@ def cmd_submit(force_cancel=False):
     v = editable_version()
     if not v:
         sys.exit('No editable App Store version found.')
+    asc_policy.require_manual_release(v)   # before any write, cmd_cancel's included (M23 §4B.1)
+    problems = submittable_problems(v)
+    if problems:
+        raise Refusal('Refusing to submit — ' + str(len(problems)) + ' problem(s):\n'
+                      + '\n'.join(f'  - {p}' for p in problems))
     submissions = review_submissions()
     plan = asc_policy.submit_plan([s['attributes'].get('state') for s in submissions],
                                   force_cancel)
@@ -435,10 +469,9 @@ def cmd_submit(force_cancel=False):
 SCREENSHOT_EDITABLE_STATES = ('PREPARE_FOR_SUBMISSION', 'REJECTED', 'DEVELOPER_REJECTED',
                               'METADATA_REJECTED', 'INVALID_BINARY')
 
-# What `scripts/screenshots.sh` produces, and what App Store Connect currently holds:
-# one set per locale, five images, 1242x2688. Read from ASC on 2026-09-05 rather than
-# assumed — a wrong display type is a rejected submission, not a cosmetic problem.
-SCREENSHOT_DISPLAY_TYPE = 'APP_IPHONE_65'
+# What `scripts/screenshots.sh` produces and App Store Connect is sent: one constant in
+# asc_policy (display type, pixel size, screens, folder), read by both — M23 §4B.7.
+SCREENSHOT_DISPLAY_TYPE = asc_policy.SCREENSHOT_DISPLAY_TYPE
 
 
 def upload_asset(operations, data):
@@ -482,7 +515,16 @@ def await_asset(screenshot_id, name):
 
 
 def cmd_screenshots():
-    """Replace every locale's screenshots with what `scripts/screenshots.sh` captured."""
+    """Upload each locale's screenshots (from `scripts/screenshots.sh`) as a new
+    `SCREENSHOT_DISPLAY_TYPE` set on the editable version.
+
+    **It never deletes a screenshot** (M23 §4B.7). `DELETE /v1/appScreenshots/{id}` is
+    deprecated in favour of the App Asset Library's image delete, and an image backs the
+    LIVE version's placements as well; what the old call now does to them is not
+    documented. So a set that already holds images is refused here, and a stale set of
+    another display type leaves the new version through `screenshots-prune` (a placement
+    delete, documented to leave the image in the library) or the web UI.
+    """
     v = editable_version()
     if not v:
         sys.exit('No editable App Store version found — run `create-version <x.y.z>` first.')
@@ -490,37 +532,43 @@ def cmd_screenshots():
     version = v['attributes']['versionString']
     if state not in SCREENSHOT_EDITABLE_STATES:
         sys.exit(
-            f'Refusing to replace the screenshots of v{version}: it is {state}.\n'
+            f'Refusing to upload the screenshots of v{version}: it is {state}.\n'
             f'  Images are only editable in {", ".join(SCREENSHOT_EDITABLE_STATES)} —\n'
             f'  App Store Connect answers 409 STATE_ERROR otherwise, and it would do so\n'
-            f'  part way through, leaving some locales replaced and some not.'
+            f'  part way through, leaving some locales uploaded and some not.'
         )
 
-    root = os.path.join(PROJECT_DIR, 'build', 'screenshots')
+    root = asc_policy.screenshot_dir()
     if not os.path.isdir(root):
         sys.exit(f'No screenshots at {root} — run `scripts/screenshots.sh` first.')
 
-    print(f"Replacing screenshots on v{version} ({state})")
+    print(f"Uploading {SCREENSHOT_DISPLAY_TYPE} screenshots to v{version} ({state}) from {root}")
     localizations = {loc['attributes']['locale']: loc['id']
                      for loc in get(f"/v1/appStoreVersions/{v['id']}/appStoreVersionLocalizations")
                      .get('data', [])}
 
+    # Every locale is checked before anything is sent, so a bad folder stops the run whole.
+    plan = {}
     for locale in sorted(os.listdir(root)):
         folder = os.path.join(root, locale)
         if not os.path.isdir(folder):
             continue
-        files = sorted(f for f in os.listdir(folder) if f.endswith('.png'))
-        if not files:
-            continue
         if locale not in localizations:
             sys.exit(f'  ! {locale} has screenshots but no localization on v{version}')
+        plan[locale] = (folder, asc_policy.screenshot_files(os.listdir(folder)))
+    if not plan:
+        sys.exit(f'No locale folders under {root}.')
 
+    for locale, (folder, files) in plan.items():
         sets = get(f"/v1/appStoreVersionLocalizations/{localizations[locale]}/appScreenshotSets") \
             .get('data', [])
         match = [s for s in sets
                  if s['attributes']['screenshotDisplayType'] == SCREENSHOT_DISPLAY_TYPE]
         if match:
             set_id = match[0]['id']
+            asc_policy.screenshot_target_set_plan(
+                [s['id'] for s in get(f'/v1/appScreenshotSets/{set_id}/appScreenshots',
+                                      limit=200).get('data', [])])
         else:
             set_id = post('/v1/appScreenshotSets',
                           {'data': {'type': 'appScreenshotSets',
@@ -528,17 +576,6 @@ def cmd_screenshots():
                                     'relationships': {'appStoreVersionLocalization': {
                                         'data': {'type': 'appStoreVersionLocalizations',
                                                  'id': localizations[locale]}}}}})['data']['id']
-
-        # Upload and verify the new set first, then delete the old one
-        # (`asc_policy.screenshot_swap`). It used to delete first, so a failure part
-        # way through — a rejected PNG, a dropped connection — left the locale with
-        # no screenshots at all. Only the set's ten-image capacity makes anything go
-        # first, and then only as many as the new set needs room for.
-        old_ids = [s['id'] for s in get(f'/v1/appScreenshotSets/{set_id}/appScreenshots',
-                                        limit=200).get('data', [])]
-        delete_before, delete_after = asc_policy.screenshot_swap(old_ids, len(files))
-        for old in delete_before:
-            req('DELETE', f'/v1/appScreenshots/{old}')
 
         uploaded = []
         for name in files:
@@ -564,24 +601,57 @@ def cmd_screenshots():
             uploaded.append(reserved['id'])
             print(f'  {locale}: {name} ({len(data):,} bytes)')
 
-        held = {s['id'] for s in get(f'/v1/appScreenshotSets/{set_id}/appScreenshots',
-                                     limit=200).get('data', [])}
-        missing = [i for i in uploaded if i not in held]
-        if missing:
-            sys.exit(f'  ! {locale}: {len(missing)} uploaded screenshots are not in the set; '
-                     f'the old ones were left in place.')
-        for old in delete_after:
-            req('DELETE', f'/v1/appScreenshots/{old}')
-
-        # Order is the set's relationship linkage, not an attribute on the image.
-        # Creation order usually gives the right answer already; this is the only
-        # thing that guarantees it, and it is idempotent.
+        held = [s['id'] for s in get(f'/v1/appScreenshotSets/{set_id}/appScreenshots',
+                                     limit=200).get('data', [])]
+        if sorted(held) != sorted(uploaded):
+            sys.exit(f'  ! {locale}: the set holds {len(held)} image(s), not exactly the {len(uploaded)} '
+                     f'just uploaded; left as it is — check it in App Store Connect.')
+        # Order is the set's relationship linkage, not an attribute on the image. It goes
+        # out only now that the set holds exactly this run's uploads.
         req('PATCH', f'/v1/appScreenshotSets/{set_id}/relationships/appScreenshots',
             {'data': [{'type': 'appScreenshots', 'id': i} for i in uploaded]})
         print(f'  {locale}: {len(uploaded)} screenshots, in order')
 
-    print(f'Screenshots replaced on v{version}.')
+    print(f'Screenshots uploaded to v{version}. A stale set of another type: '
+          f'`asc.py screenshots-prune` (dry run first), or the web UI.')
     return v
+
+
+def editable_placements(v):
+    """{locale: [{'id', 'group'}]} — the EDITABLE version's screenshot placements only."""
+    out = {}
+    for loc in get(f"/v1/appStoreVersions/{v['id']}/appStoreVersionLocalizations").get('data', []):
+        rows = get(f"/v1/appStoreVersionLocalizations/{loc['id']}/placements",
+                   **{'filter[placementType]': 'APP_SCREENSHOT', 'limit': 200}).get('data', [])
+        out[loc['attributes']['locale']] = [{'id': p['id'], 'group': p['attributes'].get('placementGroup')}
+                                            for p in rows]
+    return out
+
+
+def cmd_screenshots_prune(apply=False):
+    """Remove the editable version's screenshot placements of every group except the one
+    `screenshots` uploads — a placement delete, documented to leave the image in the
+    library (the live version keeps its own placements). Dry run unless `--apply`; refuses
+    a locale whose uploaded group does not yet hold exactly this release's screens.
+    """
+    v = editable_version()
+    if not v:
+        sys.exit('No editable App Store version found.')
+    state = v['attributes']['appStoreState']
+    if state not in SCREENSHOT_EDITABLE_STATES:
+        sys.exit(f"Refusing: v{v['attributes']['versionString']} is {state}; its screenshots cannot change.")
+    plan = {locale: asc_policy.stale_placements(rows)
+            for locale, rows in editable_placements(v).items()}
+    for locale, ids in sorted(plan.items()):
+        print(f"  {locale}: {len(ids)} stale placement(s) to remove")
+    if not apply:
+        print('Dry run — nothing removed. Rerun with --apply.')
+        return plan
+    for locale, ids in sorted(plan.items()):
+        for pid in ids:
+            req('DELETE', f'/v1/appAssetLibraryPlacements/{pid}')
+        print(f"  {locale}: removed {len(ids)}")
+    return plan
 
 
 def cmd_keywords():
@@ -594,6 +664,107 @@ def cmd_keywords():
     deliberately no `subtitle` command here; adding one must not reuse this path.
     """
     push_localized_field('keywords.txt', 'keywords', 'keywords')
+
+
+def submittable_problems(v):
+    """Every reason `v` cannot be submitted (`asc_policy.submittable_problems`). GET only."""
+    assert_soundpost_app()
+    build = (get(f"/v1/appStoreVersions/{v['id']}/build").get('data') or {}).get('attributes')
+    whats_new, display_types = {}, {}
+    for loc in get(f"/v1/appStoreVersions/{v['id']}/appStoreVersionLocalizations").get('data', []):
+        locale = loc['attributes']['locale']
+        whats_new[locale] = loc['attributes'].get('whatsNew') or ''
+        types = {}
+        for st in get(f"/v1/appStoreVersionLocalizations/{loc['id']}/appScreenshotSets").get('data', []):
+            count = len(get(f"/v1/appScreenshotSets/{st['id']}/appScreenshots", limit=200).get('data', []))
+            types[st['attributes']['screenshotDisplayType']] = count
+        display_types[locale] = types
+    info = asc_policy.editable_app_info(get(f'/v1/apps/{APP_ID}/appInfos').get('data', []))
+    declaration = get(f"/v1/appInfos/{info['id']}/ageRatingDeclaration").get('data') or {}
+    gaps = asc_policy.age_rating_gaps(declaration.get('attributes') or {})
+    return asc_policy.submittable_problems(v, build, whats_new, display_types, gaps)
+
+
+def cmd_check_submittable():
+    """Read-only: list every reason the editable version cannot be submitted; exit 1 if any."""
+    assert_soundpost_app()
+    v = editable_version()
+    if not v:
+        sys.exit('No editable App Store version found.')
+    problems = submittable_problems(v)
+    name = f"v{v['attributes']['versionString']} ({v['attributes']['appStoreState']})"
+    if problems:
+        raise Refusal(f'{name} cannot be submitted — {len(problems)} problem(s):\n'
+                      + '\n'.join(f'  - {p}' for p in problems))
+    print(f'{name} is submittable: MANUAL, a VALID build with an export-compliance answer, '
+          f"What's New in every locale, {asc_policy.SCREENSHOT_DISPLAY_TYPE} screenshots only, "
+          f'every age-rating question answered.')
+
+
+# ── Measurement (M23 §4B.8) ──────────────────────────────────────────────────
+
+ANALYTICS_DIR = os.path.expanduser('~/Library/Caches/Soundpost-build/analytics')
+ANALYTICS_REPORTS = ('App Store Discovery and Engagement Standard', 'App Downloads Standard')
+
+
+def analytics_requests():
+    return get(f'/v1/apps/{APP_ID}/analyticsReportRequests', limit=200).get('data', [])
+
+
+def cmd_analytics_request():
+    """Ask App Store Connect to start producing analytics reports (one ONGOING request).
+
+    The one write here, sent only on Jason's word (D5): an App Store Connect write
+    outside the release path. Refuses if a request already exists.
+    """
+    attributes = asc_policy.analytics_request_plan(analytics_requests())
+    r = post('/v1/analyticsReportRequests',
+             {'data': {'type': 'analyticsReportRequests', 'attributes': attributes,
+                       'relationships': {'app': {'data': {'type': 'apps', 'id': APP_ID}}}}})['data']
+    print(f"Requested ONGOING analytics reports ({r['id']}). Apple produces the first ones in a day or two.")
+
+
+def cmd_analytics():
+    """GET only: download the weekly Discovery & Engagement and Downloads report instances
+    to ~/Library/Caches/Soundpost-build/analytics/ (never ~/Documents) and print a table."""
+    import csv, gzip, io
+    requests_ = [r for r in analytics_requests() if r['attributes'].get('accessType') == 'ONGOING']
+    if not requests_:
+        sys.exit('No ONGOING analytics report request yet (`asc.py analytics-request`, on Jason\'s word).')
+    os.makedirs(ANALYTICS_DIR, exist_ok=True)
+    totals = {}
+    for rq in requests_:
+        for report in get(f"/v1/analyticsReportRequests/{rq['id']}/reports", limit=200).get('data', []):
+            name = report['attributes'].get('name')
+            if name not in ANALYTICS_REPORTS:
+                continue
+            for inst in get(f"/v1/analyticsReports/{report['id']}/instances",
+                            **{'filter[granularity]': 'WEEKLY', 'limit': 200}).get('data', []):
+                day = inst['attributes'].get('processingDate')
+                for seg in get(f"/v1/analyticsReportInstances/{inst['id']}/segments", limit=200).get('data', []):
+                    url = seg['attributes'].get('url')
+                    if not url:
+                        continue
+                    # A presigned download: no Authorization header, so not through req().
+                    blob = requests.get(url, timeout=120).content
+                    dest = os.path.join(ANALYTICS_DIR, f"{name.replace(' ', '_')}-{day}-{seg['id'][:8]}.csv.gz")
+                    with open(dest, 'wb') as f:
+                        f.write(blob)
+                    text = gzip.decompress(blob).decode('utf-8', 'replace')
+                    for row in csv.DictReader(io.StringIO(text), delimiter='\t'):
+                        kind = row.get('Event') or row.get('Download Type') or '?'
+                        source = row.get('Source Type') or '?'
+                        key = (row.get('Date', day)[:10], name.split(' ')[2] if name.startswith('App Store') else 'Downloads', kind, source)
+                        try:
+                            totals[key] = totals.get(key, 0) + int(float(row.get('Counts') or 0))
+                        except ValueError:
+                            pass
+    if not totals:
+        print(f'No report rows yet; files (if any) are in {ANALYTICS_DIR}.')
+        return
+    print(f"{'date':10}  {'report':10}  {'event / type':28}  {'source':24}  count")
+    for (date, report, kind, source), n in sorted(totals.items()):
+        print(f'{date:10}  {report:10}  {kind[:28]:28}  {source[:24]:24}  {n}')
 
 
 def cmd_check_build_number(build_number):
@@ -646,6 +817,14 @@ def dispatch(args, force_cancel):
         cmd_submit(force_cancel)
     elif cmd == 'check-build-number':
         cmd_check_build_number(args[1])
+    elif cmd == 'check-submittable':
+        cmd_check_submittable()
+    elif cmd == 'screenshots-prune':
+        cmd_screenshots_prune(apply='--apply' in args)
+    elif cmd == 'analytics-request':
+        cmd_analytics_request()
+    elif cmd == 'analytics':
+        cmd_analytics()
     else:
         sys.exit(f'Unknown command: {cmd}')
 

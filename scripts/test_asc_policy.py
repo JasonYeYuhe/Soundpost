@@ -12,6 +12,7 @@ from the command it protects. A guard that exists only in this module protects n
 """
 import ast
 import os
+import re
 import unittest
 
 import asc_policy
@@ -199,29 +200,181 @@ class BuildNumberTests(unittest.TestCase):
             asc_policy.build_number_is_new('21', ['20', '1.0.3'])
 
 
-class ScreenshotSwapTests(unittest.TestCase):
-    def test_five_over_five_uploads_before_deleting_anything(self):
-        before, after = asc_policy.screenshot_swap(['a', 'b', 'c', 'd', 'e'], 5)
-        self.assertEqual(before, [])
-        self.assertEqual(after, ['a', 'b', 'c', 'd', 'e'])
+def manual(string='1.13.0', state='PREPARE_FOR_SUBMISSION', release='MANUAL'):
+    v = version(string, state)
+    if release is not None:
+        v['attributes']['releaseType'] = release
+    return v
 
-    def test_only_the_overflow_goes_first(self):
-        before, after = asc_policy.screenshot_swap(['a', 'b', 'c', 'd', 'e', 'f'], 5)
-        self.assertEqual(before, ['a'])
-        self.assertEqual(after, ['b', 'c', 'd', 'e', 'f'])
 
-    def test_an_empty_set_takes_a_full_upload(self):
-        self.assertEqual(asc_policy.screenshot_swap([], 10), ([], []))
+class ManualReleaseTests(unittest.TestCase):
+    """M23 §4B.1: nothing goes live unless a person presses Release."""
 
-    def test_a_swap_that_would_empty_the_locale_is_refused(self):
+    def test_manual_passes(self):
+        v = manual()
+        self.assertIs(asc_policy.require_manual_release(v), v)
+
+    def test_after_approval_is_refused(self):
+        with self.assertRaises(Refusal) as caught:
+            asc_policy.require_manual_release(manual(release='AFTER_APPROVAL'))
+        self.assertIn('AFTER_APPROVAL', str(caught.exception))
+
+    def test_scheduled_is_refused(self):
+        with self.assertRaises(Refusal) as caught:
+            asc_policy.require_manual_release(manual(release='SCHEDULED'))
+        self.assertIn('SCHEDULED', str(caught.exception))
+
+    def test_a_missing_release_type_is_refused(self):
+        with self.assertRaises(Refusal) as caught:
+            asc_policy.require_manual_release(manual(release=None))
+        self.assertIn('(none)', str(caught.exception))
+
+    def test_create_version_patches_only_a_draft(self):
+        self.assertEqual(asc_policy.release_type_plan(manual()), 'ok')
+        self.assertEqual(asc_policy.release_type_plan(manual(release='AFTER_APPROVAL')), 'patch')
+        # In review or live, a PATCH would touch a version Apple is looking at: print only.
+        self.assertEqual(asc_policy.release_type_plan(
+            manual(state='WAITING_FOR_REVIEW', release='AFTER_APPROVAL')), 'report')
+
+
+class ScreenshotFileTests(unittest.TestCase):
+    """M23 §4B.4: upload exactly what screenshots.sh produces, by name."""
+
+    def test_the_captured_names_pass_in_store_order(self):
+        names = ['04-capture.png', '01-gallery.png', '03-search.png', '02-detail.png', '.DS_Store']
+        self.assertEqual(asc_policy.screenshot_files(names),
+                         ['01-gallery.png', '02-detail.png', '03-search.png', '04-capture.png'])
+
+    def test_an_icloud_copy_is_refused_by_name(self):
+        # `01-gallery 2.png` sorts before `01-gallery.png`: the old loop uploaded it first.
+        names = asc_policy.screenshot_file_names() + ['01-gallery 2.png']
+        with self.assertRaises(Refusal) as caught:
+            asc_policy.screenshot_files(names)
+        self.assertIn('01-gallery 2.png', str(caught.exception))
+
+    def test_a_missing_screen_is_refused(self):
+        with self.assertRaises(Refusal) as caught:
+            asc_policy.screenshot_files(['01-gallery.png', '02-detail.png', '03-search.png'])
+        self.assertIn('missing: 04-capture.png', str(caught.exception))
+
+    def test_screenshots_sh_captures_the_same_screens(self):
+        # One list: screenshots.sh reads it from asc_policy rather than keeping its own.
+        with open(os.path.join(HERE, 'screenshots.sh'), encoding='utf-8') as f:
+            text = f.read()
+        self.assertTrue('asc_policy' in text, 'screenshots.sh does not read asc_policy')
+        self.assertIsNone(re.search(r'(?m)^SCREENS=\(', text), 'screenshots.sh keeps its own SCREENS list')
+
+    def test_the_display_type_is_one_constant_with_its_size(self):
+        self.assertEqual(asc_policy.SCREENSHOT_DISPLAY_TYPE, 'APP_IPHONE_67')
+        self.assertEqual(asc_policy.SCREENSHOT_SIZE, (1320, 2868))
+        with open(os.path.join(HERE, 'screenshots.sh'), encoding='utf-8') as f:
+            text = f.read()
+        self.assertFalse(re.search(r'\b1242\b|\b2688\b|APP_IPHONE_6[0-9]', text.split('set -euo pipefail', 1)[1]),
+                         'screenshots.sh keeps its own size or type instead of reading asc_policy')
+
+    def test_the_folder_is_outside_icloud(self):
+        self.assertNotIn('/Documents/', asc_policy.screenshot_dir())
+        self.assertIn('Library/Caches/Soundpost-build/', asc_policy.screenshot_dir())
+
+    def test_a_set_with_images_is_not_replaced(self):
+        self.assertEqual(asc_policy.screenshot_target_set_plan([]), 'upload')
         with self.assertRaises(Refusal):
-            asc_policy.screenshot_swap(['a', 'b'], 10)
+            asc_policy.screenshot_target_set_plan(['old'])
 
-    def test_nothing_or_too_much_is_refused(self):
+
+class StalePlacementTests(unittest.TestCase):
+    NEW, OLD = asc_policy.SCREENSHOT_PLACEMENT_GROUP, 'IPHONE_FACE_ID_LARGE_PROFILE'
+
+    def rows(self, new, old):
+        return ([{'id': f'n{i}', 'group': self.NEW} for i in range(new)]
+                + [{'id': f'o{i}', 'group': self.OLD} for i in range(old)])
+
+    def test_the_old_group_goes_once_the_new_one_is_complete(self):
+        self.assertEqual(asc_policy.stale_placements(self.rows(4, 4)), ['o0', 'o1', 'o2', 'o3'])
+
+    def test_nothing_goes_while_the_new_group_is_incomplete(self):
+        # Removing the old set first could leave a locale with no screenshots at all.
+        with self.assertRaises(Refusal) as caught:
+            asc_policy.stale_placements(self.rows(3, 4))
+        self.assertIn(self.OLD, str(caught.exception))
+
+    def test_an_upload_filed_under_another_group_removes_nothing(self):
         with self.assertRaises(Refusal):
-            asc_policy.screenshot_swap(['a'], 0)
+            asc_policy.stale_placements([{'id': 'x', 'group': 'SOMETHING_ELSE'}] * 4)
+
+
+def app_info(iid, state):
+    return {'id': iid, 'attributes': {'state': state}}
+
+
+class CheckSubmittableTests(unittest.TestCase):
+    """M23 §4B.5: every reason a version cannot be submitted, read before submit."""
+
+    LIVE = {k: 'NONE' for k in ('violenceRealistic', 'gamblingSimulated')}
+    LIVE.update(socialMedia=False, socialMediaAgeRestricted=None, kidsAgeBand=None,
+                developerAgeRatingInfoUrl=None, gracRatingClassificationNumber=None)
+
+    def good(self, **over):
+        args = dict(version=manual(), build={'processingState': 'VALID', 'usesNonExemptEncryption': False},
+                    whats_new={'en-US': 'x', 'ja': 'x', 'zh-Hans': 'x'},
+                    display_types={l: {'APP_IPHONE_67': 4} for l in ('en-US', 'ja', 'zh-Hans')},
+                    age_gaps=[])
+        args.update(over)
+        return asc_policy.submittable_problems(**args)
+
+    def test_a_ready_version_has_no_problems(self):
+        self.assertEqual(self.good(), [])
+
+    def test_the_editable_app_info_is_read_even_when_the_live_one_is_listed_first(self):
+        infos = [app_info('live', 'READY_FOR_DISTRIBUTION'), app_info('next', 'PREPARE_FOR_SUBMISSION')]
+        self.assertEqual(asc_policy.editable_app_info(infos)['id'], 'next')
+        declarations = {'live': dict(self.LIVE), 'next': dict(self.LIVE, violenceRealistic=None)}
+        gaps = asc_policy.age_rating_gaps(declarations[asc_policy.editable_app_info(infos)['id']])
+        self.assertEqual(gaps, ['violenceRealistic'])
+        self.assertIn('age rating: violenceRealistic is unanswered on the editable app info',
+                      self.good(age_gaps=gaps))
+
+    def test_app_infos_that_cannot_be_told_apart_are_refused(self):
         with self.assertRaises(Refusal):
-            asc_policy.screenshot_swap([], 11)
+            asc_policy.editable_app_info([app_info('a', 'PREPARE_FOR_SUBMISSION'), app_info('b', 'WAITING_FOR_REVIEW')])
+        with self.assertRaises(Refusal):
+            asc_policy.editable_app_info([app_info('live', 'READY_FOR_DISTRIBUTION')])
+
+    def test_a_complete_declaration_has_no_gaps(self):
+        self.assertEqual(asc_policy.age_rating_gaps(self.LIVE), [])
+
+    def test_a_follow_up_counts_once_its_question_says_it_applies(self):
+        self.assertEqual(asc_policy.age_rating_gaps(dict(self.LIVE, socialMedia=True)), ['socialMediaAgeRestricted'])
+
+    def test_a_stale_display_type_is_reported(self):
+        problems = self.good(display_types={'en-US': {'APP_IPHONE_67': 4, 'APP_IPHONE_65': 4},
+                                            'ja': {'APP_IPHONE_67': 4}, 'zh-Hans': {'APP_IPHONE_67': 4}})
+        self.assertEqual(problems, ['en-US still has a stale APP_IPHONE_65 set (4 image(s))'])
+
+    def test_a_locale_without_the_new_type_is_reported(self):
+        problems = self.good(display_types={'en-US': {'APP_IPHONE_65': 4},
+                                            'ja': {'APP_IPHONE_67': 4}, 'zh-Hans': {'APP_IPHONE_67': 4}})
+        self.assertIn('en-US has no APP_IPHONE_67 screenshots', problems)
+
+    def test_every_other_problem_is_named(self):
+        problems = self.good(version=manual(release='AFTER_APPROVAL'), build=None,
+                             whats_new={'en-US': 'x', 'ja': '  ', 'zh-Hans': 'x'})
+        self.assertIn('releaseType is AFTER_APPROVAL, not MANUAL', problems)
+        self.assertIn('no build is attached', problems)
+        self.assertIn("What's New is empty in ja", problems)
+        problems = self.good(build={'processingState': 'PROCESSING', 'usesNonExemptEncryption': None})
+        self.assertEqual(len(problems), 2)
+
+
+class AnalyticsRequestTests(unittest.TestCase):
+    def test_one_ongoing_request_is_planned(self):
+        self.assertEqual(asc_policy.analytics_request_plan([]), {'accessType': 'ONGOING'})
+        snapshot = {'id': 's', 'attributes': {'accessType': 'ONE_TIME_SNAPSHOT'}}
+        self.assertEqual(asc_policy.analytics_request_plan([snapshot]), {'accessType': 'ONGOING'})
+
+    def test_an_existing_ongoing_request_is_not_repeated(self):
+        with self.assertRaises(Refusal):
+            asc_policy.analytics_request_plan([{'id': 'r', 'attributes': {'accessType': 'ONGOING'}}])
 
 
 # ── asc.py actually calls the guards ─────────────────────────────────────────
@@ -335,38 +488,139 @@ class AscUsesThePolicyTests(unittest.TestCase):
                     self.assertIsInstance(v, ast.Constant)
                     self.assertGreaterEqual(v.value, 200)
 
-    def test_screenshots_upload_before_deleting(self):
-        """Not only that the policy is asked — that its answer is what asc.py obeys.
-
-        Calling `screenshot_swap` and then deleting `old_ids` before the upload would
-        bring back the old delete-first behaviour with this test still finding the call.
-        So: the only deletions before the upload loop iterate `delete_before`, the only
-        ones after it iterate `delete_after`, and `old_ids` is never deleted directly.
-        """
+    def test_screenshots_never_delete_and_upload_only_what_was_captured(self):
+        """M23 §4B.4, §4B.7: no `DELETE /v1/appScreenshots` (its effect on the live
+        version's images is undocumented), files by name, from the folder outside iCloud,
+        and only into an empty set."""
         shots = _function(self.tree, 'cmd_screenshots')
-        self.assertIn('asc_policy.screenshot_swap', _calls(shots))
-        swap = [a for a in ast.walk(shots) if isinstance(a, ast.Assign)
-                and isinstance(a.value, ast.Call) and 'screenshot_swap' in _calls(a.value)]
-        self.assertEqual(len(swap), 1)
-        self.assertEqual([e.id for e in swap[0].targets[0].elts], ['delete_before', 'delete_after'])
+        self.assertNotIn('DELETE', _string_constants(shots))
+        calls = _calls(shots)
+        for guard in ('asc_policy.screenshot_files', 'asc_policy.screenshot_target_set_plan',
+                      'asc_policy.screenshot_dir'):
+            self.assertIn(guard, calls)
+        self.assertNotIn('screenshots', _string_constants(shots) & {'screenshots'},
+                         "cmd_screenshots builds its own folder path again")
+        # The upload loop iterates exactly what the policy accepted.
+        accepted = [a for a in ast.walk(shots) if isinstance(a, ast.Call)
+                    and isinstance(a.func, ast.Attribute) and a.func.attr == 'screenshot_files']
+        self.assertEqual(len(accepted), 1)
+        self.assertFalse(any(isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
+                             and n.func.id == 'sorted' and 'png' in ast.dump(n) for n in ast.walk(shots)),
+                         'cmd_screenshots lists .png files itself instead of asking screenshot_files')
 
-        leaf_loops = [f for f in ast.walk(shots) if isinstance(f, ast.For)
-                      and not any(isinstance(n, ast.For) for n in ast.walk(f) if n is not f)]
-        uploads = [f for f in leaf_loops if '/v1/appScreenshots' in _string_constants(f)
-                   and 'post' in _calls(f)]
-        deletes = [f for f in leaf_loops if 'DELETE' in _string_constants(f)]
-        self.assertEqual(len(uploads), 1, 'expected one upload loop')
-        upload_line = uploads[0].lineno
-        before = [f.iter.id for f in deletes if f.lineno < upload_line]
-        after = [f.iter.id for f in deletes if f.lineno > upload_line]
-        self.assertEqual(before, ['delete_before'])
-        self.assertEqual(after, ['delete_after'])
+    def test_nothing_in_asc_py_deletes_a_screenshot_or_an_image(self):
+        for node in ast.walk(self.tree):
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == 'req' \
+                    and node.args and isinstance(node.args[0], ast.Constant) and node.args[0].value == 'DELETE':
+                path = ast.unparse(node.args[1])
+                self.assertIn('/v1/appAssetLibraryPlacements/', path,
+                              f'asc.py deletes something other than a placement: {path}')
+
+    def test_prune_removes_placements_only_with_apply_and_by_the_policy(self):
+        prune = _function(self.tree, 'cmd_screenshots_prune')
+        self.assertIn('asc_policy.stale_placements', _calls(prune))
+        dry = [n for n in prune.body if isinstance(n, ast.If) and ast.unparse(n.test) == 'not apply'
+               and any(isinstance(b, ast.Return) for b in n.body)]
+        self.assertEqual(len(dry), 1, 'no `if not apply: … return` before the deletes')
+        deletes = [n for n in ast.walk(prune) if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
+                   and n.func.id == 'req']
+        self.assertTrue(deletes)
+        self.assertTrue(all(d.lineno > dry[0].lineno for d in deletes))
 
     def test_build_number_check_is_wired(self):
         check = _function(self.tree, 'cmd_check_build_number')
         self.assertIn('asc_policy.build_number_is_new', _calls(check))
         # A read, but compared against another app's builds "new" means nothing.
         self.assertIn('assert_soundpost_app', _calls(check))
+
+    # ── M23 §4B.1: MANUAL before any write ───────────────────────────────────
+    WRITES = ('post', 'patch', 'cmd_cancel', 'cmd_attach')
+
+    def _writes(self, fn):
+        """Every write a function sends, by line: post/patch, req() with a non-GET method,
+        and the commands that write (`cmd_cancel` PATCHes `canceled`, `cmd_attach` PATCHes)."""
+        out = []
+        for n in ast.walk(fn):
+            if isinstance(n, ast.Call) and isinstance(n.func, ast.Name):
+                if n.func.id in self.WRITES:
+                    out.append(n)
+                elif n.func.id == 'req' and not (n.args and isinstance(n.args[0], ast.Constant)
+                                                  and n.args[0].value == 'GET'):
+                    out.append(n)
+        return out
+
+    def _manual_guard(self, fn):
+        guards = [i for i, stmt in enumerate(fn.body)
+                  if isinstance(stmt, ast.Expr) and isinstance(stmt.value, ast.Call)
+                  and 'asc_policy.require_manual_release' in _calls(stmt.value)]
+        self.assertEqual(len(guards), 1, f'{fn.name}: no top-level require_manual_release(v) statement')
+        return guards[0]
+
+    def test_attach_and_submit_refuse_a_non_manual_version_before_any_write(self):
+        for name in ('cmd_attach', 'cmd_submit'):
+            with self.subTest(name):
+                fn = _function(self.tree, name)
+                index = self._manual_guard(fn)
+                previous = fn.body[index - 1]
+                self.assertTrue(isinstance(previous, ast.If) and ast.unparse(previous.test) == 'not v',
+                                f'{name}: the guard does not follow the `if not v:` exit')
+                guard_line = fn.body[index].lineno
+                for write in self._writes(fn):
+                    self.assertGreater(write.lineno, guard_line,
+                                       f'{name}: {ast.unparse(write.func)}() at line {write.lineno} comes before the MANUAL guard')
+
+    def test_submit_checks_submittability_before_cancelling_or_creating(self):
+        submit = _function(self.tree, 'cmd_submit')
+        checks = [n for n in ast.walk(submit) if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
+                  and n.func.id == 'submittable_problems']
+        self.assertEqual(len(checks), 1)
+        first_write = min(w.lineno for w in self._writes(submit))
+        self.assertLess(checks[0].lineno, first_write)
+        self.assertGreater(checks[0].lineno, submit.body[self._manual_guard(submit)].lineno)
+
+    def test_create_version_posts_manual(self):
+        create = _function(self.tree, 'cmd_create_version')
+        posts = [n for n in ast.walk(create) if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
+                 and n.func.id == 'post']
+        self.assertEqual(len(posts), 1)
+        attributes = [v for d in ast.walk(posts[0]) if isinstance(d, ast.Dict)
+                      for k, v in zip(d.keys, d.values)
+                      if isinstance(k, ast.Constant) and k.value == 'attributes']
+        self.assertEqual(len(attributes), 1)
+        held = {k.value: v.value for k, v in zip(attributes[0].keys, attributes[0].values)
+                if isinstance(k, ast.Constant) and isinstance(v, ast.Constant)}
+        self.assertEqual(held.get('releaseType'), 'MANUAL', 'create-version does not send MANUAL')
+        self.assertIn('asc_policy.release_type_plan', _calls(create))
+
+    def test_status_shows_the_release_type(self):
+        self.assertIn('releaseType', _string_constants(_function(self.tree, 'cmd_status')))
+
+    def test_check_submittable_reads_only_and_checks_the_app_first(self):
+        for name in ('cmd_check_submittable', 'submittable_problems'):
+            with self.subTest(name):
+                fn = _function(self.tree, name)
+                self.assertEqual(self._writes(fn), [], f'{name} writes')
+                first = fn.body[0] if not isinstance(fn.body[0], ast.Expr) or not isinstance(
+                    fn.body[0].value, ast.Constant) else fn.body[1]
+                self.assertIn('assert_soundpost_app', _calls(first), f'{name} does not check the app first')
+        problems = _function(self.tree, 'submittable_problems')
+        for rule in ('asc_policy.editable_app_info', 'asc_policy.age_rating_gaps', 'asc_policy.submittable_problems'):
+            self.assertIn(rule, _calls(problems))
+        self.assertIn('ageRatingDeclaration', ast.unparse(problems))
+
+    def test_the_analytics_request_is_one_post_and_refuses_a_second(self):
+        fn = _function(self.tree, 'cmd_analytics_request')
+        self.assertEqual(len(self._writes(fn)), 1)
+        plan = [n for n in ast.walk(fn) if isinstance(n, ast.Call) and 'analytics_request_plan' in _calls(n)]
+        self.assertTrue(plan)
+        self.assertLess(min(p.lineno for p in plan), self._writes(fn)[0].lineno)
+
+    def test_analytics_only_reads(self):
+        for name in ('cmd_analytics', 'analytics_requests'):
+            self.assertEqual(self._writes(_function(self.tree, name)), [], name)
+        self.assertIn('Library/Caches/Soundpost-build/analytics',
+                      ast.unparse(next(n for n in self.tree.body if isinstance(n, ast.Assign)
+                                       and ast.unparse(n.targets[0]) == 'ANALYTICS_DIR')))
 
     def test_a_refusal_exits_non_zero(self):
         main = _function(self.tree, 'main')

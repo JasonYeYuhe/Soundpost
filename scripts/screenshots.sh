@@ -8,17 +8,19 @@
 # about. A hand-made screenshot goes stale by construction; a script goes stale only
 # if nobody runs it, and running it is one line in a release checklist.
 #
-# WHAT IT PRODUCES. `APP_IPHONE_65`, 1242x2688, five screens, three locales — read
-# from App Store Connect on 2026-09-05 rather than assumed, because a wrong size is a
-# rejected submission and not a cosmetic problem:
+# WHAT IT PRODUCES. What `scripts/asc_policy.py` says the store gets — one constant read
+# by this script and by `asc.py screenshots` alike (M23 §4B.7): the display type and its
+# pixel size (APP_IPHONE_67, 1320x2868 since M23; the 6.5-inch set from 2026-09-16 is
+# stale), the screens in store order, and the folder. A wrong size is a rejected
+# submission, not a cosmetic problem, so every shot is measured against that constant.
 #
-#     en-US / ja / zh-Hans : 1 set each, APP_IPHONE_65, 5 images, 1242 x 2688
+# WHERE. `~/Library/Caches/Soundpost-build/screenshots-69/<locale>/` — outside iCloud, and
+# never `build/screenshots/`, which holds the set the store shows today: this script
+# empties a locale folder before capturing into it, and deletions in build/ are Jason's.
 #
-# iPhone 11 Pro Max is the device type that renders exactly that. Verified, not
-# assumed: a booted one screenshots at 1242x2688 on iOS 26.5.
-#
-# WHAT IT DOES NOT DO. Upload. The files land in `build/screenshots/<locale>/`, and
-# `asc.py screenshots` replaces the editable version's APP_IPHONE_65 sets with them.
+# WHAT IT DOES NOT DO. Upload: `asc.py screenshots` sends exactly the captured names.
+# (The capture device moves to the shared 6.9-inch iPhone 17 Pro Max in M23 S6; until
+# then the old device's size does not match the constant and the run refuses.)
 #
 # Usage:
 #   scripts/screenshots.sh              # all locales, all screens
@@ -29,8 +31,20 @@ PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DEVICE_NAME="Soundpost-Shots"
 DEVICE_TYPE="com.apple.CoreSimulator.SimDeviceType.iPhone-11-Pro-Max"
 BUNDLE_ID="com.soundpost.Soundpost"
-OUT="$PROJECT_DIR/build/screenshots"
-# **No `settings`, and the reason is worth keeping.** That screen is the best
+red()  { printf '\033[31m%s\033[0m\n' "$1" >&2; }
+ok()   { printf '\033[32m✓ %s\033[0m\n' "$1"; }
+
+# One constant, in asc_policy (M23 §4B.4, §4B.7). Read, never repeated here.
+policy() { python3 -c "import sys; sys.path.insert(0, '$PROJECT_DIR/scripts'); import asc_policy as p; print($1)"; }
+OUT="$(policy 'p.screenshot_dir()')"
+DISPLAY_TYPE="$(policy 'p.SCREENSHOT_DISPLAY_TYPE')"
+WANT_DIMS="$(policy '" ".join(str(n) for n in p.SCREENSHOT_SIZE) + " "')"
+read -r -a SCREENS <<< "$(policy '" ".join(p.SCREENSHOT_SCREENS)')"
+[ -n "$OUT" ] && [ -n "$DISPLAY_TYPE" ] && [ "${#SCREENS[@]}" -gt 0 ] || { red "could not read the screenshot policy"; exit 1; }
+case "$OUT" in "$HOME/Documents"/*|"$PROJECT_DIR"/*) red "refusing to write screenshots into iCloud ($OUT)"; exit 1 ;; esac
+mkdir -p "$OUT" && touch "$OUT/.no-sweep"
+
+# **The screens (asc_policy.SCREENSHOT_SCREENS) leave out `settings`, and the reason is worth keeping.** That screen is the best
 # argument for the on-device listening the description now leads with — the Listening
 # footer explains it in the app's own words. It also ends with "Capsules live only on
 # this device, so deleting the app erases them", which is what `CloudSyncMonitor`
@@ -44,7 +58,7 @@ OUT="$PROJECT_DIR/build/screenshots"
 # would fix it honestly, and needs a password no script should hold. Until then the
 # privacy story is carried by the description, in words, where it is not contingent on
 # an account.
-SCREENS=(gallery detail search capture)
+
 # Not `("${@:-en-US ja zh-Hans}")`, which expands to ONE element holding all three
 # names. The script then made a single directory literally called "en-US ja zh-Hans",
 # captured five screenshots into it, and reported success — and the output count below
@@ -57,9 +71,6 @@ for locale in "${LOCALES[@]}"; do
     *) red "unknown locale '$locale' — the app ships en-US, ja and zh-Hans"; exit 1 ;;
   esac
 done
-
-red()  { printf '\033[31m%s\033[0m\n' "$1" >&2; }
-ok()   { printf '\033[32m✓ %s\033[0m\n' "$1"; }
 
 # The newest available iOS runtime, rather than a pinned one that ages out.
 RUNTIME="$(xcrun simctl list runtimes --json \
@@ -126,9 +137,9 @@ for locale in "${LOCALES[@]}"; do
   # silently — a whole locale's screenshots in the wrong language, with nothing
   # reporting it. Verified per shot below instead of trusted.
   lang="${locale%%-*}"
-  # Emptied first. `asc.py screenshots` uploads every PNG it finds under $OUT/<locale>,
-  # so a stale shot left from an earlier run goes to the store as if it were new —
-  # 1.9.0's capture shot still showing a Pro upsell after Pro was hidden, say.
+  # Emptied first, so nothing from an earlier run is mistaken for this one's — 1.9.0's
+  # capture shot still showed a Pro upsell after Pro was hidden. (`asc.py screenshots`
+  # now also refuses any name it does not expect, M23 §4B.4.) $OUT is never in build/.
   rm -rf "${OUT:?}/$locale"
   mkdir -p "$OUT/$locale"
   for screen in "${SCREENS[@]}"; do
@@ -168,8 +179,8 @@ for locale in "${LOCALES[@]}"; do
     fi
 
     dims="$(sips -g pixelWidth -g pixelHeight "$file" | awk '/pixel/ {printf "%s", $2 " "}')"
-    if [ "$dims" != "1242 2688 " ]; then
-      red "$file is ${dims}— App Store Connect wants 1242 2688 for APP_IPHONE_65"
+    if [ "$dims" != "$WANT_DIMS" ]; then
+      red "$file is ${dims}— App Store Connect wants ${WANT_DIMS}for $DISPLAY_TYPE (scripts/asc_policy.py)"
       exit 1
     fi
   done

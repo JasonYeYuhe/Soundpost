@@ -5,11 +5,14 @@ set -euo pipefail
 # (M12 §S1 / §4H-vi). Without this, production crash reports are raw addresses.
 #
 # Keyed off SENTRY_AUTH_TOKEN in the environment — exactly like the ASC API creds
-# live in ~/.zshrc. If the token is absent this is a NON-FATAL no-op (so the build
-# pipeline still runs for a developer without Sentry creds); it only warns.
+# live in ~/.zshrc. If the token is absent this is a NON-FATAL no-op (so a dry archive
+# still runs for a developer without Sentry creds); it only warns — unless --required.
 #
 # Usage:
 #   ./scripts/upload-dsyms.sh <path>        # a .xcarchive, a dir of dSYMs, a .dSYM, or a .zip
+#   ./scripts/upload-dsyms.sh --required <path>
+#                                           # an upload's dSYMs (build-upload-asc.sh, M23 §4B.3):
+#                                           # no sentry-cli or no token is a FAILURE, not a skip
 #   ./scripts/upload-dsyms.sh --backfill    # every Soundpost archive in ~/Library/Developer/Xcode/Archives
 #
 # Org/project come from env with defaults (override if the slugs differ):
@@ -20,15 +23,28 @@ set -euo pipefail
 SENTRY_ORG="${SENTRY_ORG:-jason-yeyuhe}"
 SENTRY_PROJECT="${SENTRY_PROJECT:-soundpost}"
 
-if ! command -v sentry-cli >/dev/null 2>&1; then
-  echo "WARN: sentry-cli not installed (brew install getsentry/tools/sentry-cli) — skipping dSYM upload."
+# --required: an upload's dSYMs. A missing tool or token then fails instead of skipping —
+# skipping is how 1.6.0 build 12 reached users with no symbols while this script said "OK".
+REQUIRED=""
+if [ "${1:-}" = "--required" ]; then
+  REQUIRED=1
+  shift
+fi
+skip_or_fail() {
+  if [ -n "$REQUIRED" ]; then
+    echo "ERROR: $1 — the dSYMs are required (--required) and were NOT uploaded." >&2
+    exit 1
+  fi
+  echo "WARN: $1 — skipping dSYM upload."
   exit 0
+}
+
+if ! command -v sentry-cli >/dev/null 2>&1; then
+  skip_or_fail "sentry-cli not installed (brew install getsentry/tools/sentry-cli)"
 fi
 
 if [ -z "${SENTRY_AUTH_TOKEN:-}" ]; then
-  echo "WARN: SENTRY_AUTH_TOKEN not set — skipping dSYM upload."
-  echo "      Export it in ~/.zshrc (alongside ASC_API_* ) to symbolicate Release crashes."
-  exit 0
+  skip_or_fail "SENTRY_AUTH_TOKEN not set (export it in ~/.zshrc, alongside ASC_API_*)"
 fi
 
 upload() {
@@ -53,8 +69,8 @@ MODE="${1:-}"
 
 if [ "$MODE" = "--backfill" ]; then
   PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-  # Soundpost archives are written to the repo's build/ by build-upload-asc.sh
-  # (overwritten each build), so scan there as well as the Xcode Organizer.
+  # build-upload-asc.sh writes archives to the Xcode Organizer's folder (M23 §4B.2). The
+  # repo's build/ still holds archives from 1.4.0 to 1.12.0 (M23 D9), so it is scanned too.
   SEARCH_DIRS=("$HOME/Library/Developer/Xcode/Archives" "$PROJECT_DIR/build")
   echo "Backfilling Soundpost*.xcarchive dSYMs from: ${SEARCH_DIRS[*]}"
   found=0
