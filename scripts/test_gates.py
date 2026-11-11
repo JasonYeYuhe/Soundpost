@@ -601,7 +601,8 @@ def read_ci():
 class CiParityTests(unittest.TestCase):
     """M23 §4C.2: the Xcode 27.2 job runs every step of the 26.6 one. Both are entries of one
     matrix job, so the only steps that may differ are the ones gated on a matrix flag — and
-    those are exactly the release-pin assertion and the delivery-server step."""
+    that is exactly the release-pin assertion (the delivery-server step moved to the
+    `server` job, §4C.5)."""
 
     def test_both_toolchains_are_entries_of_one_job(self):
         ci = read_ci()
@@ -609,10 +610,10 @@ class CiParityTests(unittest.TestCase):
                      "developer_dir: /Applications/Xcode_27.2.app/Contents/Developer"):
             self.assertTrue(line in ci, f"ci.yml lacks {line!r}")
 
-    def test_only_two_steps_differ_between_the_toolchains(self):
+    def test_only_the_release_pin_differs_between_the_toolchains(self):
         lines = read_ci().splitlines()
         gated = [lines[i - 1].strip() for i, l in enumerate(lines) if l.strip().startswith("if: matrix.")]
-        self.assertEqual(gated, ["- name: Assert the release toolchain pin", "- name: Delivery server tests"])
+        self.assertEqual(gated, ["- name: Assert the release toolchain pin"])
 
     def test_the_floors_are_workflow_level(self):
         ci = read_ci()

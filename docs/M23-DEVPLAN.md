@@ -1554,3 +1554,14 @@ M24 unchanged unless all three change before S6.
 
 **Standing bars.** Local `xcodebuild clean test` in place: **773 tests in 100 suites**, no
 warnings. `MIN_TESTS` 763 → 773; `MIN_DENO_TESTS` 18 → 22.
+**CI** `d0a4a30` ([run 43076209192](https://github.com/JasonYeYuhe/Soundpost/actions/runs/43076209192)):
+green — `Executed 773 tests (floor 773)` on 26.6 and 27.2, no warnings; `Deno: 22 passed (floor
+22)`, `ALL PASS` (green 27.2 push 4).
+
+### S2.5 — the macOS delivery-server step removed
+
+The `server` job's logs showed both counts (Deno passed count and `ALL PASS`) on `975ab77`,
+`6d1da60`, `b27e081`, `2a56062` and `d0a4a30` — more than §4C.5's three — so the 26.6 entry's
+Homebrew-Deno step (warning-only when Deno would not install, which happened on the control PR's
+run) is gone, with its matrix flag; `CiParityTests` now allows exactly one per-entry step, the
+release-pin assertion (control: gate a second step → `test_only_the_release_pin_differs…` fails).

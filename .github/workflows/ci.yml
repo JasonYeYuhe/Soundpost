@@ -10,9 +10,9 @@ name: CI
 # image — the build that makes the shipped binary (scripts/release-toolchain.env; the local
 # release build is 27B52). One job definition with two matrix entries, so the 27.2 job runs
 # EVERY step the 26.6 job runs — the Python policy tests and the CloudKit gates included —
-# and cannot drift from it; only the delivery-server step is per entry (it moves to the
-# `server` job below). D23: the 26.6 entry is retired after the 27.2 one has been green on
-# five pushes and the `server` job on three. Deployment target stays iOS 17.
+# and cannot drift from it; only the release-pin assertion is per entry. The delivery
+# server's tests run in the `server` job (Linux, with PostgreSQL). D23: the 26.6 entry is
+# retired after the 27.2 one has been green on five pushes. Deployment target stays iOS 17.
 
 on:
   push:
@@ -55,7 +55,6 @@ jobs:
             simulator: "iPhone 17"
             min_ios: "26"
             release_toolchain: false
-            delivery_server: true
           - xcode: "Xcode 27.2"
             image: xcode-27
             developer_dir: /Applications/Xcode_27.2.app/Contents/Developer
@@ -64,7 +63,6 @@ jobs:
             simulator: "iPhone 17"
             min_ios: "27"
             release_toolchain: true
-            delivery_server: false
     env:
       # The toolchain this job claims to test with. Asserted, not just printed: a
       # runner image that moves its default Xcode would otherwise change the
@@ -181,40 +179,6 @@ jobs:
       # local Postgres when the runner already has one. Installing a tool or fetching
       # Deno's std from the network is not this repo's fault and only warns; a failing
       # test fails the job.
-      # Kept on the 26.6 entry until the `server` job's logs have shown both counts on
-      # three pushes (M23 §4C.5); then removed.
-      - name: Delivery server tests
-        if: matrix.delivery_server
-        env:
-          HOMEBREW_NO_AUTO_UPDATE: "1"
-          HOMEBREW_NO_INSTALL_CLEANUP: "1"
-        run: |
-          if ! command -v deno >/dev/null && ! brew install --quiet deno; then
-            echo "::warning::Could not install deno; the delivery server's Deno tests did not run." >&2
-          elif ! deno check backend/supabase/functions/send-due-notifications/{apns,auth,payload,state}.ts; then
-            # These four files import nothing, so this needs no network and runs before
-            # `deno cache`. A warning, not a red build (M22 §4B.10): Homebrew's Deno moves,
-            # and what it newly rejects is news for the next function deploy, not a defect
-            # in a commit that did not touch the function.
-            echo "::warning::deno $(deno --version | head -1 | cut -d' ' -f2) rejects the delivery function's types; fix before the next deploy." >&2
-          fi
-          if ! command -v deno >/dev/null; then
-            :
-          elif ! deno cache backend/supabase/functions/send-due-notifications/*_test.ts; then
-            echo "::warning::Could not fetch the Deno tests' dependencies; they did not run." >&2
-          else
-            # --no-check: the function runs on Supabase's own pinned Deno, and type-checking
-            # against whatever Homebrew has today is a moving target — Deno 2.9.8 (CI,
-            # 2026-11-08) rejects `body: Uint8Array` at apns.ts:132 where 2.7.5 accepts it.
-            # The tests still run every line they cover. (M21 §13 S5.)
-            deno test --no-check backend/supabase/functions
-          fi
-          if command -v initdb >/dev/null && command -v pg_ctl >/dev/null; then
-            backend/supabase/tests/run-local.sh
-          else
-            echo "::notice::No local Postgres on this runner; the SQL hygiene test runs locally (backend/supabase/tests/run-local.sh)."
-          fi
-
       - name: Localization gate (xcstrings 100% translated)
         run: ./scripts/check-localization.sh
 
@@ -305,7 +269,9 @@ jobs:
           if-no-files-found: ignore
 
   # The delivery server's tests (M23 §4C.5), on Linux where PostgreSQL is part of the image:
-  # the macOS runner has none, so the SQL hygiene test had never run on CI. Here a failed
+  # the macOS runner has none, so the SQL hygiene test had never run on CI. The macOS step
+  # that ran the Deno tests (as warnings when Deno could not be installed) was removed once
+  # this job's logs had shown both counts on three pushes. Here a failed
   # Deno install or `deno cache` is an ERROR, the passed count is checked against a floor,
   # and the SQL test's `ALL PASS` marker is required — a job that ran nothing cannot pass.
   server:
