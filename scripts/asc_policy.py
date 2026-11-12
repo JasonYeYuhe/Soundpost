@@ -433,12 +433,23 @@ def promo_attributes(text):
     return {'promotionalText': text}
 
 
+def _version_key(version):
+    try:
+        return tuple(int(part) for part in _version_string(version).split('.'))
+    except ValueError:
+        raise Refusal(f'Cannot order version {_version_string(version)!r}; not writing to any.')
+
+
 def promo_targets(versions, marketing_version):
     """The versions promotional text goes to: the live one, and the project's version if it
-    is in flight. Refuses when there is neither, or more than one live version."""
-    live = [v for v in versions if _state(v) == LIVE_VERSION_STATE]
-    if len(live) > 1:
-        raise Refusal(f'More than one live version ({describe_versions(live)}); not writing to any.')
+    is in flight. Refuses when there is neither.
+
+    **The live version is the NEWEST `READY_FOR_SALE` one.** App Store Connect reports every
+    version that ever shipped as `READY_FOR_SALE` (read 2026-11-12: 1.1.0 … 1.11.0, all of
+    them), so "the one in that state" is twelve versions, eleven of which nobody sees.
+    """
+    released = [v for v in versions if _state(v) == LIVE_VERSION_STATE]
+    live = [max(released, key=_version_key)] if released else []
     in_flight = [v for v in versions if _version_string(v) == marketing_version
                  and _state(v) in PROMO_IN_FLIGHT_STATES]
     targets = live + [v for v in in_flight if v not in live]

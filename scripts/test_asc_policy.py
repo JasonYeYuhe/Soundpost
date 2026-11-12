@@ -282,6 +282,7 @@ class ScreenshotFileTests(unittest.TestCase):
             asc_policy.screenshot_target_set_plan(['old'])
 
 
+
 class StalePlacementTests(unittest.TestCase):
     NEW, OLD = asc_policy.SCREENSHOT_PLACEMENT_GROUP, 'IPHONE_FACE_ID_LARGE_PROFILE'
 
@@ -405,10 +406,16 @@ class PromoTests(unittest.TestCase):
         with self.assertRaises(Refusal):
             asc_policy.promo_targets([version('1.12.0', 'REPLACED_WITH_NEW_VERSION')], '1.12.0')
 
-    def test_two_live_versions_refuse(self):
+    def test_the_live_version_is_the_newest_released_one(self):
+        # App Store Connect reports every version that ever shipped as READY_FOR_SALE.
+        released = [version(v, 'READY_FOR_SALE') for v in ('1.9.0', '1.11.0', '1.10.0', '1.2.0')]
+        flight = version('1.12.0', 'WAITING_FOR_REVIEW')
+        self.assertEqual(asc_policy.promo_targets(released + [flight], '1.12.0'), [released[1], flight])
+
+    def test_an_unorderable_version_refuses(self):
         with self.assertRaises(Refusal):
-            asc_policy.promo_targets([version('1.11.0', 'READY_FOR_SALE', 'a'),
-                                      version('1.10.0', 'READY_FOR_SALE', 'b')], '1.12.0')
+            asc_policy.promo_targets([version('1.11.0', 'READY_FOR_SALE'), version('next', 'READY_FOR_SALE')],
+                                     '1.12.0')
 
 # ── asc.py actually calls the guards ─────────────────────────────────────────
 

@@ -37,7 +37,7 @@ concurrency:
 # deliberately when tests are added; never lower one to make a run pass.
 env:
   MIN_TESTS: "774"
-  MIN_PY_TESTS: "178"
+  MIN_PY_TESTS: "179"
 
 jobs:
   test:

@@ -1658,3 +1658,14 @@ promotional_text_and_reads_it_back`, `PromoOfflineTests` (3, per-locale subtests
 
 **Standing bars.** Local `xcodebuild clean test` in place: **774 tests in 100 suites**, no
 warnings (no Swift changed). Python 178; `MIN_PY_TESTS` 168 → 178; `MIN_TESTS` stays 774.
+
+**CI** `ca933f5`: see below. **Found before the first push — `promo_targets` would have refused.**
+Read on 2026-11-12, App Store Connect reports every version that ever shipped as `READY_FOR_SALE`
+(`appVersionState` `READY_FOR_DISTRIBUTION`): 1.1.0 … 1.11.0, twelve of them. The first
+`promo_targets` refused "more than one live version", so nothing was written. The live version is
+now the newest released one by numeric version (`_version_key`; an unorderable version string
+refuses); against the real list it resolves to 1.11.0 (`READY_FOR_SALE`) and 1.12.0
+(`WAITING_FOR_REVIEW`). Tests: `test_the_live_version_is_the_newest_released_one` (replaces the
+two-live-versions refusal), `test_an_unorderable_version_refuses`. Controls: the first released
+version instead of the newest, and string order instead of numeric (`'1.9.0' > '1.11.0'`) → the
+newest-released test fails. Python 178 → 179.
