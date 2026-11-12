@@ -71,7 +71,15 @@ def read_png(path):
     return width, height, channels, pixels
 
 
-def variance(path, grid=8):
+def variance(path, grid=32):
+    """(variance, mean) of the brightness at grid × grid evenly spaced points.
+
+    **32, not 8** (M23 S6). An 8 × 8 grid is 64 single pixels, and on a light screen
+    they can all land between the strokes: the zh-Hans search result — four cards of
+    waveforms and text — read 23.3 and was rejected as blank twenty times running,
+    and the en-US gallery passed at 32.1, by luck. At 32 × 32 every screen the capture
+    takes reads 390–1,600 and a blank frame still reads 0.
+    """
     width, height, channels, rows = read_png(path)
     samples = []
     for gy in range(grid):
@@ -90,13 +98,11 @@ if __name__ == "__main__":
     for path in sys.argv[1:]:
         var, mean = variance(path)
         # 25 sits between a blank frame's 0.0 and the screens this script actually
-        # captures, which range from ~500 to ~4,000. It is NOT a general "is anything
-        # on screen" threshold: a sparse screen scores far lower — the app's onboarding
-        # page, which is mostly white around a centred illustration, measures 14.6 and
-        # would be rejected as blank. That is fine here, because the capture script
-        # only ever photographs the gallery, a detail screen, a search result and the
-        # capture sheet. Anyone reusing this on a sparser screen has to re-measure
-        # rather than inherit the number.
+        # captures, which read ~390 to ~1,600 on the 32 × 32 grid (M23 S6). On the old
+        # 8 × 8 grid a light screen could fall under it — the onboarding page read 14.6,
+        # the zh-Hans search result 23.3 — because 64 points can all miss the strokes;
+        # on 32 × 32 those read ~960 and ~1,260. Anyone reusing this on a sparser
+        # screen still has to re-measure rather than inherit the number.
         if var < 25:
             print(f"  ✗ {path}: variance {var:.1f}, mean {mean:.0f} — this is an empty frame,"
                   f" not the app", file=sys.stderr)

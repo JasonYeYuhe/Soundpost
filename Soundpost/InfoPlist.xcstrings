@@ -2,11 +2,22 @@
   "sourceLanguage" : "en",
   "strings" : {
     "CFBundleName" : {
-      "comment" : "Bundle name",
+      "comment" : "Bundle name. The same word in every language, but it must be present in each: the system's Shortcuts link reads the name from the current language only, and showed 「のショートカット」 with it missing.",
       "extractionState" : "extracted_with_value",
-      "shouldTranslate" : false,
       "localizations" : {
         "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Soundpost"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Soundpost"
+          }
+        },
+        "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Soundpost"

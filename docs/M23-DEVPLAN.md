@@ -1726,3 +1726,134 @@ it was and reported. The doors staging is therefore unseen: it is DEBUG-only, `d
 
 **Standing bars.** Local `xcodebuild clean test` in place: **776 tests in 101 suites**, no
 warnings, localization 100%. `MIN_TESTS` 774 → 776; Python 185, `MIN_PY_TESTS` 179 → 185.
+
+**CI** `7082c11` ([run 43198052472](https://github.com/JasonYeYuhe/Soundpost/actions/runs/43198052472)):
+green — 776 tests (floor 776), Python 185, no warnings, Deno 22, `ALL PASS`; pinned 27B52 = runner.
+
+### Jason's second go-ahead (2026-11-12, 22:30): D3 applied
+
+Jason, after the status message that listed D3 and S5.2 as his to run and the frozen simulator as
+his call: 「我清理好了 你继续吧 没问题的话直接全部执行」 — he has freed disk; go on, and if nothing is
+wrong, carry all of it out directly. Read as his word for each item of that message, each after its
+own check: D3, restarting the shared `iPhone 17 Pro`, trashing `.git/index 3…13`, releasing 1.12.0
+once approved. Not covered, because it is not his to give by itself: S5.2's deploy waits on S0
+(§4F.2 — after S0 passes, or if it fails, never before or during it), and S0 needs his phone. Disk at
+that moment: 27 GB free (`~/.Trash` 19 GB, not emptied — that is his), 38 GB after the restart below.
+
+- **D3 — applied.** Through the Supabase connector (`apply_migration`, named
+  `m21_soundpost_delivery_hygiene`, as M10's were), the whole of `0003_m21_hygiene.sql` unchanged; the
+  local test had passed earlier the same day (above). Before: `notification_jobs` held 3 rows —
+  `pending` ×2, `pending / no_tokens` ×1; `cron.job` had only `m10_send_due_notifications`
+  (`* * * * *`); no `m21_*` function. After: `m21_delivery_hygiene` `17 3 * * *`, active; the M10
+  job unchanged; `m21_delivery_hygiene(timestamptz)` (security definer) and `m21_job_fire_instant`
+  executable only by `postgres` and `service_role`; the 3 rows unchanged. Its first run (03:17 UTC)
+  would expire 0 rows and delete 0 (the same predicates, counted).
+- **`.git/index 3…13` — not moved.** `/usr/bin/trash` refused each with `NSCocoaErrorDomain 513`
+  ("you don't have permission"), inside and outside the sandbox, while the same command trashed
+  `.git/index 2` that morning and trashes a scratch file now; the console was locked at the time. Left
+  as they are (git reads only `.git/index`).
+- **The shared `iPhone 17 Pro` — restarted.** Its screenshots were still the 05:30 frame (the same
+  bytes as the morning's). Nothing else was using it: the only `/tmp/lock-*` was Stride's
+  `lock-stride-dd-…` from 11-10, whose pid had exited; no `xcodebuild`; the Stride app in it had been
+  running since 11-08 with the device. Under `/tmp/lock-iphone-17-pro`: `simctl shutdown`, `boot`,
+  `bootstatus -b`. Two screenshots 3 s apart then differed and showed the live clock. It stays booted.
+
+### S6 — the witness pass (2026-11-12, 22:35–23:00)
+
+Debug build of `7082c11` plus the fix below, through the shared package helper, no warnings. Devices
+by UDID under their locks: the shared `iPhone 17 Pro` (iOS 27.0, `C53F6992…`, restarted above) and
+`Soundpost-iOS18` (iOS 18.5, `DAF29479…`, booted for this pass under H2's exception, shut down after).
+Text size and appearance restored on both (`large`, light); the 17 Pro's Home Screen icon style
+put back to Default.
+
+**Found and fixed — the Shortcuts link drew without the app's name in Japanese and Chinese.** With
+`-AppleLanguages (ja)` the section's `ShortcutsLink` read 「のショートカット」, and in Chinese
+「快捷指令」 — "Soundpost shortcuts" with the name gone. `InfoPlist.xcstrings` marked `CFBundleName`
+"don't translate", so only `en.lproj/InfoPlist.strings` carried it; the link takes the name from the
+current language's strings without falling back to Info.plist. (The Home Screen label was never
+affected: it does fall back.) The link is new in M23 (S4, `2a56062`), so no shipped build had it. Fix:
+`CFBundleName` = "Soundpost" in `ja` and `zh-Hans` too (one word in every language). Re-captured: 「Soundpost
+のショートカット」 and 「Soundpost 快捷指令」, on iOS 27 and iOS 18.5.
+Test `AppNameLocalizationTests` (2) reads the **built app's** compiled strings: each of en, ja, zh-Hans
+carries `CFBundleName == "Soundpost"`, and the languages checked are exactly the app's localizations.
+
+| Control (`cp` snapshot, restored and compared) | Caught by |
+|---|---|
+| the name in `en` only (as at HEAD) | `eachLanguageCarriesTheAppsName` |
+| the name dropped in `ja` only | `eachLanguageCarriesTheAppsName` |
+| the test's language list missing zh-Hans | `theLanguagesCheckedAreTheOnesTheAppShips` |
+
+**`iPhone 17 Pro` (iOS 27)** — each tap below is from a screenshot of the result:
+- **The section, EN / JA / ZH** (`-seedSampleData -screenshotScreen doors`): "Ways to start a capsule"
+  / 「カプセルを始める方法」 / 「新建胶囊的方式」 with the Siri tip, the Shortcuts link, the widget
+  line, the Control Center line and the footer. The tip's phrase is drawn by the system in the Siri
+  language, English here, in all three: `Say "New capsule in Soundpost"`.
+- **The Shortcuts link opens Shortcuts** — on Soundpost's page, one action, "New capsule"; the status
+  bar's back link reads "◀ Soundpost".
+- **The tip dismissal** (a normal launch, onboarding skipped): × on the tip → the row is gone and the
+  section starts at the Shortcuts link, no empty row; Done; terminate; relaunch; Settings → still gone,
+  no empty row.
+- **The Home Screen widget**: the gallery lists Soundpost → "New capsule" with "Opens Soundpost ready
+  to record. Nothing records until you tap the record button."; added. **Cold tap** (app terminated)
+  → capture idle ("Up to 60 seconds. Tap to start."). **Warm tap** (same pid, backgrounded) → capture
+  idle. At `accessibility-extra-extra-extra-large`, "New capsule" wraps to two lines, nothing cut;
+  dark, tinted and clear Home Screens each draw the glyph and the words legibly.
+- **A widget tap during a take**: recording, Home, widget → the app came forward with the take still
+  running (0:26, nothing lost) — `.alreadyOpen`, as `drainCaptureRequest` is written. The plan's
+  expectation ("leaving the app ends the take into review") is the device's behaviour: with no
+  background audio mode iOS interrupts the session and `AudioRecorder.handleInterruption` finalizes
+  into review. The simulator does not suspend a backgrounded app, so it cannot show that; it goes to
+  H4. The take then hit 60 s and went to review on its own; discarded (never saved — this simulator is
+  signed in to iCloud).
+- **The control**: Control Center was empty after the restart; "Add a Control" → search "Soundpost" →
+  "New capsule" added. **Cold tap** → capture idle. **Warm tap** (same pid) → capture idle — W7's fix
+  holds on iOS 27.
+- **Accessibility Inspector** on the small widget: not run — the Mac's console was locked, so no Mac app
+  could be driven. The widget's VoiceOver shape stays covered by `WidgetExtensionTests` only.
+- **The Lock Screen — witnessed.** `LOCK`, wake, then the plan's stationary `touch_path` hold (4
+  samples, 1 s apart) at mid-screen: nothing. A 3 s long press: the poster switcher began (frame shrunk,
+  preview clock "Tue Jan 9 9:41") but showed no buttons; after HOME it settled into the Lock Screen
+  editor (Cancel / Done, "ADD WIDGETS"). Added both Soundpost faces (circular: the glyph; rectangular:
+  glyph + "New capsule"); Done; the poster showed both. App terminated, `LOCK`, wake, **tap the
+  rectangular face → Soundpost launched into capture idle**; terminated again, `LOCK`, wake, **tap the
+  circular face → capture idle**. The simulator has no passcode, so "unlock first" is not shown; H4
+  covers that on a phone. The Lock Screen claim in `description.txt:13` therefore stays.
+
+**`Soundpost-iOS18` (iOS 18.5)**: the section in EN / JA / ZH (the staging scroll stops short of the
+top on iOS 18 — the iCloud section shows above it; DEBUG-only, used only on the iOS 27 capture device);
+the tip dismissal, then relaunch → still gone, no empty row; the control (already in its Control
+Center): **warm tap** (same pid) → capture idle, **cold tap** → capture idle.
+
+**The doors shot — dropped.** In every locale the iCloud section sits under the translucent navigation
+bar at the top of the staged frame (EN "Capsules live only on this device…", the demo store's
+local-only line), so by §4G it is not captured; `doors` stays out of `SCREENSHOT_SCREENS`.
+
+**`iPhone 17 Pro Max` (iOS 27) — screenshots v2, captured.** `scripts/screenshots.sh` on the listed
+device (`8C431EC3…`), shut down beforehand, so this pass booted it and shut it down after (H2).
+Three things went wrong on the way, each recorded:
+- **First boot: `bootstatus -b` failed** (`Status=4294967295, isTerminal=YES` after 9 s) and the script
+  stopped with "did not boot". SpringBoard was crashing on that boot — `EXC_BREAKPOINT` in
+  `-[FBSDisplayMonitor _initWithDisplays:…]` under `FBSystemShellInitialize` (no main display), every
+  ~10 s; a later `simctl launch` then failed with "The system shell probably crashed". One `shutdown`
+  + `boot` cleared it (SpringBoard running, no new crash report). Not erased.
+- **The blank-frame check refused a drawn screen.** `zh-Hans/03-search` — four cards of waveforms and
+  text — failed `screenshot_check.py` twice ("variance 23.3, mean 247 — an empty frame"). The check
+  sampled an 8 × 8 grid of single pixels, and on a light screen all 64 can fall between the strokes;
+  the same grid read the en-US gallery at 32.1, passing by luck, and the onboarding page at 14.6.
+  Fixed: the default grid is 32 × 32. Measured on this capture's twelve shots: 390–1,600 (8 × 8 had
+  23.3–1,236); a blank frame still reads 0. Tests `test_screenshot_check.py` (3) on synthetic PNGs:
+  white with bars placed between the 8 × 8 rows reads 0 on the old grid (proving the fixture) and
+  passes on the new one; uniform frames at 0, 128 and 255 are still refused. Control: the default
+  grid back to 8 → `test_a_light_screen_with_thin_content_is_not_blank` fails.
+- One zh-Hans capture shot showed the Dynamic Island's black pill above the capture sheet (the other
+  locales did not); a re-capture did not, and all three locales' capture shots now match.
+
+The set: `~/Library/Caches/Soundpost-build/screenshots-69/{en-US,ja,zh-Hans}/01-gallery … 04-capture`,
+1320 × 2868, status bar 9:41 / full / charged. Read back by eye: every card time is daytime ("Calm
+7:48 AM", "Energized 9:12 AM", the detail "Nov 10, 2026 at 3:40 PM"), no iCloud row, nothing about Pro.
+Uploaded only in S7, by the path §4B.7 settled.
+
+**Standing bars.** App uninstalled from the `iPhone 17 Pro` first (the pass had written its defaults),
+then local `xcodebuild clean test` in place: **778 tests in 102 suites**, no warnings
+(`check-warnings.sh`), localization 100% (363 strings); Python 188; store gate passes. `MIN_TESTS`
+776 → 778, `MIN_PY_TESTS` 185 → 188.
