@@ -1857,3 +1857,24 @@ Uploaded only in S7, by the path §4B.7 settled.
 then local `xcodebuild clean test` in place: **778 tests in 102 suites**, no warnings
 (`check-warnings.sh`), localization 100% (363 strings); Python 188; store gate passes. `MIN_TESTS`
 776 → 778, `MIN_PY_TESTS` 185 → 188.
+
+**CI** `e504f39` ([run 43235224589](https://github.com/JasonYeYuhe/Soundpost/actions/runs/43235224589)):
+green — 778 tests (floor 778), Python 188 (floor 188), no warnings, Deno 22, `ALL PASS`; pinned 27B52 =
+runner.
+
+### Waiting on 1.12.0 (2026-11-13, 02:45)
+
+1.12.0 still `WAITING_FOR_REVIEW` (submitted 11-10 09:29 UTC), so S7 has not started (§4H precondition).
+Meanwhile, nothing that S7's precondition guards:
+- **Signing, probed without a build** (global rule): `login.keychain-db` reports `no-timeout` (not
+  "User interaction is not allowed"); a scratch copy of `/bin/echo` signed with the Apple Distribution
+  identity and verified — with the console locked. Re-probed before S7's archive, not assumed.
+- **`.git/index 3…13`** — `/usr/bin/trash` still refuses (513, console still locked). Left.
+- **1.13.0 notes drafted** — `metadata/*/release_notes-1.13.0.txt`: the Settings section and the two
+  About rows, in the app's own words for each (「カプセルを始める方法」, 「新建胶囊的方式」,
+  「Soundpostを共有」 …), and that nothing records until the record button is tapped. No VoiceOver
+  line — the widget was not checked with Accessibility Inspector (§4H: "only for the faces checked");
+  nothing about delivery while S0 is unwitnessed. `release_notes.txt` and the version are untouched, so
+  a rejected 1.12.0 would still get its own notes from `asc.py notes`. Checked by hand against the store
+  gate's blocked terms and the zh-Hans full-width rule (the gate reads `release_notes-<version>.txt`
+  only for the project's version, so it takes these over at S7's bump).

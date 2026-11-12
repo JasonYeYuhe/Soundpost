@@ -1,0 +1,2 @@
+• Settings has a new section, "Ways to start a capsule": the phrase to say to Siri, a link to Soundpost's shortcuts, and where to add the "New capsule" widget and control. Each one opens Soundpost ready to record; nothing records until you tap the record button.
+• About now has "Share Soundpost" and "Rate Soundpost".
