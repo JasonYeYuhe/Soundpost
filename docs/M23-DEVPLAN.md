@@ -1591,3 +1591,70 @@ accessor and the `allowedExecutionTargets` requirement are all `weak external`.
 
 **Standing bars.** Local `xcodebuild clean test` in place: **774 tests in 100 suites**, no
 warnings. `MIN_TESTS` 773 → 774. Python 168 (a subtest added). S6 may now start once H2 allows.
+**CI** `236a132` ([run 43081177535](https://github.com/JasonYeYuhe/Soundpost/actions/runs/43081177535)):
+green — the one macOS entry (Xcode 27.2, pinned 27B52 = runner 27B52) executed 774 tests (floor 774),
+Python 168, no warnings; the `server` job passed with Deno 22 and `ALL PASS`.
+
+### Jason's go-ahead (2026-11-12): D5, D7, D9 and D3
+
+Jason, after the S1–W7 status message: 「你继续做吧 你检查没问题的话我全部同意」 — go on; if the
+checks find no problem, he agrees to all of it. Read as his word for each action listed in the day-one
+message with the recommendation given there, each done only after its own check. It does not cover
+what §1 / the kickoff make his to run (production Supabase: S0's UPDATE, D3, S5.2's deploy) or what
+needs an answer rather than consent (H3, H4, S0's phone steps); the 1.13.0 release is a separate word
+(§4H). Disk at that moment: **9.0 GB free** (a macOS update is staged: `MSUPrepareUpdate` snapshot).
+
+- **D5 — sent.** `analyticsReportRequests` listed first: none. Then `asc.py analytics-request`: one
+  `ONGOING` request created (`879a93b3…`). Apple produces the first reports in a day or two;
+  `asc.py analytics` reads them.
+- **D7 — done, and seen to work.** Recent events carried `user.geo` with `city`, `region` and
+  `country_code` (keys read, values not). Project `soundpost` gained one Advanced Data Scrubbing rule
+  (`relayPiiConfig`): remove anything at `$user.geo.**` — all geo, not only the city, so the privacy
+  label's "no location" holds without a decision about country-level data. Control: a test event
+  (`environment` `m23-d7-check`, `ip_address` `{{auto}}`) sent before the rule was stored with city,
+  region and country; the same event sent 90 s after it was stored with no `geo`, the event's `_meta`
+  naming `project:0` as the remover. The test issue (those two events only) was then deleted (404 on
+  re-read). Events stored before the rule keep their geo until Sentry's retention ages them out.
+- **D9 — done as recommended.** Moved (`mv -n`, not trashed) to
+  `~/Library/Developer/Xcode/Archives/<creation date>/Soundpost <version> (<build>).xcarchive`:
+  `build/Soundpost 3…9.xcarchive` = 1.4.0 (8), 1.4.0 (9), 1.5.0 (10), 1.6.2 (15), 1.7.0 (16),
+  1.8.0 (17), 1.9.0 (18) — none had an iCloud placeholder file. `.git/index 2` → Trash. Worktree
+  `.claude/worktrees/dazzling-satoshi-fb69f2` (clean; its one commit `a637710` pushed, superseded by
+  S1) removed with `git worktree remove`, its branch deleted locally and on `origin`. Remote
+  `chore/build-roots-2026-10-15` had already been deleted on GitHub (`fetch --prune`). Kept:
+  `release/1.6.1`, `release/1.6.2` (local and remote), `build/Soundpost.xcarchive`, the logs and
+  `build/screenshots/`. **Found, not touched:** eleven more iCloud copies of the git index,
+  `.git/index 3` … `.git/index 13` (2026-06-20 … 09-06; git reads only `.git/index`) — not in the
+  list Jason saw, so asked.
+- **D3 — ready for Jason.** `backend/supabase/tests/run-local.sh` re-run on this Mac (Homebrew
+  PostgreSQL 17, throwaway cluster): `ALL PASS`. The command and the before/after reads went to
+  Jason; nothing was written to production.
+
+### D6 — promotional text
+
+**What changed.** `metadata/*/promotional_text.txt` hold the three texts Jason approved (152 / 69 /
+49 characters). `check-store-metadata.py` refuses, in promotional text only, EN "offline" except
+"works offline", JA「オフライン」except「オフラインでも使え」, ZH「离线」except「离线也能用」 (each
+allowed phrase is removed first, so it excuses only itself). `asc.py promo` writes
+`asc_policy.promo_attributes(text)` — `{'promotionalText': text}`, nothing else — to every existing
+localization of the live version and of the project's version if it is in flight
+(`asc_policy.promo_targets`: `READY_FOR_SALE` plus the project's version in a pre-release state,
+`PENDING_DEVELOPER_RELEASE` included; refuses with neither, or with two live versions), never creates
+a localization, and reads every value back.
+
+**Tests** (Python 168 → 178): `PromoTests` (6), `AscUsesThePolicyTests.test_promo_sends_only_
+promotional_text_and_reads_it_back`, `PromoOfflineTests` (3, per-locale subtests).
+
+| Control (`cp` snapshot, restored after each) | Caught by |
+|---|---|
+| the old `check-store-metadata.py` | `test_the_m8_text_fails_in_each_locale` (en-US, ja, zh-Hans: the M8 text passes the old gate), `test_works_offline_does_not_cover_a_second_bare_offline` |
+| a second key in `promo_attributes` | `test_the_patch_body_is_promotional_text_only` |
+| `{**promo_attributes(…), 'keywords': ''}` as the PATCH body | `test_promo_sends_only_promotional_text_and_reads_it_back` |
+| a `post` for a locale the version lacks | same |
+| the read-back replaced by the sent text | same |
+| live version only (in-flight dropped) | `test_the_live_version_and_the_one_in_flight` |
+| no refusal when there is nothing to write to | `test_nothing_to_write_to_refuses` |
+| one allowed phrase excuses the whole text | `test_works_offline_does_not_cover_a_second_bare_offline` |
+
+**Standing bars.** Local `xcodebuild clean test` in place: **774 tests in 100 suites**, no
+warnings (no Swift changed). Python 178; `MIN_PY_TESTS` 168 → 178; `MIN_TESTS` stays 774.

@@ -377,6 +377,39 @@ class AnalyticsRequestTests(unittest.TestCase):
             asc_policy.analytics_request_plan([{'id': 'r', 'attributes': {'accessType': 'ONGOING'}}])
 
 
+
+class PromoTests(unittest.TestCase):
+    """M23 §4H (D6): promotional text goes to the live listing, so it may carry nothing else."""
+
+    def test_the_patch_body_is_promotional_text_only(self):
+        self.assertEqual(asc_policy.promo_attributes('Hello'), {'promotionalText': 'Hello'})
+
+    def test_the_live_version_and_the_one_in_flight(self):
+        live = version('1.11.0', 'READY_FOR_SALE')
+        for state in ('WAITING_FOR_REVIEW', 'PENDING_DEVELOPER_RELEASE', 'PREPARE_FOR_SUBMISSION'):
+            with self.subTest(state):
+                flight = version('1.12.0', state)
+                self.assertEqual(asc_policy.promo_targets([flight, live], '1.12.0'), [live, flight])
+
+    def test_old_and_other_versions_are_left_alone(self):
+        live = version('1.11.0', 'READY_FOR_SALE')
+        versions = [live, version('1.10.0', 'REPLACED_WITH_NEW_VERSION'),
+                    version('1.13.0', 'PREPARE_FOR_SUBMISSION')]
+        self.assertEqual(asc_policy.promo_targets(versions, '1.12.0'), [live])
+
+    def test_a_released_project_version_is_written_once(self):
+        live = version('1.12.0', 'READY_FOR_SALE')
+        self.assertEqual(asc_policy.promo_targets([live], '1.12.0'), [live])
+
+    def test_nothing_to_write_to_refuses(self):
+        with self.assertRaises(Refusal):
+            asc_policy.promo_targets([version('1.12.0', 'REPLACED_WITH_NEW_VERSION')], '1.12.0')
+
+    def test_two_live_versions_refuse(self):
+        with self.assertRaises(Refusal):
+            asc_policy.promo_targets([version('1.11.0', 'READY_FOR_SALE', 'a'),
+                                      version('1.10.0', 'READY_FOR_SALE', 'b')], '1.12.0')
+
 # ── asc.py actually calls the guards ─────────────────────────────────────────
 
 def _asc_tree():
@@ -621,6 +654,23 @@ class AscUsesThePolicyTests(unittest.TestCase):
         self.assertIn('Library/Caches/Soundpost-build/analytics',
                       ast.unparse(next(n for n in self.tree.body if isinstance(n, ast.Assign)
                                        and ast.unparse(n.targets[0]) == 'ANALYTICS_DIR')))
+
+    def test_promo_sends_only_promotional_text_and_reads_it_back(self):
+        promo = _function(self.tree, 'cmd_promo')
+        self.assertIn('asc_policy.promo_targets', _calls(promo))
+        writes = self._writes(promo)
+        self.assertEqual([ast.unparse(w.func) for w in writes], ['patch'],
+                         'cmd_promo must send exactly one PATCH and never create a localization')
+        attributes = [v for d in ast.walk(writes[0]) if isinstance(d, ast.Dict)
+                      for k, v in zip(d.keys, d.values)
+                      if isinstance(k, ast.Constant) and k.value == 'attributes']
+        self.assertEqual(len(attributes), 1)
+        self.assertEqual(ast.unparse(attributes[0]), 'asc_policy.promo_attributes(texts[locale])',
+                         'the PATCH body is not exactly the policy\'s one-key promo_attributes')
+        reads = [n for n in ast.walk(promo) if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
+                 and n.func.id == 'get' and n.lineno > writes[0].lineno]
+        self.assertTrue(reads, 'cmd_promo does not read the value back')
+        self.assertIn('promotionalText', _string_constants(promo))
 
     def test_a_refusal_exits_non_zero(self):
         main = _function(self.tree, 'main')

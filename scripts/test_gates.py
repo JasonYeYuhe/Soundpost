@@ -439,6 +439,45 @@ class VersionTests(unittest.TestCase):
         self.assertIn(f"release_notes-{version}.txt", r.stderr)
 
 
+
+# The M8 promotional text — what the repo held until M23 §4H. It passed the old gate.
+M8_PROMO = {
+    "en-US": "Capture how a moment actually sounds — keep it as a mood-tinted waveform card, and seal it "
+             "to open again on a future day. Private, offline, and honest by design.",
+    "ja": "その瞬間の「音」を残そう。気分で色づく波形カードになり、未来の日付まで封印して開くこともできます。"
+          "プライベートでオフライン、そして正直な設計。",
+    "zh-Hans": "留住一个瞬间真实的声音。它会化作随心情上色的波形卡片，还能封存到未来某天再开启。私密、离线、坦诚设计。",
+}
+
+
+class PromoOfflineTests(unittest.TestCase):
+    """M23 §4H: promotional text says "offline" only as "works offline" (and its JA / ZH forms)."""
+
+    def setUp(self):
+        VersionTests.setUp(self)
+
+    def _promo(self, locale, text):
+        self.tree.write(f"metadata/{locale}/promotional_text.txt", text)
+
+    def test_the_new_texts_pass(self):
+        r = self.tree.run(sys.executable, STORE)
+        self.assertEqual(r.returncode, 0, r.stderr)
+
+    def test_the_m8_text_fails_in_each_locale(self):
+        for locale, text in M8_PROMO.items():
+            with self.subTest(locale):
+                VersionTests.setUp(self)
+                self._promo(locale, text)
+                r = self.tree.run(sys.executable, STORE)
+                self.assertNotEqual(r.returncode, 0)
+                self.assertIn(f"{locale}/promotional_text.txt says", r.stderr)
+
+    def test_works_offline_does_not_cover_a_second_bare_offline(self):
+        self._promo("en-US", "Private, and it works offline. Offline-first.")
+        r = self.tree.run(sys.executable, STORE)
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("en-US/promotional_text.txt says 'Offline'", r.stderr)
+
 # ── The archive ──────────────────────────────────────────────────────────────────
 
 VERIFY = os.path.join(HERE, "verify-archive.sh")

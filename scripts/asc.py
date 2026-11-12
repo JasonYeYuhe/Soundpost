@@ -15,6 +15,7 @@ Usage (run with the venv that has pyjwt+requests):
   $ASC_PYTHON scripts/asc.py screenshots-prune [--apply]  # stale screenshot placements off the new version
   $ASC_PYTHON scripts/asc.py analytics-request    # ONE POST, on Jason's word only (M23 D5)
   $ASC_PYTHON scripts/asc.py analytics            # read-only: weekly store reports, to ~/Library/Caches
+  $ASC_PYTHON scripts/asc.py promo                # promotional_text.txt -> the LIVE version and the one in flight
 
 ASC_PYTHON is ~/Library/Caches/Soundpost-build/asc-venv/bin/python3 (M23 §4B.6; /tmp is
 emptied by macOS). `attach` and `submit` refuse a version whose releaseType is not MANUAL,
@@ -666,6 +667,44 @@ def cmd_keywords():
     push_localized_field('keywords.txt', 'keywords', 'keywords')
 
 
+def cmd_promo():
+    """Push metadata/<locale>/promotional_text.txt to the live version and the one in flight.
+
+    Promotional text is the one listing field Apple lets an app change without review, so
+    unlike every other push here it writes to the LIVE version — and for that reason it
+    sends nothing else: the PATCH body is `asc_policy.promo_attributes`, one key. It only
+    edits localizations that exist (a new locale on the live listing is not its call), and
+    reads every value back. M23 §4H, D6: run on Jason's word for the exact texts.
+    """
+    assert_soundpost_app()
+    targets = asc_policy.promo_targets(ios_versions(), project_marketing_version())
+    texts = {}
+    metadata_root = os.path.join(PROJECT_DIR, 'metadata')
+    for locale in sorted(os.listdir(metadata_root)):
+        path = os.path.join(metadata_root, locale, 'promotional_text.txt')
+        if os.path.isfile(path):
+            with open(path, encoding='utf-8') as f:
+                texts[locale] = f.read().strip()
+    mismatched = []
+    for v in targets:
+        print(f"Promotional text on v{v['attributes']['versionString']} ({v['attributes']['appStoreState']})")
+        for loc in get(f"/v1/appStoreVersions/{v['id']}/appStoreVersionLocalizations").get('data', []):
+            locale = loc['attributes']['locale']
+            if locale not in texts:
+                print(f'  {locale}: no promotional_text.txt in the repo, left as it is')
+                continue
+            patch(f"/v1/appStoreVersionLocalizations/{loc['id']}",
+                  {'data': {'type': 'appStoreVersionLocalizations', 'id': loc['id'],
+                            'attributes': asc_policy.promo_attributes(texts[locale])}})
+            back = get(f"/v1/appStoreVersionLocalizations/{loc['id']}")['data']['attributes'].get('promotionalText')
+            same = back == texts[locale]
+            print(f"  {locale}: {'read back, identical' if same else 'READ BACK DIFFERS'} ({len(back or '')} chars)")
+            if not same:
+                mismatched.append(f"v{v['attributes']['versionString']} {locale}")
+    if mismatched:
+        sys.exit(f"Promotional text did not read back as sent: {', '.join(mismatched)}")
+
+
 def submittable_problems(v):
     """Every reason `v` cannot be submitted (`asc_policy.submittable_problems`). GET only."""
     assert_soundpost_app()
@@ -804,6 +843,8 @@ def dispatch(args, force_cancel):
         cmd_description()
     elif cmd == 'keywords':
         cmd_keywords()
+    elif cmd == 'promo':
+        cmd_promo()
     elif cmd == 'screenshots':
         cmd_screenshots()
     elif cmd == 'cancel':

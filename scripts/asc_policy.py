@@ -411,3 +411,38 @@ def analytics_request_plan(existing_requests):
         raise Refusal(f'An ONGOING analytics report request already exists ({ongoing[0]["id"]}); '
                       f'nothing to send.')
     return {'accessType': 'ONGOING'}
+
+
+# ── M23 §4H (D6): promotional text ────────────────────────────────────────────
+
+LIVE_VERSION_STATE = 'READY_FOR_SALE'
+# A version that is on its way to the store: its listing replaces the live one on release,
+# so promotional text written only to the live version would be lost the day it ships.
+PROMO_IN_FLIGHT_STATES = ('PREPARE_FOR_SUBMISSION', 'READY_FOR_REVIEW', 'WAITING_FOR_REVIEW',
+                          'IN_REVIEW', 'PENDING_DEVELOPER_RELEASE', 'PENDING_APPLE_RELEASE',
+                          'REJECTED', 'METADATA_REJECTED', 'DEVELOPER_REJECTED', 'INVALID_BINARY')
+
+
+def promo_attributes(text):
+    """The whole PATCH body `asc.py promo` sends: promotional text and nothing else.
+
+    It writes to the LIVE listing — promotional text is the one field Apple lets change
+    without review — so any second key here would rewrite a live field that should only
+    ever change through a reviewed version.
+    """
+    return {'promotionalText': text}
+
+
+def promo_targets(versions, marketing_version):
+    """The versions promotional text goes to: the live one, and the project's version if it
+    is in flight. Refuses when there is neither, or more than one live version."""
+    live = [v for v in versions if _state(v) == LIVE_VERSION_STATE]
+    if len(live) > 1:
+        raise Refusal(f'More than one live version ({describe_versions(live)}); not writing to any.')
+    in_flight = [v for v in versions if _version_string(v) == marketing_version
+                 and _state(v) in PROMO_IN_FLIGHT_STATES]
+    targets = live + [v for v in in_flight if v not in live]
+    if not targets:
+        raise Refusal(f'No live version and no v{marketing_version} in flight: '
+                      f'nothing to write promotional text to.')
+    return targets

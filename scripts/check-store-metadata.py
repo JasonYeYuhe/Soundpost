@@ -84,6 +84,25 @@ for locale in sorted(CLAIMS):
                 f"{locale}/description.txt makes no '{claim}' claim "
                 f"(looked for {options!r})")
 
+# **"Offline" only as "works offline", in promotional text** (M23 §4H). The M8 copy ended
+# "Private, offline, and honest by design" — true when the app never left the device, not
+# since it syncs through iCloud and keeps far-seal schedules on a server. Recording and
+# playback do work offline, so that phrase is the one allowed. Limited to the promotional
+# text: the description's "offline-first" is a different, still-literal claim.
+PROMO_OFFLINE = {
+    "en-US":   (r"(?i)offline", "works offline"),
+    "ja":      (r"オフライン", "オフラインでも使え"),
+    "zh-Hans": (r"离线", "离线也能用"),
+}
+for locale, (word, allowed) in sorted(PROMO_OFFLINE.items()):
+    path = root / locale / "promotional_text.txt"
+    if not path.exists():
+        continue
+    rest = path.read_text(encoding="utf-8").replace(allowed, "")
+    for m in re.finditer(word, rest):
+        failures.append(f"{locale}/promotional_text.txt says {m.group(0)!r} other than as {allowed!r}: "
+                        f"the app syncs through iCloud and a server, so a bare 'offline' is not literal")
+
 # `release_notes.txt` is the notes for the version currently IN FLIGHT — `asc.py notes`
 # pushes it to whatever `editable_version()` resolves to, which is matched against the
 # project's MARKETING_VERSION. The archived `release_notes-<x.y.z>.txt` files are the
