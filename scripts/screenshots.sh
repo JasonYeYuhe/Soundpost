@@ -18,9 +18,16 @@
 # never `build/screenshots/`, which holds the set the store shows today: this script
 # empties a locale folder before capturing into it, and deletions in build/ are Jason's.
 #
+# THE DEVICE. The shared 6.9-inch `iPhone 17 Pro Max` from the global simulator table, by
+# UDID — exactly one available device of that name on the iOS 27.0 runtime — under
+# `/tmp/lock-iphone-17-pro-max`. Never created here (it used to create `Soundpost-Shots`, an
+# iPhone 11 Pro Max): booting a never-booted device costs gigabytes. Shut down at exit only
+# if this run booted it. Status bar: 9:41, full battery and bars, cleared at exit (M23 §4G).
+#
+# WHEN. After 09:30 local time: the demo library's samples sit at fixed daytime times
+# (`DemoData.seed`), and before 09:30 this morning's would move to "a minute ago".
+#
 # WHAT IT DOES NOT DO. Upload: `asc.py screenshots` sends exactly the captured names.
-# (The capture device moves to the shared 6.9-inch iPhone 17 Pro Max in M23 S6; until
-# then the old device's size does not match the constant and the run refuses.)
 #
 # Usage:
 #   scripts/screenshots.sh              # all locales, all screens
@@ -28,9 +35,12 @@
 set -euo pipefail
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-DEVICE_NAME="Soundpost-Shots"
-DEVICE_TYPE="com.apple.CoreSimulator.SimDeviceType.iPhone-11-Pro-Max"
+SHOTS_DEVICE="iPhone 17 Pro Max"
+SHOTS_RUNTIME="com.apple.CoreSimulator.SimRuntime.iOS-27-0"
+LOCK_DIR="/tmp/lock-iphone-17-pro-max"
 BUNDLE_ID="com.soundpost.Soundpost"
+# The build log, outside iCloud and outside build/ (whose files are Jason's).
+BUILD_LOG="$HOME/Library/Caches/Soundpost-build/shots-build.log"
 red()  { printf '\033[31m%s\033[0m\n' "$1" >&2; }
 ok()   { printf '\033[32m✓ %s\033[0m\n' "$1"; }
 
@@ -72,19 +82,39 @@ for locale in "${LOCALES[@]}"; do
   esac
 done
 
-# The newest available iOS runtime, rather than a pinned one that ages out.
-RUNTIME="$(xcrun simctl list runtimes --json \
-  | python3 -c 'import json,sys; rs=[r for r in json.load(sys.stdin)["runtimes"] if r["isAvailable"] and "iOS" in r["name"]]; print(sorted(rs, key=lambda r: r["version"])[-1]["identifier"])')"
-
-UDID="$(xcrun simctl list devices --json \
-  | python3 -c "import json,sys; d=json.load(sys.stdin)['devices']; print(next((x['udid'] for rs in d.values() for x in rs if x['name']=='$DEVICE_NAME'), ''))")"
-if [ -z "$UDID" ]; then
-  UDID="$(xcrun simctl create "$DEVICE_NAME" "$DEVICE_TYPE" "$RUNTIME")"
-  printf '  created %s (%s)\n' "$DEVICE_NAME" "$UDID"
+if [ "$(date +%H%M)" -lt 0930 ]; then
+  red "it is before 09:30: the demo library's morning samples would not be at their fixed times yet"
+  exit 1
 fi
 
-xcrun simctl bootstatus "$UDID" -b >/dev/null 2>&1 || xcrun simctl boot "$UDID" >/dev/null 2>&1 || true
-xcrun simctl bootstatus "$UDID" -b >/dev/null 2>&1 || true
+# Exactly one match, by exact name AND runtime, or nothing (the global simulator rules).
+UDID="$(xcrun simctl list devices available --json | python3 -c "
+import json, sys
+found = [x['udid'] for x in json.load(sys.stdin)['devices'].get('$SHOTS_RUNTIME', []) if x['name'] == '$SHOTS_DEVICE']
+print(found[0] if len(found) == 1 else '')")"
+[ -n "$UDID" ] || { red "need exactly one available '$SHOTS_DEVICE' on $SHOTS_RUNTIME; found none, or several"; exit 1; }
+
+mkdir "$LOCK_DIR" 2>/dev/null || { red "$LOCK_DIR is taken: another run is using $SHOTS_DEVICE"; exit 1; }
+was_booted=0
+build_locked=0
+cleanup() {
+  xcrun simctl status_bar "$UDID" clear >/dev/null 2>&1 || true
+  [ "$was_booted" = 1 ] || xcrun simctl shutdown "$UDID" >/dev/null 2>&1 || true
+  [ "$build_locked" = 0 ] || build_lock_release "$DD.lock"
+  rmdir "$LOCK_DIR" 2>/dev/null || true
+}
+trap cleanup EXIT
+if pgrep -f "xcodebuild.*$UDID" >/dev/null; then red "an xcodebuild run is using $SHOTS_DEVICE"; exit 1; fi
+
+if xcrun simctl list devices --json | python3 -c "
+import json, sys
+sys.exit(0 if any(x['udid'] == '$UDID' and x['state'] == 'Booted'
+                  for rs in json.load(sys.stdin)['devices'].values() for x in rs) else 1)"; then
+  was_booted=1
+fi
+xcrun simctl bootstatus "$UDID" -b >/dev/null 2>&1 || { red "$SHOTS_DEVICE did not boot"; exit 1; }
+xcrun simctl status_bar "$UDID" override --time 9:41 --batteryState charged --batteryLevel 100 \
+  --wifiBars 3 --cellularBars 4
 
 # **Derived data OUTSIDE the repo.** This project lives in an iCloud-synced folder,
 # and iCloud writes extended attributes onto everything under it. Building into
@@ -100,7 +130,7 @@ source "$PROJECT_DIR/scripts/lib/build_cache.sh"
 # otherwise share its build.db, and one's wipe-and-retry would delete the other's root. Held
 # until exit, since the app is installed from $DD.
 build_lock_take "$DD.lock" "screenshots.sh in $PROJECT_DIR" || exit 1
-trap 'build_lock_release "$DD.lock"' EXIT
+build_locked=1
 local_build_args "$PROJECT_DIR" -derivedDataPath "$DD" || exit 1
 
 # macOS periodically empties $TMPDIR, and it does not do so atomically — it can leave
@@ -115,7 +145,7 @@ build_once() {
   xcodebuild build -project "$PROJECT_DIR/Soundpost.xcodeproj" -scheme Soundpost \
     -destination "platform=iOS Simulator,id=$UDID" \
     -derivedDataPath "$DD" ${LOCAL_BUILD_ARGS[@]+"${LOCAL_BUILD_ARGS[@]}"} \
-    > "$PROJECT_DIR/build/shots-build.log" 2>&1
+    > "$BUILD_LOG" 2>&1
 }
 
 printf '  building…\n'
@@ -123,7 +153,7 @@ if ! build_once; then
   printf '  build failed; wiping derived data and retrying once…\n'
   rm -rf "$DD"
   local_build_retry_args "$PROJECT_DIR"
-  build_once || { red "build failed twice — see build/shots-build.log"; exit 1; }
+  build_once || { red "build failed twice — see $BUILD_LOG"; exit 1; }
 fi
 APP="$DD/Build/Products/Debug-iphonesimulator/Soundpost.app"
 [ -d "$APP" ] || { red "no app bundle at $APP"; exit 1; }

@@ -283,6 +283,45 @@ class ScreenshotFileTests(unittest.TestCase):
 
 
 
+class ScreenshotScriptTests(unittest.TestCase):
+    """M23 §4G: screenshots.sh captures on the shared, listed 6.9-inch device — never a device
+    of its own — under that device's lock, with a fixed status bar, and writes nothing in build/."""
+
+    @classmethod
+    def setUpClass(cls):
+        with open(os.path.join(HERE, 'screenshots.sh'), encoding='utf-8') as f:
+            text = f.read()
+        # The code, not the header comment that explains the history.
+        cls.code = text.split('set -euo pipefail', 1)[1]
+
+    def test_the_listed_device_by_exact_name_and_runtime_and_never_a_new_one(self):
+        self.assertIn('SHOTS_DEVICE="iPhone 17 Pro Max"', self.code)
+        self.assertIn('SHOTS_RUNTIME="com.apple.CoreSimulator.SimRuntime.iOS-27-0"', self.code)
+        self.assertIn('len(found) == 1', self.code, 'two devices of that name must not be guessed between')
+        self.assertNotIn('simctl create', self.code)
+        self.assertNotIn('Soundpost-Shots', self.code)
+
+    def test_the_device_lock_is_taken_and_released(self):
+        self.assertIn('LOCK_DIR="/tmp/lock-iphone-17-pro-max"', self.code)
+        self.assertIn('mkdir "$LOCK_DIR" 2>/dev/null ||', self.code)
+        self.assertIn('rmdir "$LOCK_DIR"', self.code)
+        self.assertIn('trap cleanup EXIT', self.code)
+
+    def test_only_a_device_this_run_booted_is_shut_down(self):
+        self.assertIn('[ "$was_booted" = 1 ] || xcrun simctl shutdown "$UDID"', self.code)
+        self.assertNotRegex(self.code, r'(?m)^\s*xcrun simctl shutdown')
+
+    def test_the_status_bar_is_fixed_and_cleared(self):
+        self.assertIn('status_bar "$UDID" override --time 9:41', self.code)
+        self.assertIn('status_bar "$UDID" clear', self.code)
+
+    def test_nothing_is_written_into_build(self):
+        self.assertNotIn('$PROJECT_DIR/build', self.code)
+        self.assertIn('BUILD_LOG="$HOME/Library/Caches/Soundpost-build/', self.code)
+
+    def test_it_refuses_to_photograph_before_the_demo_mornings(self):
+        self.assertIn('if [ "$(date +%H%M)" -lt 0930 ]; then', self.code)
+
 class StalePlacementTests(unittest.TestCase):
     NEW, OLD = asc_policy.SCREENSHOT_PLACEMENT_GROUP, 'IPHONE_FACE_ID_LARGE_PROFILE'
 

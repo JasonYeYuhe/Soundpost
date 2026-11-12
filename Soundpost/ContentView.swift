@@ -140,6 +140,10 @@ struct ContentView: View {
                 showingCapture = true
             case "settings":
                 showingSettings = true
+            case "doors":
+                // Settings, which scrolls its "Ways to start a capsule" section to the
+                // top for this one (M23 §4G).
+                showingSettings = true
             default:
                 Diagnostics.notice("Unknown -screenshotScreen; showing the gallery")
             }

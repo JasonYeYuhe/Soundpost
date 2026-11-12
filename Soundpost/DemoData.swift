@@ -58,7 +58,8 @@ enum DemoData {
         SoundAnalysisPreferences.hasStanding = true
     }
 
-    static func seed(into context: ModelContext) {
+    /// - Parameter now: the moment the library is seeded at; tests pass a fixed one.
+    static func seed(into context: ModelContext, now: Date = .now) {
         // Localized so screenshots read natively in every store locale.
         //
         // `sounds` are classifier identifiers, seeded so the demo library shows what
@@ -77,22 +78,27 @@ enum DemoData {
         // between and the strip would be missing from a screenshot for reasons nobody
         // would find. The demo library has to be built by the same rule the feature
         // is.
+        //
+        // **A fixed time of day for each** (M23 §4G), not "now minus whole days": the
+        // 2026-09-16 store set was captured at 1:36 AM, so every card in it read
+        // "1:33 AM" — a library recorded at night, in a store page, because of when a
+        // script happened to run. `at` is the time each sample was "recorded" on its day.
         let samples: [(mood: Mood, note: String?, place: String?, duration: Double,
-                       daysAgo: Double, yearsAgo: Int, sounds: [String])] = [
+                       daysAgo: Int, yearsAgo: Int, at: (hour: Int, minute: Int), sounds: [String])] = [
             (.calm, String(localized: "Rain on the window this morning"), String(localized: "Home"),
-             12, 0, 0, ["rain", "raindrop"]),
+             12, 0, 0, (7, 48), ["rain", "raindrop"]),
             (.joyful, String(localized: "Kids laughing at the park"), String(localized: "Ueno Park"),
-             8, 1, 0, ["laughter", "chatter"]),
+             8, 1, 0, (16, 5), ["laughter", "chatter"]),
             (.nostalgic, String(localized: "The old train crossing bell"), nil,
-             17, 3, 0, ["train"]),
+             17, 3, 0, (18, 32), ["train"]),
             (.tender, String(localized: "Her humming in the kitchen"), String(localized: "Home"),
-             22, 6, 0, ["water_tap_faucet"]),
+             22, 6, 0, (12, 10), ["water_tap_faucet"]),
             // No note: the one card that shows what Soundpost heard.
-            (.calm, nil, String(localized: "Home"), 9, 8, 0, ["bird_chirp_tweet", "wind_rustling_leaves"]),
+            (.calm, nil, String(localized: "Home"), 9, 8, 0, (8, 55), ["bird_chirp_tweet", "wind_rustling_leaves"]),
             // **On this day, last year** (M19 §4D). No note, so the almanac card
             // shows what Soundpost heard — which is the whole point of a strip
             // called "what this day sounded like".
-            (.nostalgic, nil, String(localized: "Kamakura"), 15, 0, 1,
+            (.nostalgic, nil, String(localized: "Kamakura"), 15, 0, 1, (10, 20),
              ["sea_waves", "wind"]),
             // Three more, added for the store screenshots and honest about why: a
             // search that matches only two capsules leaves the storage footer inside
@@ -107,18 +113,25 @@ enum DemoData {
             //
             // They also carry `wind` so a search for it returns four capsules rather
             // than one, which is what makes the search screen worth photographing.
-            (.calm, nil, String(localized: "Kamakura"), 11, 2, 0,
+            (.calm, nil, String(localized: "Kamakura"), 11, 2, 0, (15, 40),
              ["wind", "sea_waves"]),
             (.melancholy, String(localized: "The wind through the pines"), String(localized: "Ueno Park"),
-             19, 4, 0, ["wind_rustling_leaves", "bird_chirp_tweet"]),
-            (.calm, nil, String(localized: "Home"), 7, 5, 0,
+             19, 4, 0, (13, 15), ["wind_rustling_leaves", "bird_chirp_tweet"]),
+            (.calm, nil, String(localized: "Home"), 7, 5, 0, (11, 5),
              ["wind", "rain"]),
         ]
+        let calendar = Calendar.current
+        /// `hour:minute` on `day` — but never after `now`, minus `margin`: seeded before
+        /// 07:48, "this morning's rain" would otherwise be a recording from the future,
+        /// a state the app cannot produce. `screenshots.sh` captures only after 09:30.
+        func at(_ hour: Int, _ minute: Int, on day: Date, margin: TimeInterval) -> Date {
+            let fixed = calendar.date(bySettingHour: hour, minute: minute, second: 0, of: day) ?? day
+            return min(fixed, now.addingTimeInterval(-margin))
+        }
         for (index, sample) in samples.enumerated() {
-            let sameDayEarlierYear = Calendar.current.date(
-                byAdding: .year, value: -sample.yearsAgo, to: .now) ?? .now
-            let capsule = Capsule(createdAt: sameDayEarlierYear
-                .addingTimeInterval(-sample.daysAgo * 86_400))
+            let sameDayEarlierYear = calendar.date(byAdding: .year, value: -sample.yearsAgo, to: now) ?? now
+            let day = calendar.date(byAdding: .day, value: -sample.daysAgo, to: sameDayEarlierYear) ?? sameDayEarlierYear
+            let capsule = Capsule(createdAt: at(sample.at.hour, sample.at.minute, on: day, margin: 120))
             capsule.audioFileName = "sample\(index).m4a"
             capsule.durationSeconds = sample.duration
             capsule.waveformSamples = (0..<56).map { i in
@@ -143,14 +156,15 @@ enum DemoData {
             try? capsule.transition(to: .captured)
             if index == 1 {
                 // One capsule with a pending echo so the bell badge shows in demos.
-                capsule.echoAt = Date(timeIntervalSinceNow: 9 * 86_400)
+                capsule.echoAt = now.addingTimeInterval(9 * 86_400)
             }
             context.insert(capsule)
         }
 
         // A sealed capsule so the locked card/detail state is visible in demos.
-        // Newest so it sorts to the top of the gallery for screenshots.
-        let sealed = Capsule(createdAt: Date(timeIntervalSinceNow: -1_800))
+        // Newest so it sorts to the top of the gallery for screenshots: 09:12, or a
+        // minute ago, whichever is earlier (the samples above stay two minutes back).
+        let sealed = Capsule(createdAt: at(9, 12, on: now, margin: 60))
         sealed.audioFileName = "sample_sealed.m4a"
         sealed.durationSeconds = 14
         sealed.waveformSamples = (0..<56).map { i in Float(0.3 + 0.5 * abs(sin(Double(i) * 0.7))) }
@@ -164,7 +178,7 @@ enum DemoData {
         ).stored
         try? sealed.transition(to: .recording)
         try? sealed.transition(to: .captured)
-        sealed.sealUntil = Date(timeIntervalSinceNow: 200 * 86_400)
+        sealed.sealUntil = now.addingTimeInterval(200 * 86_400)
         sealed.sealTimeZoneID = TimeZone.current.identifier
         try? sealed.transition(to: .sealed)
         context.insert(sealed)

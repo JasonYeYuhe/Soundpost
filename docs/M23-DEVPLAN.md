@@ -1659,7 +1659,8 @@ promotional_text_and_reads_it_back`, `PromoOfflineTests` (3, per-locale subtests
 **Standing bars.** Local `xcodebuild clean test` in place: **774 tests in 100 suites**, no
 warnings (no Swift changed). Python 178; `MIN_PY_TESTS` 168 → 178; `MIN_TESTS` stays 774.
 
-**CI** `ca933f5`: see below. **Found before the first push — `promo_targets` would have refused.**
+**CI** `ca933f5` ([run 43192718243](https://github.com/JasonYeYuhe/Soundpost/actions/runs/43192718243)):
+green — 774 tests (floor 774), Python 178, no warnings, Deno 22, `ALL PASS`. **Found before the first push — `promo_targets` would have refused.**
 Read on 2026-11-12, App Store Connect reports every version that ever shipped as `READY_FOR_SALE`
 (`appVersionState` `READY_FOR_DISTRIBUTION`): 1.1.0 … 1.11.0, twelve of them. The first
 `promo_targets` refused "more than one live version", so nothing was written. The live version is
@@ -1669,3 +1670,59 @@ refuses); against the real list it resolves to 1.11.0 (`READY_FOR_SALE`) and 1.1
 two-live-versions refusal), `test_an_unorderable_version_refuses`. Controls: the first released
 version instead of the newest, and string order instead of numeric (`'1.9.0' > '1.11.0'`) → the
 newest-released test fails. Python 178 → 179.
+
+**CI** `2bc0860` ([run 43195017565](https://github.com/JasonYeYuhe/Soundpost/actions/runs/43195017565)):
+green — Python 179, 774 tests (floor 774), no warnings, Deno 22, `ALL PASS`.
+
+**Pushed (Jason's word: the go-ahead above, for the three texts as approved).** Before: every
+localization of 1.11.0 and 1.12.0 had empty promotional text. `asc.py promo` wrote 1.11.0
+(`READY_FOR_SALE`, the live listing) and 1.12.0 (`WAITING_FOR_REVIEW`), each in en-US, ja and
+zh-Hans; all six read back identical (152 / 69 / 49 characters). 1.12.0 stayed `WAITING_FOR_REVIEW`.
+
+### S6 — the capture tooling (the witness pass itself waits)
+
+**What changed.**
+- `scripts/screenshots.sh` captures on the listed `iPhone 17 Pro Max` (iOS 27.0) by UDID —
+  exactly one available device of that name on `com.apple.CoreSimulator.SimRuntime.iOS-27-0`, or
+  it stops — under `/tmp/lock-iphone-17-pro-max`; it no longer creates `Soundpost-Shots`. It
+  refuses while an `xcodebuild` run uses the device, boots it only if needed and shuts it down at
+  exit only if this run booted it, sets the status bar (9:41, charged, 100 %, 3 Wi-Fi bars, 4
+  cellular) and clears it at exit, writes its build log to
+  `~/Library/Caches/Soundpost-build/shots-build.log` (it wrote `build/shots-build.log`), and
+  refuses before 09:30 local time.
+- `DemoData.seed(into:now:)`: each sample has a fixed daytime time on its own day (07:48 … 18:32;
+  the sealed one 09:12), never after `now` (samples at most `now − 2 min`, the sealed one
+  `now − 1 min`, so it stays newest); calendar days instead of `86_400`-second steps.
+- `-screenshotScreen doors`: `ContentView` opens Settings; `SettingsView`'s form now sits in a
+  `ScrollViewReader`, and in DEBUG only, for that launch argument, it scrolls the doors section to
+  the top after 400 ms. `doors` is **not** in `SCREENSHOT_SCREENS` yet: it joins only after the
+  capture shows, per locale, no iCloud row in frame.
+
+**Tests.** `DemoDataClockTests` (2): seeded at 23:30, every capsule is between 07:00 and 19:59 and
+not after `now`; seeded at 01:30, nothing is after `now` and the sealed capsule is newest.
+`ScreenshotScriptTests` (6 pins on the script's code, not its header).
+
+| Control | Caught by |
+|---|---|
+| `createdAt: day` (now minus days, as before) | both `DemoDataClockTests` |
+| no clamp at `now` | `nothingIsRecordedAfterTheMomentOfSeeding` |
+| sealed capsule `now − 3 min` | `nothingIsRecordedAfterTheMomentOfSeeding` |
+| the old `screenshots.sh` (HEAD) | all six `ScreenshotScriptTests` |
+| unconditional shutdown | `test_only_a_device_this_run_booted_is_shut_down` |
+| first of several devices | `test_the_listed_device_by_exact_name_and_runtime_and_never_a_new_one` |
+| build log back in `build/` | `test_nothing_is_written_into_build` |
+| no status-bar clear | `test_the_status_bar_is_fixed_and_cleared` |
+| lock never released | `test_the_device_lock_is_taken_and_released` |
+
+**Not run yet — the witness pass and the capture.** At this point the Mac had **3–7 GB free** (a
+16 GB staged macOS update in `/System/Volumes/Update`, and other sessions' builds), so neither the
+`iPhone 17 Pro Max` nor `Soundpost-iOS18` was booted, whatever H2's exception allows. And the shared
+`iPhone 17 Pro` — booted, the one device the rules let a run use under 30 GB — had a **frozen
+display**: every `simctl io screenshot`, taps, HOME and the live panel returned the same 05:30
+Home Screen frame (identical bytes) while the app ran (`launchctl` showed it) and tests passed on
+it. Repairing that means restarting a device the rules say is never shut down, so it was left as
+it was and reported. The doors staging is therefore unseen: it is DEBUG-only, `doors` is not in
+`SCREENSHOT_SCREENS`, and nothing captures it until the pass runs.
+
+**Standing bars.** Local `xcodebuild clean test` in place: **776 tests in 101 suites**, no
+warnings, localization 100%. `MIN_TESTS` 774 → 776; Python 185, `MIN_PY_TESTS` 179 → 185.

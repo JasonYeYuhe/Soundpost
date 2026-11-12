@@ -69,21 +69,27 @@ struct SettingsView: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                notificationsSection
-                listeningSection
-                dataSection
-                iCloudSection
-                // Only when Pro is owned or actually for sale (1.9.0 review, `ProOffer`).
-                // It used to show unconditionally — a Pro row, Restore Purchases and a
-                // footer about what Pro adds, for a product nobody could buy.
-                if store.offer.showsProSection {
-                    proSection
-                } else if store.offer.showsPersonalisation(hasChoicesToUndo: hasChoicesToUndo) {
-                    personalisationOnlySection
+            ScrollViewReader { proxy in
+                Form {
+                    notificationsSection
+                    listeningSection
+                    dataSection
+                    iCloudSection
+                    // Only when Pro is owned or actually for sale (1.9.0 review, `ProOffer`).
+                    // It used to show unconditionally — a Pro row, Restore Purchases and a
+                    // footer about what Pro adds, for a product nobody could buy.
+                    if store.offer.showsProSection {
+                        proSection
+                    } else if store.offer.showsPersonalisation(hasChoicesToUndo: hasChoicesToUndo) {
+                        personalisationOnlySection
+                    }
+                    doorsSection
+                        .id(Self.doorsSectionID)
+                    aboutSection
                 }
-                doorsSection
-                aboutSection
+                #if DEBUG
+                .task { await Self.stageScreenshot(proxy) }
+                #endif
             }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
@@ -355,6 +361,20 @@ struct SettingsView: View {
     /// and the Siri tip stays gone once dismissed. The phrase is the system's own, drawn
     /// from the shipped App Shortcut; the intent is constructed for the tip, never
     /// performed here. The footer is the qualifier every other door carries.
+    private static let doorsSectionID = "settings.doors"
+
+    #if DEBUG
+    /// `-screenshotScreen doors` (M23 §4G): the section scrolled to the top, so the iCloud
+    /// row above it is out of frame — a capture simulator has no iCloud account, and that
+    /// row would say capsules live only on this device, contradicting the listing. The
+    /// row is not changed; it is simply not in the photograph, or there is no doors shot.
+    private static func stageScreenshot(_ proxy: ScrollViewProxy) async {
+        guard AppEnvironment.screenshotScreen == "doors" else { return }
+        try? await Task.sleep(for: .milliseconds(400))
+        proxy.scrollTo(doorsSectionID, anchor: .top)
+    }
+    #endif
+
     private var doorsSection: some View {
         Section {
             if showsSiriTip {
