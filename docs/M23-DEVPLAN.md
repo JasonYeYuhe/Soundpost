@@ -1878,3 +1878,13 @@ Meanwhile, nothing that S7's precondition guards:
   a rejected 1.12.0 would still get its own notes from `asc.py notes`. Checked by hand against the store
   gate's blocked terms and the zh-Hans full-width rule (the gate reads `release_notes-<version>.txt`
   only for the project's version, so it takes these over at S7's bump).
+
+**CI** `eb1336e` ([run 43272862463](https://github.com/JasonYeYuhe/Soundpost/actions/runs/43272862463)):
+green — 778 tests (floor 778), Python 188, no warnings, Deno 22, `ALL PASS`; pinned 27B52 = runner.
+
+**`.git/index 3…13` — in the Trash (2026-11-14, Jason's word of 11-12).** The refusal (513) was not
+the screen lock: it persisted with the console unlocked, and a fresh file in `.git/` or `build/`
+trashed fine. It was the NAME — the same eleven copies renamed (`icloud-copy-index-<n>-<mtime>`)
+trashed at once, so the Trash already holds items called `index 3` … `index 13`. Only `.git/index`
+remains; `git status` clean, `git fsck` clean. 1.12.0 is still `WAITING_FOR_REVIEW` (submitted 11-10
+09:29 UTC).
