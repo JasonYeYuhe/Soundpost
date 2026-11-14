@@ -1888,3 +1888,15 @@ trashed fine. It was the NAME — the same eleven copies renamed (`icloud-copy-i
 trashed at once, so the Trash already holds items called `index 3` … `index 13`. Only `.git/index`
 remains; `git status` clean, `git fsck` clean. 1.12.0 is still `WAITING_FOR_REVIEW` (submitted 11-10
 09:29 UTC).
+
+**CI** `4266330` ([run 43473774897](https://github.com/JasonYeYuhe/Soundpost/actions/runs/43473774897)):
+green — 778 tests (floor 778), Python 188, no warnings, Deno 22, `ALL PASS`.
+
+**2026-11-14, 14:30 — still waiting; the Accessibility Inspector check not done.** 1.12.0 still
+`WAITING_FOR_REVIEW`. The Mac had restarted on 11-13 00:22 (macOS 27.2.1 — the staged update), so every
+simulator was shut down; the shared `iPhone 17 Pro` was booted again (listed device, 39 GB free). With the
+console unlocked, S4.3's one remaining witness was attempted: Soundpost reinstalled, the small widget
+added, and background access to Accessibility Inspector and Device Hub requested (Xcode 27 ships no
+`Simulator.app`; Device Hub shows the simulator). The request came back denied, so it was not repeated:
+the widget's single VoiceOver element stays covered by `everyFaceReadsAsOneNewCapsule` only, and the
+1.13.0 notes keep no VoiceOver line. The widget was removed again from the shared device's Home Screen.
