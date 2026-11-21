@@ -391,6 +391,13 @@ class CheckSubmittableTests(unittest.TestCase):
                                             'ja': {'APP_IPHONE_67': 4}, 'zh-Hans': {'APP_IPHONE_67': 4}})
         self.assertEqual(problems, ['en-US still has a stale APP_IPHONE_65 set (4 image(s))'])
 
+    def test_an_emptied_set_of_another_type_is_not_stale(self):
+        # What `screenshots-prune` leaves: the legacy set view of the removed group, 0 images.
+        emptied = {l: {'APP_IPHONE_67': 4, 'APP_IPHONE_65': 0} for l in ('en-US', 'ja', 'zh-Hans')}
+        self.assertEqual(self.good(display_types=emptied), [])
+        one_left = dict(emptied, ja={'APP_IPHONE_67': 4, 'APP_IPHONE_65': 1})
+        self.assertEqual(self.good(display_types=one_left), ['ja still has a stale APP_IPHONE_65 set (1 image(s))'])
+
     def test_a_locale_without_the_new_type_is_reported(self):
         problems = self.good(display_types={'en-US': {'APP_IPHONE_65': 4},
                                             'ja': {'APP_IPHONE_67': 4}, 'zh-Hans': {'APP_IPHONE_67': 4}})

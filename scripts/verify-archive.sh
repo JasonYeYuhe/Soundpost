@@ -170,10 +170,12 @@ else:
             fail(f"{label} records no DTXcodeBuild")
         elif built != want_build:
             fail(f"{label} was built by Xcode {built}, but releases are pinned to {want_build} (scripts/release-toolchain.env)")
-        platform, version = sdk_parts(sdk)
+        # Not `version`: that name holds the app's (version, build), which the summary below
+        # prints — 1.13.0's run printed "Soundpost.app 27 (2)", the SDK's numbers (M23 S7).
+        platform, sdk_version = sdk_parts(sdk)
         if sdk is None:
             fail(f"{label} records no DTSDKName")
-        elif platform != min_platform or version < min_version:
+        elif platform != min_platform or sdk_version < min_version:
             fail(f"{label} was built against {sdk}, below the minimum {min_sdk}")
 
 # 4. The app's own dSYM, by name — the extension's must not stand in for it.

@@ -393,8 +393,13 @@ def submittable_problems(version, build, whats_new, display_types, age_gaps,
         types = display_types.get(locale, {})
         if not types.get(expected_type):
             problems.append(f'{locale} has no {expected_type} screenshots')
+        # An EMPTY set of another type is not stale: it shows nothing on the store, and it is
+        # what `screenshots-prune` leaves behind — the legacy set view outlives its last
+        # placement (1.13.0, 2026-11-21: three empty APP_IPHONE_65 sets, 0 images each), and
+        # neither the API (asc.py sends no screenshot DELETE) nor the web UI removes an empty
+        # size. Only a set that still holds images would reach the listing.
         for t, count in sorted(types.items()):
-            if t != expected_type and t.startswith('APP_IPHONE'):
+            if t != expected_type and t.startswith('APP_IPHONE') and count:
                 problems.append(f'{locale} still has a stale {t} set ({count} image(s))')
     for name in age_gaps:
         problems.append(f'age rating: {name} is unanswered on the editable app info')

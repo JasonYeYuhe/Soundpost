@@ -525,6 +525,11 @@ class ArchiveTests(unittest.TestCase):
         r = self.verify(self.archive(widget_weak="IntentExecutionTargetsProbe"))
         self.assertEqual(r.returncode, 0, r.stderr)
 
+    def test_the_summary_names_the_apps_version_not_the_sdks(self):
+        r = self.verify(self.archive(widget_weak="ControlWidgetProbe"))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("1.12.0 (24)", r.stdout)
+
     def test_faults_are_each_refused(self):
         cases = {
             "a different extension version": (dict(widget_version=("1.0", "1")), "but the app is 1.12.0 (24)"),

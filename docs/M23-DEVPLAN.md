@@ -1926,3 +1926,44 @@ locale (drafted 11-13). Keywords, literal terms only, as drafted in §4H: ja + `
 (96). Store gate and localization gate pass.
 Standing bars at this commit: local `xcodebuild clean test` in place (app uninstalled first) **778 tests in
 102 suites**, no warnings; Python 188; i18n 100%.
+
+**CI** `ee6bce1` ([run 44855632865](https://github.com/JasonYeYuhe/Soundpost/actions/runs/44855632865)):
+green — 778 tests (floor 778), Python 188, no warnings, Deno 22, `ALL PASS`; pinned 27B52 = runner.
+
+**Upload** (`build-upload-asc.sh`, no override): CloudKit schema check, preflight all ✔ (1.13.0 (25),
+Xcode 27B52, no copies, codesign probe, clean at `ee6bce1`, build 25 new, Sentry token), Sentry token
+accepted (HTTP 200); archive `~/Library/Developer/Xcode/Archives/2026-11-21/Soundpost 1.13.0 (25).xcarchive`
+— app and widget extension both 1.13.0 (25), `DTXcodeBuild` 27B52; `verify-archive` passed; dSYMs
+`--required` to Sentry (app `f726ba6a…`, extension `620093ac…`); upload succeeded 11:41; tag
+`v1.13.0-b25` pushed. Build 25 `VALID` at 11:49. The exportArchive "no dSYM for Sentry.framework"
+warning is the known stub-framework one (memory: test-run gotchas).
+
+**App Store Connect** (each read back):
+- `create-version 1.13.0` → `PREPARE_FOR_SUBMISSION`, `MANUAL` (`dc7bab98…`).
+- `notes`, `keywords`: What's New and keywords equal the files in all three locales; the inherited
+  descriptions equal `description.txt` (Lock Screen kept). `promo`: 1.12.0 and 1.13.0, six values identical.
+- `screenshots`: the 6.9-inch set as `APP_IPHONE_67`, 4 per locale, in order. The version had inherited
+  1.12.0's four `IPHONE_FACE_ID_LARGE_PROFILE` placements per locale next to the new four
+  `IPHONE_DYNAMIC_ISLAND_LARGE_PROFILE` (as §4B.7(b) predicted). `screenshots-prune` dry run: 4 per
+  locale; `--apply` removed those 12 placements. Read back: 1.13.0 holds only the new group (4 per
+  locale); **1.12.0's placements unchanged** (same 12 ids before and after).
+- `attach 25` → attached.
+
+**`check-submittable` — two findings.**
+1. **Empty legacy sets read as stale.** After the prune, the deprecated `appScreenshotSets` view still
+   lists an `APP_IPHONE_65` set per locale with **0** screenshots (read through `appScreenshots`), and
+   the rule flagged any other iPhone type whatever its count. An empty set shows nothing, asc.py sends
+   no screenshot DELETE, and the web UI cannot delete an empty size, so H5 has nothing to do. Fixed:
+   only a set holding images is stale. Test `test_an_emptied_set_of_another_type_is_not_stale` (control:
+   drop `and count` → fails).
+2. **Two new age-rating questions, unanswered**: `datingAndRelationships` and `sharedLocation` are null
+   on BOTH app infos (live and editable) — added by Apple after 1.12.0's submission (absent from S1's
+   read of the declaration). Apple's age-rating reference (summarised): dating = features that connect
+   real people for dating or relationships, or a companion engaging in romantic/sexual content;
+   shared location = sharing real-world location with another person or group. These are Jason's
+   declarations, so they wait for him; nothing submitted.
+
+**Also fixed — `verify-archive.sh`'s summary printed the SDK's numbers** ("Soundpost.app 27 (2)"): the
+SDK loop reused the name `version`. The version comparison runs before that loop, so the check itself
+was sound. Renamed; test `test_the_summary_names_the_apps_version_not_the_sdks` (control: the old name
+→ fails). Python 188 → 190; `MIN_PY_TESTS` 190.
