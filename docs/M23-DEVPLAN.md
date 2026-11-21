@@ -1900,3 +1900,29 @@ added, and background access to Accessibility Inspector and Device Hub requested
 `Simulator.app`; Device Hub shows the simulator). The request came back denied, so it was not repeated:
 the widget's single VoiceOver element stays covered by `everyFaceReadsAsOneNewCapsule` only, and the
 1.13.0 notes keep no VoiceOver line. The widget was removed again from the shared device's Home Screen.
+
+**CI** `6e1f2e4` ([run 43562682731](https://github.com/JasonYeYuhe/Soundpost/actions/runs/43562682731)):
+green — 778 tests (floor 778), Python 188, no warnings, Deno 22, `ALL PASS`.
+
+### H1 — 1.12.0 released (2026-11-21, 11:20 JST)
+
+Found `PENDING_DEVELOPER_RELEASE` on 11-21 (review submission `3b403d1a…` `COMPLETE`), build 24
+(`48630533…`, `VALID`), the project still at 1.12.0 (24). Jason's word: the day-one list's H1 under his
+「全部同意」, the reading stated back to him on 11-12 ("once approved and checked, I release; say if you
+would rather do it yourself") and not objected to, 「直接全部执行」, and 「ok」 on 11-21. `asc.py release`
+→ `RELEASED v1.12.0`; read back `READY_FOR_SALE` at once.
+
+### S7 — 1.13.0 (25)
+
+**Preconditions.** 1.12.0 released (above); S1–S6 done; the Lock Screen answered (witnessed in S6, so
+the description keeps it); §4B.7's answers recorded (S1); local Xcode 27.2 (27B52) =
+`release-toolchain.env`. Signing probed: `login.keychain-db` `no-timeout`, a scratch binary signed
+with the distribution identity and verified (console unlocked).
+
+**Copy.** `MARKETING_VERSION` 1.13.0 and `CURRENT_PROJECT_VERSION` 25 (the two project-level
+configurations; no target sets either). `release_notes.txt` = `release_notes-1.13.0.txt` in each
+locale (drafted 11-13). Keywords, literal terms only, as drafted in §4H: ja + `録音,音声日記,自然音,
+雨音,声の記録` (72 characters), zh-Hans + `录音,时光胶囊,自然声音,雨声,声音收藏,留声` (69); en-US unchanged
+(96). Store gate and localization gate pass.
+Standing bars at this commit: local `xcodebuild clean test` in place (app uninstalled first) **778 tests in
+102 suites**, no warnings; Python 188; i18n 100%.
