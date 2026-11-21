@@ -1967,3 +1967,18 @@ warning is the known stub-framework one (memory: test-run gotchas).
 SDK loop reused the name `version`. The version comparison runs before that loop, so the check itself
 was sound. Renamed; test `test_the_summary_names_the_apps_version_not_the_sdks` (control: the old name
 → fails). Python 188 → 190; `MIN_PY_TESTS` 190.
+
+**CI** `302acc5` ([run 44858289320](https://github.com/JasonYeYuhe/Soundpost/actions/runs/44858289320)):
+green — 778 tests (floor 778), Python 190 (floor 190), no warnings, Deno 22, `ALL PASS`.
+
+**Age rating answered, 1.13.0 submitted (2026-11-21).** Jason: 「按建议填，然后提交」 — both new questions
+"no". Checked against the code before writing: the app connects no people (no accounts, messaging or
+social features), so dating is no. Location is a when-in-use, one-shot fix reverse-geocoded to a place
+name stamped on the user's own capsule; it leaves the device only on the share card of a capsule export,
+which is Pro-only and unreachable while Pro is hidden. Nothing lets a person share where they are with
+another person or group, so shared location is no. Set on the EDITABLE app info's declaration only
+(`PREPARE_FOR_SUBMISSION`; the live one is left as is and is replaced when 1.13.0 is released). Read
+back: exactly those two attributes changed, null → false; `age_rating_gaps` empty. `check-submittable`:
+submittable, zero problems. `submit`: new review submission (the slot was clear, no draft to reuse),
+1.13.0 added, submitted 13:54:57 UTC. Read back: version and submission `WAITING_FOR_REVIEW`,
+`MANUAL`; 1.12.0 still `READY_FOR_SALE`. **Stopped there:** releasing 1.13.0 takes Jason's separate word.
