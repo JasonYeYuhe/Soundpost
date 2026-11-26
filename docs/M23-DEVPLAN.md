@@ -1982,3 +1982,15 @@ back: exactly those two attributes changed, null → false; `age_rating_gaps` em
 submittable, zero problems. `submit`: new review submission (the slot was clear, no draft to reuse),
 1.13.0 added, submitted 13:54:57 UTC. Read back: version and submission `WAITING_FOR_REVIEW`,
 `MANUAL`; 1.12.0 still `READY_FOR_SALE`. **Stopped there:** releasing 1.13.0 takes Jason's separate word.
+
+**CI** `ca38ffa` ([run 44911266886](https://github.com/JasonYeYuhe/Soundpost/actions/runs/44911266886)):
+green (docs only).
+
+**1.13.0 released (2026-11-26).** Approved by App Review: read `PENDING_DEVELOPER_RELEASE` on 11-26, the
+submission `COMPLETE`. Jason's 「ok」 that day was not taken as the release word (it answered a message
+sent before the approval); asked, he replied 「发布」. `asc.py release` 15:36:33 UTC; read back at 15:36:39:
+1.13.0 `READY_FOR_SALE`. One app info remains, `READY_FOR_DISTRIBUTION` — the one answered on 11-21, so
+the live declaration now carries `datingAndRelationships` and `sharedLocation` = false. The public
+lookup (us / jp / cn) still showed 1.12.0 minutes later, as usual while the store propagates. H6 is
+over: Xcode may update now that 1.13.0 is uploaded and released. Still open in M23: S0 and the S5.2
+deploy behind it, H3, H4.
