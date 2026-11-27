@@ -1,11 +1,22 @@
 import Foundation
 import AVFoundation
 import Observation
+import UIKit
 
 /// Foreground audio capture for a capsule: mono AAC/m4a at ~64 kbps
 /// (docs/PROJECT.md §1e.4/§1e.6). No background mode — recording is finalized if
 /// the app leaves the foreground or is interrupted, so a clip is never silently
 /// lost or left half-open.
+///
+/// **Until 1.13.1 the first half of that sentence was not true** (M23 H4). Nothing
+/// observed the app leaving the foreground. iOS suspends an app without the audio
+/// background mode, deactivates its session, and tells it so only when it runs
+/// again; by then `AVAudioRecorder.currentTime` reads 0 on the stopped recorder,
+/// so the take was deleted as "too short", or the delegate left the screen frozen
+/// on a take that `stop()` would no longer return. Three changes close it:
+/// `didEnterBackground` finishes the take *synchronously* while the recorder still
+/// runs; `stop()` never reports less than the metered elapsed time; and a recorder
+/// that stops on its own finishes the take instead of stranding it.
 @MainActor
 @Observable
 final class AudioRecorder: NSObject {
@@ -23,9 +34,9 @@ final class AudioRecorder: NSObject {
     private(set) var currentFileName: String?
 
     /// Called on the main actor when recording finalizes on its own — max
-    /// duration reached, an interruption, or the input route disappearing —
-    /// *not* on an explicit `stop()`. Lets the owner move to review so a clip is
-    /// never silently lost.
+    /// duration reached, the app leaving the foreground, an interruption, the input
+    /// route disappearing, or the recorder stopping by itself — *not* on an explicit
+    /// `stop()`. Lets the owner move to review so a clip is never silently lost.
     @ObservationIgnored var onAutoFinish: ((_ fileName: String, _ duration: TimeInterval) -> Void)?
 
     /// How many recent level samples to retain for the live waveform.
@@ -47,17 +58,24 @@ final class AudioRecorder: NSObject {
     /// `nonisolated(unsafe)`: only mutated on the main actor (init), and `deinit`
     /// has exclusive access when it reads them, so there is no race.
     @ObservationIgnored private nonisolated(unsafe) var observerTokens: [NSObjectProtocol] = []
+    /// Where the observers are registered. `.default` in the app — it is where UIKit
+    /// and `AVAudioSession` post. A test passes its own, so a lifecycle notification
+    /// it posts reaches this recorder and nothing else in the test host.
+    private let center: NotificationCenter
 
-    init(store: AudioStore = AudioStore(), maxDuration: TimeInterval = 60) {
+    init(store: AudioStore = AudioStore(), maxDuration: TimeInterval = 60,
+         center: NotificationCenter = .default) {
         self.store = store
         self.maxDuration = maxDuration
+        self.center = center
         super.init()
+        registerForBackgrounding()
         registerForInterruptions()
         registerForRouteChanges()
     }
 
     deinit {
-        observerTokens.forEach { NotificationCenter.default.removeObserver($0) }
+        observerTokens.forEach { center.removeObserver($0) }
     }
 
     /// Ask for microphone permission (iOS 17+ API).
@@ -103,9 +121,13 @@ final class AudioRecorder: NSObject {
     /// Stop and keep the recording. Returns the saved filename + duration.
     @discardableResult
     func stop() -> (fileName: String, duration: TimeInterval)? {
-        guard let recorder, state == .recording, let fileName = currentFileName else { return nil }
-        let finalDuration = recorder.currentTime
-        recorder.stop()
+        guard state == .recording, let fileName = currentFileName else { return nil }
+        // `currentTime` "is 0 when you call it on a stopped audio recorder" (Apple),
+        // and the system stops the recorder of an app it suspends or interrupts. The
+        // metered elapsed time is the floor, so a take the person watched run for
+        // twelve seconds is never reported as nothing and deleted as too short.
+        let finalDuration = max(recorder?.currentTime ?? 0, duration)
+        recorder?.stop()
         finishSession()
         duration = finalDuration
         state = .finished
@@ -166,10 +188,33 @@ final class AudioRecorder: NSObject {
         try? AVAudioSession.sharedInstance().setActive(false, options: [.notifyOthersOnDeactivation])
     }
 
-    // MARK: Interruptions & route changes
+    // MARK: Leaving the foreground, interruptions & route changes
+
+    private func registerForBackgrounding() {
+        let token = center.addObserver(
+            forName: UIApplication.didEnterBackgroundNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            // Synchronously — never a `Task` hop. Once this notification's observers
+            // return, iOS may suspend the app at any moment and stop its recorder; a
+            // hop can land after that, against a recorder that reads 0 s.
+            MainActor.assumeIsolated { self?.handleEnteredBackground() }
+        }
+        observerTokens.append(token)
+    }
+
+    /// The app went to the background mid-take: the Home Screen, the side button, the
+    /// App Switcher, a widget on another screen. There is no background recording, so
+    /// the take ends here — while the recorder is still running and its file can be
+    /// closed properly — and the person comes back to it waiting in review.
+    private func handleEnteredBackground() {
+        guard state == .recording else { return }
+        finishAutomatically()
+    }
 
     private func registerForInterruptions() {
-        let token = NotificationCenter.default.addObserver(
+        let token = center.addObserver(
             forName: AVAudioSession.interruptionNotification,
             object: nil,
             queue: .main
@@ -180,7 +225,7 @@ final class AudioRecorder: NSObject {
     }
 
     private func registerForRouteChanges() {
-        let token = NotificationCenter.default.addObserver(
+        let token = center.addObserver(
             forName: AVAudioSession.routeChangeNotification,
             object: nil,
             queue: .main
@@ -231,8 +276,13 @@ extension AudioRecorder {
     /// prove is that the discard path *reaches* `cancel()`, and that `cancel()`
     /// closes the session rather than merely flipping a flag. Both are properties of
     /// the state machine, and neither needs a microphone.
-    func beginRecordingForTesting(fileName: String) {
+    ///
+    /// `elapsed` stands in for what metering has shown so far. With no
+    /// `AVAudioRecorder` behind the seam, `stop()` sees what it sees after the system
+    /// has stopped one: no `currentTime` worth reading (1.13.1).
+    func beginRecordingForTesting(fileName: String, elapsed: TimeInterval = 0) {
         currentFileName = fileName
+        duration = elapsed
         state = .recording
         startMetering()
     }
@@ -246,9 +296,16 @@ extension AudioRecorder {
 #endif
 
 extension AudioRecorder: AVAudioRecorderDelegate {
+    /// By the time this hop runs, a `stop()` or `cancel()` that asked for the finish
+    /// has already moved `state` off `.recording`. So a take still `.recording` here
+    /// was ended by the system, and it is finished like any other automatic stop.
+    ///
+    /// Before 1.13.1 this only closed the session and left `state` at `.recording`:
+    /// the screen stayed on a frozen take, and `stop()` — which then guarded on the
+    /// recorder it had just dropped — returned nothing, stranding the clip on disk.
     nonisolated func audioRecorderDidFinishRecording(_ recorder: AVAudioRecorder, successfully flag: Bool) {
         Task { @MainActor in
-            if self.state == .recording { self.finishSession() }
+            if self.state == .recording { self.finishAutomatically() }
         }
     }
 }

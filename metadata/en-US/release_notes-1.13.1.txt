@@ -1,0 +1,1 @@
+• If you left Soundpost in the middle of a recording — going to the Home Screen, locking the screen or switching to another app — the recording could be lost. Now the recording stops when you leave, and it is waiting for you to save when you come back.

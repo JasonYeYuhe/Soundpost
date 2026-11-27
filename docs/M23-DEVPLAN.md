@@ -2028,3 +2028,73 @@ and the earlier witnesses before it is listed here.
   here — waits on Jason (a 1.13.1).
 - **Minor, confirmed:** `start()` activates the session (`:79`) before `record()` can fail (`:92`) and
   does not deactivate it on that throw.
+
+**CI** `1976ece` ([run 45850930809](https://github.com/JasonYeYuhe/Soundpost/actions/runs/45850930809)) and
+`09f88ff` ([run 45931697203](https://github.com/JasonYeYuhe/Soundpost/actions/runs/45931697203)): green (docs only).
+
+### 1.13.1 (26) — leaving the app mid-take keeps the take
+
+Jason (2026-11-28): 「修吧，出 1.13.1」 — fix H4's confirmed finding and ship it as 1.13.1. Releasing it
+after approval is still his separate word.
+
+**The fix** (`AudioRecorder.swift`; the type's doc comment now says what changed and why):
+1. **`UIApplication.didEnterBackgroundNotification` ends the take, synchronously.** The observer runs
+   on `.main` and calls the handler through `MainActor.assumeIsolated`, never a `Task` hop: once the
+   notification's observers return, iOS may suspend the app at any moment and stop its recorder, and a
+   hop can land after that. The take is stopped while the recorder still runs, so its file is closed
+   properly and `onAutoFinish` moves the capture sheet to review. Home Screen, side button, App
+   Switcher and a widget on another screen all reach the app as this one notification.
+   `willResignActive` is deliberately not used: Control Center, the notification shade and an incoming
+   call banner resign active without leaving, and a take should survive them.
+2. **`stop()` never reports less than the metered time.** `max(recorder?.currentTime ?? 0, duration)`.
+   If the system has already stopped the recorder, `currentTime` reads 0 and the take used to be deleted
+   as too short. `stop()` no longer requires the `AVAudioRecorder` to still be held; `state` and the file
+   name decide.
+3. **A recorder that stops on its own finishes the take.** The delegate's main-actor hop used to call
+   `finishSession()` and leave `state == .recording` (a frozen screen, then a Stop that returned nil and
+   stranded the clip). It now calls `finishAutomatically()`. A `stop()` or `cancel()` that asked for the
+   finish has already moved `state` off `.recording` by the time the hop runs, so only a system stop gets
+   there.
+
+The recorder takes its `NotificationCenter` as a parameter (`.default` in the app; `CaptureViewModel`
+passes one through), so a test's lifecycle post reaches its own recorder and nothing else in the test
+host. `deinit` removes the observers from that same center. The seam `beginRecordingForTesting` gains
+`elapsed:` (the metered time so far). **Not changed:** `start()` still leaves the session active when
+`record()` throws (the minor H4 finding). It is rare and outside the fix Jason approved.
+
+**Tests** — `LeavingTheAppMidTakeTests` (in `RecordingSafetyTests.swift`), four, each seen to fail under
+a mutation (the file snapshotted with `cp`, restored and compared after each):
+- `leavingTheAppMidTakeLeavesItWaitingInReview`: posting `didEnterBackground` mid-take leaves the view
+  model in review with the clip, its 12 s and no error; the session is closed and the file kept. It
+  asserts with no `await` after the post. Fails with the observer not registered (M1) and with a `Task`
+  hop instead of `assumeIsolated` (M2).
+- `stopNeverReportsLessThanTheTimeTheTakeWasSeenToRun`: fails without the floor (M3), as do the first
+  and third tests.
+- `aRecorderTheSystemStoppedHandsItsTakeToReview`: the delegate callback with the take still
+  `.recording` ends in review. Fails with the old `finishSession()` body (M4).
+- `leavingTheAppWithNoTakeInFlightFinishesNothing`: nothing is finished when idle, and a take the person
+  already stopped is not finished a second time. Dropping either state guard alone (`stop()`'s, M5, or
+  the handler's) passes, because the other still holds; dropping both (M6) fails.
+
+**Witness (iPhone 17 Pro simulator, iOS 27.0, Debug build of this tree, mic granted):**
+1. New capsule → record. The take was seen running at 0:07 with a live waveform.
+2. Pressed HOME and waited 5 s. Then `simctl launch` brought back the same process; pid 39173 was the
+   same before and after, so the app had not relaunched.
+3. The sheet was in review with a 0:10 take. Its waveform is extracted from the saved file, and the
+   classifier labeled it "music", so the file was closed and readable.
+4. The take was discarded, and the app was uninstalled before the full test run.
+
+What this proves is the wiring: the real notification reaches the observer in this scene-based SwiftUI
+app. The simulator never suspends a backgrounded app, so the old code here would have gone on recording
+(not re-run). The phone-only failure is not reproduced. The fix acts at `didEnterBackground`, before
+any suspension, so it does not depend on what a phone does after that point.
+
+**Version and notes.** `MARKETING_VERSION` 1.13.1, `CURRENT_PROJECT_VERSION` 26 (project level, both
+configurations). `release_notes-1.13.1.txt` = `release_notes.txt` in en-US, ja and zh-Hans. They say a
+recording left mid-way "could be lost" and now waits to be saved; they make no claim beyond that.
+Store-metadata and localization gates pass.
+
+**Standing bars at this commit.**
+- Local `xcodebuild clean test` in place, with the app uninstalled first: **782 tests in 103 suites**.
+- No warnings. i18n 100% across 363 strings. 93 sound labels. Python 190.
+- `MIN_TESTS` 778 → 782.

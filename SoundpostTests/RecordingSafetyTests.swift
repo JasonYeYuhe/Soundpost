@@ -1,6 +1,8 @@
 import Testing
 import Foundation
 import SwiftData
+import AVFoundation
+import UIKit
 @testable import Soundpost
 
 /// M17 §S0 — a recording in progress must survive the ways it used to be destroyed.
@@ -121,6 +123,130 @@ struct RecordingSafetyTests {
         viewModel.setReviewStateForTesting(fileName: "saved.m4a", duration: 3, waveform: [0.4])
         _ = try viewModel.save(using: store)
         #expect(!viewModel.hasUnsavedTake)
+    }
+}
+
+/// 1.13.1 (M23 H4) — leaving the app mid-take must leave the take waiting in review.
+///
+/// Before 1.13.1 nothing observed the app leaving the foreground. iOS suspends an app
+/// without the audio background mode and stops its recorder; the app hears about it
+/// only when it runs again, and by then `currentTime` reads 0 on the stopped recorder.
+/// The take was either deleted as "too short" or left on a frozen recording screen
+/// whose Stop returned nothing. Found by reading the code, not on a phone; the
+/// simulator never suspends a backgrounded app, so no simulator run could show it.
+///
+/// Every recorder here gets its own `NotificationCenter`, so the lifecycle
+/// notification a test posts reaches that recorder and nothing else in the test host.
+@MainActor
+struct LeavingTheAppMidTakeTests {
+
+    private func makeStore() throws -> (AudioStore, URL) {
+        let dir = FileManager.default.temporaryDirectory
+            .appending(path: "SoundpostLeavingMidTake-\(UUID().uuidString)", directoryHint: .isDirectory)
+        let store = AudioStore(directory: dir)
+        try store.ensureDirectory()
+        return (store, dir)
+    }
+
+    private func plantClip(in store: AudioStore) throws -> String {
+        let name = store.newFileName()
+        try Data([0, 1, 2]).write(to: store.url(for: name))
+        return name
+    }
+
+    /// **Asserted with no `await` between the post and the checks.** Once the
+    /// notification's observers return, iOS may suspend the app at any moment, so a
+    /// finish that hops to a later turn of the main actor can arrive too late. This
+    /// test fails for such a hop as surely as for no observer at all.
+    @Test func leavingTheAppMidTakeLeavesItWaitingInReview() throws {
+        let (audioStore, dir) = try makeStore()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let name = try plantClip(in: audioStore)
+        let center = NotificationCenter()
+        let viewModel = CaptureViewModel(audioStore: audioStore, notificationCenter: center)
+        viewModel.beginRecordingForTesting(fileName: name, elapsed: 12)
+
+        center.post(name: UIApplication.didEnterBackgroundNotification, object: nil)
+
+        #expect(viewModel.phase == .review)
+        #expect(viewModel.fileName == name)
+        #expect(viewModel.duration == 12)
+        #expect(viewModel.errorMessage == nil)
+        #expect(viewModel.recorder.state == .finished)
+        // `finishSession()` is the only place the meter dies and the session closes.
+        #expect(!viewModel.recorder.isMeteringForTesting)
+        #expect(audioStore.fileExists(name))
+    }
+
+    /// The seam has no `AVAudioRecorder` behind it, which is exactly what `stop()`
+    /// meets after the system has stopped the real one: nothing worth reading in
+    /// `currentTime`. The metered time is what the person saw, and it is the floor.
+    @Test func stopNeverReportsLessThanTheTimeTheTakeWasSeenToRun() throws {
+        let (audioStore, dir) = try makeStore()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let name = try plantClip(in: audioStore)
+        let recorder = AudioRecorder(store: audioStore, center: NotificationCenter())
+        recorder.beginRecordingForTesting(fileName: name, elapsed: 12)
+
+        let result = recorder.stop()
+
+        #expect(result?.fileName == name)
+        #expect(result?.duration == 12)
+        #expect(recorder.duration == 12)
+        #expect(recorder.state == .finished)
+    }
+
+    /// A recorder that stops without being asked — the system ended it — finishes the
+    /// take like any other automatic stop. It used to close the session and leave the
+    /// take `.recording`: a frozen screen over a clip nothing could reach again.
+    @Test(.timeLimit(.minutes(1)))
+    func aRecorderTheSystemStoppedHandsItsTakeToReview() async throws {
+        let (audioStore, dir) = try makeStore()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let name = try plantClip(in: audioStore)
+        let viewModel = CaptureViewModel(audioStore: audioStore, notificationCenter: NotificationCenter())
+        viewModel.beginRecordingForTesting(fileName: name, elapsed: 8)
+        // Only the delegate call's argument; it is never asked to record.
+        let stopped = try AVAudioRecorder(
+            url: dir.appending(path: "delegate-argument.m4a"),
+            settings: [AVFormatIDKey: kAudioFormatMPEG4AAC, AVSampleRateKey: 44_100.0, AVNumberOfChannelsKey: 1])
+
+        viewModel.recorder.audioRecorderDidFinishRecording(stopped, successfully: true)
+        // The delegate hops to the main actor; let the hop run. The ceiling is
+        // generous because other suites share the main actor.
+        for _ in 0..<1_000 where viewModel.phase == .recording {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+
+        #expect(viewModel.phase == .review)
+        #expect(viewModel.fileName == name)
+        #expect(viewModel.duration == 8)
+        #expect(viewModel.recorder.state == .finished)
+        #expect(!viewModel.recorder.isMeteringForTesting)
+        #expect(audioStore.fileExists(name))
+    }
+
+    /// Leaving the app with nothing in flight finishes nothing — and above all does
+    /// not finish a take a second time once the person has stopped it and is in review.
+    @Test func leavingTheAppWithNoTakeInFlightFinishesNothing() throws {
+        let (audioStore, dir) = try makeStore()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let name = try plantClip(in: audioStore)
+        let center = NotificationCenter()
+        let recorder = AudioRecorder(store: audioStore, center: center)
+        var finished: [String] = []
+        recorder.onAutoFinish = { fileName, _ in finished.append(fileName) }
+
+        center.post(name: UIApplication.didEnterBackgroundNotification, object: nil)
+        #expect(recorder.state == .idle)
+
+        recorder.beginRecordingForTesting(fileName: name, elapsed: 3)
+        _ = recorder.stop()   // the person stopped it themself
+        center.post(name: UIApplication.didEnterBackgroundNotification, object: nil)
+
+        #expect(finished.isEmpty)
+        #expect(recorder.state == .finished)
+        #expect(audioStore.fileExists(name))
     }
 }
 

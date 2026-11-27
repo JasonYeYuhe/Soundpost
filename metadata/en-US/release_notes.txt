@@ -1,2 +1,1 @@
-• Settings has a new section, "Ways to start a capsule": the phrase to say to Siri, a link to Soundpost's shortcuts, and where to add the "New capsule" widget and control. Each one opens Soundpost ready to record; nothing records until you tap the record button.
-• About now has "Share Soundpost" and "Rate Soundpost".
+• If you left Soundpost in the middle of a recording — going to the Home Screen, locking the screen or switching to another app — the recording could be lost. Now the recording stops when you leave, and it is waiting for you to save when you come back.

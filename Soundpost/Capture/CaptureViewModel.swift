@@ -105,15 +105,18 @@ final class CaptureViewModel {
     init(audioStore: AudioStore = AudioStore(),
          maxDuration: TimeInterval = 60,
          minDuration: TimeInterval = 1,
-         waveformBuckets: Int = 56) {
+         waveformBuckets: Int = 56,
+         notificationCenter: NotificationCenter = .default) {
         self.audioStore = audioStore
-        self.recorder = AudioRecorder(store: audioStore, maxDuration: maxDuration)
+        self.recorder = AudioRecorder(store: audioStore, maxDuration: maxDuration,
+                                      center: notificationCenter)
         self.player = AudioPlayer(store: audioStore)
         self.location = LocationProvider()
         self.waveformBuckets = waveformBuckets
         self.minDuration = minDuration
-        // When the recorder finalizes on its own (max duration, interruption, or
-        // audio-route loss), move to review so the clip is never silently lost.
+        // When the recorder finalizes on its own (max duration, the app leaving the
+        // foreground, an interruption, audio-route loss, or the recorder stopping by
+        // itself), move to review so the clip is never silently lost.
         self.recorder.onAutoFinish = { [weak self] fileName, duration in
             self?.handleFinishedRecording(fileName: fileName, duration: duration)
         }
@@ -414,8 +417,8 @@ extension CaptureViewModel {
     /// recorder that believes it is running — so the discard path can be exercised
     /// without a microphone (M17 §4E). See `AudioRecorder.beginRecordingForTesting`
     /// for why a real recording is the wrong thing to put in a unit test.
-    func beginRecordingForTesting(fileName: String) {
-        recorder.beginRecordingForTesting(fileName: fileName)
+    func beginRecordingForTesting(fileName: String, elapsed: TimeInterval = 0) {
+        recorder.beginRecordingForTesting(fileName: fileName, elapsed: elapsed)
         phase = .recording
     }
 
