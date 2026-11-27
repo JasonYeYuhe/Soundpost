@@ -2098,3 +2098,31 @@ Store-metadata and localization gates pass.
 - Local `xcodebuild clean test` in place, with the app uninstalled first: **782 tests in 103 suites**.
 - No warnings. i18n 100% across 363 strings. 93 sound labels. Python 190.
 - `MIN_TESTS` 778 → 782.
+
+**CI** `363cbba` ([run 46032529784](https://github.com/JasonYeYuhe/Soundpost/actions/runs/46032529784)):
+green — 782 tests in 103 suites (floor 782), Python 190 (floor 190), no warnings, Deno 22, `ALL PASS`.
+
+**Upload** (`build-upload-asc.sh`, no allowances).
+- Checks before the archive: the CloudKit schema check passed. The preflight was all ✔: 1.13.1 (26),
+  Xcode 27B52 as pinned, no iCloud copies, codesign probe (console unlocked, `no-timeout`), clean at
+  `363cbba`, build 26 new (newest 25). The Sentry token was accepted (HTTP 200).
+- Archive: `~/Library/Developer/Xcode/Archives/2026-11-28/Soundpost 1.13.1 (26).xcarchive`. The app and
+  the widget extension are both 1.13.1 (26), `DTXcodeBuild` 27B52, and the archive check passed.
+- dSYMs went to Sentry with `--required`: app `739ff249…`, extension `620093ac…`. The extension's UUID is
+  the same as 1.13.0's, which fits: its code did not change.
+- Upload succeeded 01:41 JST. The exportArchive "no dSYM for Sentry.framework" warning is the known
+  stub-framework one. Tag `v1.13.1-b26` pushed. Build 26 read `VALID` at 01:43.
+
+**App Store Connect** (each read back):
+- `create-version 1.13.1` → `PREPARE_FOR_SUBMISSION`, `MANUAL` (`07db5400…`).
+- `notes`: What's New equals `release_notes.txt` in all three locales. Keywords, description and
+  promotional text were inherited from 1.13.0; each equals its file and 1.13.0's value in every locale.
+  `promo` was not run, since it also writes to the live version.
+- `attach 26`.
+- `check-submittable`: submittable with zero problems. That means `MANUAL`, a `VALID` build with
+  export compliance, What's New everywhere, only `APP_IPHONE_67` screenshots (inherited), and every
+  age-rating question answered.
+- `submit` at 16:44:32 UTC (2026-11-28 01:44 JST): a new review submission `cb5e6dab…` (the slot was
+  clear). Read back: 1.13.1 and the submission are `WAITING_FOR_REVIEW`; 1.13.0 is still `READY_FOR_SALE`.
+
+**Stopped there.** Releasing 1.13.1 after approval takes Jason's separate word.
