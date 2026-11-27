@@ -1994,3 +1994,37 @@ the live declaration now carries `datingAndRelationships` and `sharedLocation` =
 lookup (us / jp / cn) still showed 1.12.0 minutes later, as usual while the store propagates. H6 is
 over: Xcode may update now that 1.13.0 is uploaded and released. Still open in M23: S0 and the S5.2
 deploy behind it, H3, H4.
+
+**H4 — replaced by a code review (2026-11-27).** Jason: 「跳过测试 直接检查代码 你也让gemini 4 hydrogen跑一遍」 —
+no phone pass; the agent read the code for each H4 item, and Gemini 4 Hydrogen (XHigh, `agy`, given a
+read-only copy of the widget, intent, capture, recorder and Settings sources plus the store claims, and
+asked neutral questions) reviewed it independently. Each of its findings was checked against the code
+and the earlier witnesses before it is listed here.
+- **Lock Screen faces, Lock Screen control slot, Action Button, Siri — the code holds.** Every door ends
+  in `CaptureRequests.request()` / `CaptureDoor.open` → `drainCaptureRequest` → capture idle; nothing
+  starts a recording but the record button. The unlock prompt on a passcode phone is iOS's, before any
+  app code runs. Siri's three phrases all carry `\(.applicationName)`.
+- **StandBy and tinted Home Screen — the code holds.** `containerBackground(.fill.tertiary, for: .widget)`
+  on every face, the glyph `.widgetAccentable()`, the text in the default primary style, no opaque
+  background to turn into a block.
+- **Refuted** (Gemini, missing files or contradicted by witnesses): "no `CFBundleURLTypes`, so the widget
+  URL never arrives" — M22 S3 (iOS 27) and the iOS 18.5 pass saw it arrive cold and warm with no scheme;
+  "a request waits forever behind a capsule's own sheet" — that case is `.declined` and consumed
+  (`CaptureLaunch.swift:38`); "the control may run in the extension on iOS 18" — cold and warm control
+  taps were witnessed on iOS 18.5 and 27.
+- **Confirmed — leaving the app mid-take does not end the take into review; it most likely loses it.**
+  S6's expectation above ("`AudioRecorder.handleInterruption` finalizes into review") was reasoning, and
+  it is wrong. Nothing observes the app leaving the foreground (`ContentView.swift:152` stops gallery
+  playback only). Apple: when iOS suspends an app it deactivates the audio session, and the app is told
+  only "the next time the app runs … necessarily delayed" (`InterruptionReason.appWasSuspended`); and
+  `AVAudioRecorder.currentTime` "is 0 when you call it on a stopped audio recorder". So on return —
+  through the interruption handler or the person's own Stop — `AudioRecorder.stop()` (`:107`) can read
+  0, `handleFinishedRecording` calls it too short, deletes the file and says "That recording was too
+  short." Second path: if AVFoundation reports the recording finished while `state == .recording`, the
+  delegate (`:249-252`) closes the session but leaves the screen recording with a frozen timer; Stop then
+  returns nil, the screen goes idle, and the `.m4a` stays on disk with no row naming it. The same holds
+  for the side button pressed mid-take. Which branch a phone takes is device-only; none of them is the
+  documented one (`AudioRecorder.swift:6-8`: "finalized if the app leaves the foreground"). Not fixed
+  here — waits on Jason (a 1.13.1).
+- **Minor, confirmed:** `start()` activates the session (`:79`) before `record()` can fail (`:92`) and
+  does not deactivate it on that throw.
