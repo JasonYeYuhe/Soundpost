@@ -62,12 +62,37 @@ final class AudioRecorder: NSObject {
     /// and `AVAudioSession` post. A test passes its own, so a lifecycle notification
     /// it posts reaches this recorder and nothing else in the test host.
     private let center: NotificationCenter
+    private let backend: Backend
+
+    /// What `start()` and `finishSession()` ask of AVFoundation. The app only ever
+    /// uses `.live`. A test passes its own, so a start can fail on cue and the test
+    /// can see whether the shared audio session was closed again (after 1.13.1).
+    struct Backend {
+        var activateSession: () throws -> Void
+        var deactivateSession: () -> Void
+        var makeRecorder: (_ url: URL, _ settings: [String: Any]) throws -> AVAudioRecorder
+
+        static var live: Backend {
+            Backend(
+                activateSession: {
+                    let session = AVAudioSession.sharedInstance()
+                    try session.setCategory(.playAndRecord, mode: .default, options: [.allowBluetoothHFP])
+                    try session.setActive(true)
+                },
+                deactivateSession: {
+                    try? AVAudioSession.sharedInstance().setActive(false, options: [.notifyOthersOnDeactivation])
+                },
+                makeRecorder: { url, settings in try AVAudioRecorder(url: url, settings: settings) }
+            )
+        }
+    }
 
     init(store: AudioStore = AudioStore(), maxDuration: TimeInterval = 60,
-         center: NotificationCenter = .default) {
+         center: NotificationCenter = .default, backend: Backend = .live) {
         self.store = store
         self.maxDuration = maxDuration
         self.center = center
+        self.backend = backend
         super.init()
         registerForBackgrounding()
         registerForInterruptions()
@@ -91,10 +116,7 @@ final class AudioRecorder: NSObject {
         guard state != .recording else { return }
         guard Self.permission != .denied else { throw RecorderError.permissionDenied }
         try store.ensureDirectory()
-
-        let session = AVAudioSession.sharedInstance()
-        try session.setCategory(.playAndRecord, mode: .default, options: [.allowBluetoothHFP])
-        try session.setActive(true)
+        try backend.activateSession()
 
         let fileName = store.newFileName()
         let settings: [String: Any] = [
@@ -104,10 +126,23 @@ final class AudioRecorder: NSObject {
             AVEncoderAudioQualityKey: AVAudioQuality.medium.rawValue,
             AVEncoderBitRateKey: 64_000,
         ]
-        let recorder = try AVAudioRecorder(url: store.url(for: fileName), settings: settings)
-        recorder.delegate = self
-        recorder.isMeteringEnabled = true
-        guard recorder.record() else { throw RecorderError.couldNotStart }
+        // The session is active from here, so every way out of `start()` either leaves
+        // a take recording or closes the session again. Until this was fixed (after
+        // 1.13.1), a recorder that could not be made or would not record threw from
+        // here with the session still active: audio another app had been playing was
+        // never told it could resume, and a file the recorder had already created
+        // stayed on disk with no capsule to name it (an orphan, M17 §4E).
+        let recorder: AVAudioRecorder
+        do {
+            recorder = try backend.makeRecorder(store.url(for: fileName), settings)
+            recorder.delegate = self
+            recorder.isMeteringEnabled = true
+            guard recorder.record() else { throw RecorderError.couldNotStart }
+        } catch {
+            try? store.delete(fileName)
+            backend.deactivateSession()
+            throw error
+        }
 
         self.recorder = recorder
         currentFileName = fileName
@@ -185,7 +220,7 @@ final class AudioRecorder: NSObject {
         meterTimer = nil
         recorder = nil
         level = 0
-        try? AVAudioSession.sharedInstance().setActive(false, options: [.notifyOthersOnDeactivation])
+        backend.deactivateSession()
     }
 
     // MARK: Leaving the foreground, interruptions & route changes

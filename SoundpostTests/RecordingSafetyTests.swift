@@ -250,6 +250,133 @@ struct LeavingTheAppMidTakeTests {
     }
 }
 
+/// After 1.13.1 — a start that fails closes the audio session it opened.
+///
+/// `start()` makes the shared session active before it makes the recorder, so any
+/// failure past that point used to throw with the session still open: audio another
+/// app had been playing was never told it could resume, and a file the recorder had
+/// already created stayed in the audio directory with no capsule to name it — the
+/// orphan `AudioOrphanAuditTests` counts. The backend stands in for AVFoundation, so
+/// nothing here touches the real session or the microphone.
+@MainActor
+struct AStartThatFailsClosesTheSessionTests {
+
+    private final class SessionLog {
+        var activated = 0
+        var deactivated = 0
+    }
+
+    private struct NoRecorder: Error, Equatable {}
+
+    private func makeStore() throws -> (AudioStore, URL) {
+        let dir = FileManager.default.temporaryDirectory
+            .appending(path: "SoundpostStartFails-\(UUID().uuidString)", directoryHint: .isDirectory)
+        let store = AudioStore(directory: dir)
+        try store.ensureDirectory()
+        return (store, dir)
+    }
+
+    private func backend(
+        _ log: SessionLog,
+        makeRecorder: @escaping (URL, [String: Any]) throws -> AVAudioRecorder
+    ) -> AudioRecorder.Backend {
+        AudioRecorder.Backend(
+            activateSession: { log.activated += 1 },
+            deactivateSession: { log.deactivated += 1 },
+            makeRecorder: makeRecorder)
+    }
+
+    /// `start()` refuses before it opens anything when the microphone is denied, so
+    /// these tests can say nothing on a simulator that has denied it.
+    private func requireMicrophoneNotDenied() throws {
+        try #require(AudioRecorder.permission != .denied,
+                     "the test host has been denied the microphone; start() stops before the session")
+    }
+
+    /// A recorder that cannot be made — no room for its file, say — closes the session
+    /// that was opened for it, and the caller sees the error that stopped it.
+    @Test func aRecorderThatCannotBeMadeLeavesTheSessionClosed() throws {
+        try requireMicrophoneNotDenied()
+        let (audioStore, dir) = try makeStore()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let log = SessionLog()
+        let recorder = AudioRecorder(store: audioStore, center: NotificationCenter(),
+                                     backend: backend(log) { _, _ in throw NoRecorder() })
+
+        #expect(throws: NoRecorder()) { try recorder.start() }
+
+        #expect(log.activated == 1)
+        #expect(log.deactivated == 1)
+        #expect(recorder.state == .idle)
+        #expect(recorder.currentFileName == nil)
+        #expect(!recorder.isMeteringForTesting)
+    }
+
+    /// A recorder that is made but will not record — the input taken by a call — has
+    /// usually created its file already. The file goes, and so does the session.
+    @Test func aRecorderThatWillNotRecordLeavesNoFileAndTheSessionClosed() throws {
+        try requireMicrophoneNotDenied()
+        let (audioStore, dir) = try makeStore()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let log = SessionLog()
+        var made: URL?
+        let recorder = AudioRecorder(store: audioStore, center: NotificationCenter(),
+                                     backend: backend(log) { url, settings in
+            made = url
+            try Data([0, 1, 2]).write(to: url)   // what preparing to record leaves behind
+            return try RefusingRecorder(url: url, settings: settings)
+        })
+
+        #expect(throws: AudioRecorder.RecorderError.couldNotStart) { try recorder.start() }
+
+        let url = try #require(made)
+        #expect(!FileManager.default.fileExists(atPath: url.path))
+        #expect(try FileManager.default.contentsOfDirectory(atPath: dir.path).isEmpty)
+        #expect(log.activated == 1)
+        #expect(log.deactivated == 1)
+        #expect(recorder.state == .idle)
+        #expect(!recorder.isMeteringForTesting)
+    }
+
+    /// The other side of the line: a start that works keeps its session open until the
+    /// take ends. A fix that closed the session on every way out of `start()` would
+    /// pass both tests above and cut every take off as it began.
+    @Test func aStartThatWorksKeepsTheSessionOpenUntilTheTakeEnds() throws {
+        try requireMicrophoneNotDenied()
+        let (audioStore, dir) = try makeStore()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let log = SessionLog()
+        let recorder = AudioRecorder(store: audioStore, center: NotificationCenter(),
+                                     backend: backend(log) { url, settings in
+            try PretendingRecorder(url: url, settings: settings)
+        })
+
+        try recorder.start()
+
+        #expect(recorder.state == .recording)
+        #expect(recorder.currentFileName != nil)
+        #expect(log.activated == 1)
+        #expect(log.deactivated == 0)
+
+        _ = recorder.stop()
+
+        #expect(recorder.state == .finished)
+        #expect(log.deactivated == 1)
+        #expect(!recorder.isMeteringForTesting)
+    }
+}
+
+/// Made, but refuses to record: what `record()` returning `false` looks like.
+/// (`@unchecked Sendable` only restates AVAudioRecorder's own; neither subclass adds state.)
+private final class RefusingRecorder: AVAudioRecorder, @unchecked Sendable {
+    override func record() -> Bool { false }
+}
+
+/// Says it is recording without ever touching the microphone.
+private final class PretendingRecorder: AVAudioRecorder, @unchecked Sendable {
+    override func record() -> Bool { true }
+}
+
 /// M17 §4E — the leak is *counted*, never swept.
 ///
 /// The audit deliberately starts from the directory and asks the capsule rows about

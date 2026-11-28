@@ -2126,3 +2126,49 @@ green — 782 tests in 103 suites (floor 782), Python 190 (floor 190), no warnin
   clear). Read back: 1.13.1 and the submission are `WAITING_FOR_REVIEW`; 1.13.0 is still `READY_FOR_SALE`.
 
 **Stopped there.** Releasing 1.13.1 after approval takes Jason's separate word.
+
+**CI** `bdce397` ([run 46036194087](https://github.com/JasonYeYuhe/Soundpost/actions/runs/46036194087)):
+green on both jobs (docs only).
+
+### After 1.13.1 — a start that fails closes the session it opened (master; not in build 26)
+
+Jason: 「顺便把开始录音失败那个小问题也修了」. The minor finding of the H4 review, left out of 1.13.1.
+
+**The defect.** `AudioRecorder.start()` made the shared audio session active, then made the
+recorder and asked it to record. If the recorder could not be made (for example, no room for its
+file) or `record()` returned `false` (for example, the input taken by a call), `start()` threw with
+the session still active. The capture screen showed "Couldn't start recording", but audio another
+app had been playing was never told it could resume, and a file the recorder had already created
+stayed in the audio directory with no capsule to name it (an orphan by M17 §4E).
+
+**The fix.** Every way out of `start()` after activation either leaves a take recording, or deletes
+that take's file and deactivates the session, then rethrows the original error. The three
+AVFoundation calls (activate, deactivate, make the recorder) now go through `AudioRecorder.Backend`.
+The app only uses `.live`, which makes exactly the calls the code made before; `finishSession()`
+deactivates through it too.
+
+**Tests** (`AStartThatFailsClosesTheSessionTests`, 3; no real session, no microphone):
+- a recorder that cannot be made: the caller gets its error; the session is activated once and
+  deactivated once; the recorder stays idle with no file name and no meter;
+- a recorder that is made but refuses to record (an `AVAudioRecorder` subclass whose `record()`
+  returns `false`, after a file was written at its URL): `couldNotStart`, the file is gone, the
+  directory is empty, and the session is deactivated once;
+- a start that works (a subclass whose `record()` returns `true` without recording): the session
+  stays open while recording and is deactivated once by `stop()`.
+
+**Mutations** (each from a `cp` snapshot, restored and compared afterwards):
+
+| | mutation | result |
+|---|---|---|
+| M1 | no deactivation on failure | both failure tests fail |
+| M2 | no file deletion on failure | the refusing-recorder test fails |
+| M3 | close the session on every exit (`defer`) instead | the working-start test fails |
+| M4 | `finishSession()` bypasses the backend | the working-start test fails |
+
+**Not shipped.** 1.13.1 (26), in review, does not contain this. The version stays 1.13.1 (26) here.
+The next version carries it.
+
+**Standing bars at this commit.**
+- Local `xcodebuild clean test` in place, with the app uninstalled first: **785 tests in 104 suites**.
+- No warnings. i18n 100% across 363 strings. 93 sound labels.
+- `MIN_TESTS` 782 → 785.
